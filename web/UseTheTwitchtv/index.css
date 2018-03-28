@@ -1,0 +1,12 @@
+.textContainer { 
+    height: 60px; 
+    line-height: 60px;
+}
+
+.textContainer p {
+    vertical-align: middle;
+    display: inline-block;
+}
+
+
+
