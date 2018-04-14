@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title></title>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+  </head>
+  <body style="font-family: 'Roboto', sans-serif;">
+      <div class="container">
+          <div class="row" style="height: 100vh;">
+              <div class="col-12 text-center align-self-center">
+                  <span id="day" style="font-size: 44px;">365</span>D<span id="hms" style="font-size: 30px">00:00:00</span>S
+                  <p><span id="mmm" style="font-size: 20px;">000</span>m</p>  
+              </div>
+          </div>
+      </div>
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="./moment.js"></script>
+    <script type="text/javascript">
+        
+       $(document).ready(function () {
+            window.requestAnimationFrame(draw);
+       });
+
+       function draw() {
+        var date = new Date(2019,02,21);
+        var current = new Date();
+        var ms = date - current;
+        var diff = new moment.duration(ms);
+        var day = parseInt(diff.asDays());
+        var hours = parseInt(parseInt(diff.asHours()) -  day * 24);
+        var min = parseInt(parseInt(diff.asMinutes()) - parseInt(diff.asHours()) * 60);
+        var sec =  parseInt(parseInt(diff.asSeconds()) - parseInt(diff.asMinutes()) * 60);
+        var mms = diff.asMilliseconds() - parseInt(diff.asSeconds()) * 1000;
+        var dayString = "" + day;
+        var hmsString = "" + hours + ":" + min + ":" + sec;
+        var mmsString = "" + parseInt(mms/100);
+        $("#day").text(dayString);
+        $("#hms").text(hmsString);
+        $("#mmm").text(mmsString)
+        window.requestAnimationFrame(draw);
+       }
+    </script>
+  </body>
+</html>
