@@ -42,6 +42,15 @@
         var sec =  parseInt(parseInt(diff.asSeconds()) - parseInt(diff.asMinutes()) * 60);
         var mms = diff.asMilliseconds() - parseInt(diff.asSeconds()) * 1000;
         var dayString = "" + day;
+         if (hours < 10) {
+          hours = "0" + hours;
+         }
+         if (min < 10) {
+           min = "0" + min;
+         }
+         if (sec < 10) {
+           sec = "0" + sec;
+         }
         var hmsString = "" + hours + ":" + min + ":" + sec;
         var mmsString = "" + parseInt(mms/100);
         $("#day").text(dayString);
