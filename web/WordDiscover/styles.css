@@ -209,11 +209,18 @@ body {
 }
 
 /* Highlighted Words */
+.word-span {
+    cursor: pointer;
+}
+
+.word-span:not(.highlighted-word):hover {
+    border-bottom: 1px dotted #333;
+}
+
 .highlighted-word {
     background: rgba(255, 235, 59, 0.7);
     padding: 2px 4px;
     border-radius: 4px;
-    cursor: pointer;
     transition: all 0.2s ease;
     position: relative;
 }

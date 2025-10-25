@@ -148,7 +148,7 @@ export class UIController {
         analyzedTextDiv.innerHTML = processedText;
         
         // Add event listeners to highlighted words
-        analyzedTextDiv.querySelectorAll('.highlighted-word').forEach(element => {
+        analyzedTextDiv.querySelectorAll('.word-span').forEach(element => {
             element.addEventListener('mouseenter', (e) => onWordHover(e));
             element.addEventListener('mouseleave', () => this.hideTooltip());
             element.addEventListener('click', (e) => onWordClick(e.target.dataset.word, e.target.dataset.translation));

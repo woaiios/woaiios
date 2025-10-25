@@ -129,30 +129,28 @@ export class TextAnalyzer {
      * @returns {string} Processed HTML text
      */
     processTextForDisplay(originalText, analysis) {
-        let processedText = originalText;
-        
-        // Create a map of highlighted words for quick lookup
-        const highlightedMap = {};
-        analysis.highlightedWords.forEach(item => {
-            highlightedMap[item.word] = item;
-        });
-        
-        // Replace words with highlighted versions
-        const words = this.extractWords(originalText);
-        const uniqueWords = [...new Set(words)];
-        
-        uniqueWords.forEach(word => {
-            if (highlightedMap[word]) {
-                const regex = new RegExp(`\\b${word}\\b`, 'gi');
-                processedText = processedText.replace(regex, 
-                    `<span class="highlighted-word ${highlightedMap[word].difficulty.className}" 
-                     data-word="${word}" 
-                     data-translation="${highlightedMap[word].translation}">${word}</span>`
-                );
+        const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word, item]));
+
+        // Split the text by word boundaries, keeping the delimiters.
+        const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
+
+        return parts.map(part => {
+            const lowerCasePart = part.toLowerCase();
+            // Check if the part is a word and not just a delimiter.
+            if (!/\b[a-zA-Z-]+\b/.test(lowerCasePart)) {
+                return part; // Return delimiters as is.
             }
-        });
-        
-        return processedText;
+
+            const highlightedInfo = highlightedMap.get(lowerCasePart);
+            const translation = this.getTranslation(lowerCasePart);
+            let classes = 'word-span';
+
+            if (highlightedInfo) {
+                classes += ` highlighted-word ${highlightedInfo.difficulty.className}`;
+            }
+
+            return `<span class="${classes}" data-word="${part}" data-translation="${translation}">${part}</span>`;
+        }).join('');
     }
 
     /**
