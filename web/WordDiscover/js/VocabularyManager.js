@@ -10,6 +10,7 @@ export class VocabularyManager {
         this.googleDriveManager = new GoogleDriveManager();
         this.syncEnabled = false;
         this.lastSyncTime = null;
+        this.isSyncing = false;
     }
 
     /**
@@ -200,7 +201,7 @@ export class VocabularyManager {
         localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(Array.from(this.vocabulary.entries())));
         
         // Auto-sync to Google Drive if enabled
-        if (this.syncEnabled) {
+        if (this.syncEnabled && !this.isSyncing) {
             this.syncToGoogleDrive();
         }
     }
@@ -270,11 +271,12 @@ export class VocabularyManager {
      * @returns {Promise<boolean>} Success status
      */
     async syncToGoogleDrive() {
-        try {
-            if (!this.syncEnabled || !this.googleDriveManager.isSignedIn) {
-                return false;
-            }
+        if (!this.syncEnabled || !this.googleDriveManager.isSignedIn || this.isSyncing) {
+            return false;
+        }
 
+        this.isSyncing = true;
+        try {
             const vocabularyData = this.exportVocabulary();
             const syncResult = await this.googleDriveManager.syncVocabulary(vocabularyData);
             
@@ -300,6 +302,8 @@ export class VocabularyManager {
         } catch (error) {
             console.error('Error syncing to Google Drive:', error);
             return false;
+        } finally {
+            this.isSyncing = false;
         }
     }
 
