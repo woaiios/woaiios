@@ -135,7 +135,16 @@
                         Clear All
                     </button>
                 </div>
-                <div class="vocab-list" id="vocabList"></div>
+                <div class="vocab-tabs">
+                    <button class="vocab-tab active" data-tab="learning">Learning (<span id="learning-count">0</span>)</button>
+                    <button class="vocab-tab" data-tab="mastered">Mastered (<span id="mastered-count">0</span>)</button>
+                </div>
+                <div id="learning-list-container" class="vocab-tab-content active">
+                    <div class="vocab-list" id="learning-list"></div>
+                </div>
+                <div id="mastered-list-container" class="vocab-tab-content">
+                    <div class="vocab-list" id="mastered-list"></div>
+                </div>
             </div>
         </div>
     </div>

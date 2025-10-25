@@ -352,6 +352,46 @@ body {
     background: #f9fafb;
 }
 
+.vocab-tabs {
+    display: flex;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 1rem;
+}
+
+.vocab-tab {
+    padding: 0.75rem 1.25rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6b7280;
+    position: relative;
+    transition: color 0.2s ease;
+}
+
+.vocab-tab.active {
+    color: #3b82f6;
+}
+
+.vocab-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: #3b82f6;
+}
+
+.vocab-tab-content {
+    display: none;
+}
+
+.vocab-tab-content.active {
+    display: block;
+}
+
 .vocab-word {
     font-weight: 600;
     color: #374151;

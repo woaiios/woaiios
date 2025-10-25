@@ -1,12 +1,15 @@
 /**
  * VocabularyManager Module
- * Handles vocabulary management and persistence
+ * Handles vocabulary management and persistence with separate lists for learning and mastered words.
  */
 import { GoogleDriveManager } from './GoogleDriveManager.js';
 
 export class VocabularyManager {
     constructor() {
-        this.vocabulary = this.loadVocabulary();
+        const { learningWords, masteredWords } = this.loadVocabulary();
+        this.learningWords = learningWords;
+        this.masteredWords = masteredWords;
+        
         this.googleDriveManager = new GoogleDriveManager();
         this.syncEnabled = false;
         this.lastSyncTime = null;
@@ -14,110 +17,165 @@ export class VocabularyManager {
     }
 
     /**
-     * Add word to vocabulary
-     * @param {string} word - Word to add
-     * @param {string} translation - Translation of the word
-     * @returns {boolean} Success status
+     * Add a new word to the learning list.
+     * @param {string} word - Word to add.
+     * @param {string} translation - Translation of the word.
+     * @returns {boolean} True if the word was added, false if it already exists.
      */
     addWord(word, translation) {
-        if (!this.vocabulary.has(word)) {
-            this.vocabulary.set(word, {
-                translation: translation,
-                addedDate: new Date().toISOString(),
-                reviewCount: 0,
-                lastReviewed: null
-            });
-            this.saveVocabulary();
-            return true;
+        if (this.isKnownWord(word)) {
+            return false;
         }
-        return false;
-    }
-
-    /**
-     * Remove word from vocabulary
-     * @param {string} word - Word to remove
-     * @returns {boolean} Success status
-     */
-    removeWord(word) {
-        if (this.vocabulary.has(word)) {
-            this.vocabulary.delete(word);
-            this.saveVocabulary();
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Check if word exists in vocabulary
-     * @param {string} word - Word to check
-     * @returns {boolean} Exists status
-     */
-    hasWord(word) {
-        return this.vocabulary.has(word);
-    }
-
-    /**
-     * Get word data from vocabulary
-     * @param {string} word - Word to get
-     * @returns {Object|null} Word data or null
-     */
-    getWordData(word) {
-        return this.vocabulary.get(word) || null;
-    }
-
-    /**
-     * Get all vocabulary entries
-     * @returns {Array} Array of [word, data] pairs
-     */
-    getAllWords() {
-        return Array.from(this.vocabulary.entries());
-    }
-
-    /**
-     * Get vocabulary size
-     * @returns {number} Number of words
-     */
-    getSize() {
-        return this.vocabulary.size;
-    }
-
-    /**
-     * Clear all vocabulary
-     * @returns {boolean} Success status
-     */
-    clearVocabulary() {
-        this.vocabulary.clear();
+        
+        this.learningWords.set(word, {
+            translation: translation,
+            addedDate: new Date().toISOString(),
+            reviewCount: 0,
+            lastReviewed: null
+        });
+        
         this.saveVocabulary();
         return true;
     }
 
     /**
-     * Get vocabulary sorted by date added (newest first)
-     * @returns {Array} Sorted vocabulary entries
+     * Move a word from the learning list to the mastered list.
+     * @param {string} word - The word to master.
+     * @returns {boolean} True if the word was moved, false otherwise.
      */
-    getSortedByDate() {
-        return Array.from(this.vocabulary.entries()).sort((a, b) => 
+    masterWord(word) {
+        if (this.learningWords.has(word)) {
+            const wordData = this.learningWords.get(word);
+            this.learningWords.delete(word);
+            this.masteredWords.set(word, wordData);
+            this.saveVocabulary();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Move a word from the mastered list back to the learning list.
+     * @param {string} word - The word to un-master.
+     * @returns {boolean} True if the word was moved, false otherwise.
+     */
+    unmasterWord(word) {
+        if (this.masteredWords.has(word)) {
+            const wordData = this.masteredWords.get(word);
+            this.masteredWords.delete(word);
+            this.learningWords.set(word, wordData);
+            this.saveVocabulary();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Remove a word from all vocabulary lists.
+     * @param {string} word - Word to remove.
+     * @returns {boolean} True if the word was removed, false if not found.
+     */
+    removeWord(word) {
+        if (this.learningWords.has(word)) {
+            this.learningWords.delete(word);
+            this.saveVocabulary();
+            return true;
+        }
+        if (this.masteredWords.has(word)) {
+            this.masteredWords.delete(word);
+            this.saveVocabulary();
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Check if a word exists in either the learning or mastered list.
+     * @param {string} word - Word to check.
+     * @returns {boolean} True if the word is known.
+     */
+    isKnownWord(word) {
+        return this.learningWords.has(word) || this.masteredWords.has(word);
+    }
+
+    /**
+     * Check if a word is in the mastered list.
+     * @param {string} word - Word to check.
+     * @returns {boolean} True if the word is mastered.
+     */
+    isMasteredWord(word) {
+        return this.masteredWords.has(word);
+    }
+
+    /**
+     * Get data for a specific word from any list.
+     * @param {string} word - Word to get data for.
+     * @returns {Object|null} Word data or null if not found.
+     */
+    getWordData(word) {
+        return this.learningWords.get(word) || this.masteredWords.get(word) || null;
+    }
+
+    /**
+     * Get all words from the learning list.
+     * @returns {Array} Array of [word, data] pairs.
+     */
+    getLearningWords() {
+        return Array.from(this.learningWords.entries());
+    }
+
+    /**
+     * Get all words from the mastered list.
+     * @returns {Array} Array of [word, data] pairs.
+     */
+    getMasteredWords() {
+        return Array.from(this.masteredWords.entries());
+    }
+
+    /**
+     * Get the number of words in the learning list.
+     * @returns {number} Number of words.
+     */
+    getLearningSize() {
+        return this.learningWords.size;
+    }
+
+    /**
+     * Get the total number of words in all lists.
+     * @returns {number} Total number of words.
+     */
+    getTotalSize() {
+        return this.learningWords.size + this.masteredWords.size;
+    }
+
+    /**
+     * Clear all words from all vocabulary lists.
+     */
+    clearVocabulary() {
+        this.learningWords.clear();
+        this.masteredWords.clear();
+        this.saveVocabulary();
+        return true;
+    }
+
+    /**
+     * Get vocabulary sorted by date added (newest first).
+     * @param {Map} wordList - The word list to sort.
+     * @returns {Array} Sorted vocabulary entries.
+     */
+    getSortedByDate(wordList) {
+        return Array.from(wordList.entries()).sort((a, b) => 
             new Date(b[1].addedDate) - new Date(a[1].addedDate)
         );
     }
 
     /**
-     * Get vocabulary sorted by review count (least reviewed first)
-     * @returns {Array} Sorted vocabulary entries
-     */
-    getSortedByReviewCount() {
-        return Array.from(this.vocabulary.entries()).sort((a, b) => 
-            a[1].reviewCount - b[1].reviewCount
-        );
-    }
-
-    /**
-     * Update word review count
-     * @param {string} word - Word to update
-     * @returns {boolean} Success status
+     * Update the review count for a word in the learning list.
+     * @param {string} word - Word to update.
+     * @returns {boolean} True if updated, false otherwise.
      */
     updateReviewCount(word) {
-        const wordData = this.vocabulary.get(word);
+        const wordData = this.learningWords.get(word);
         if (wordData) {
             wordData.reviewCount++;
             wordData.lastReviewed = new Date().toISOString();
@@ -128,31 +186,41 @@ export class VocabularyManager {
     }
 
     /**
-     * Export vocabulary to JSON
-     * @returns {Object} Export data
+     * Export all vocabulary data to a JSON-compatible object.
+     * @returns {Object} Export data.
      */
     exportVocabulary() {
         return {
-            vocabulary: Array.from(this.vocabulary.entries()),
+            version: '2.0',
             exportDate: new Date().toISOString(),
-            version: '1.0',
-            totalWords: this.vocabulary.size
+            learningWords: Array.from(this.learningWords.entries()),
+            masteredWords: Array.from(this.masteredWords.entries()),
         };
     }
 
     /**
-     * Import vocabulary from JSON data
-     * @param {Object} data - Import data
-     * @returns {boolean} Success status
+     * Import vocabulary from a JSON object. Handles both old and new data formats.
+     * @param {Object} data - Import data.
+     * @returns {boolean} True on success, false on failure.
      */
     importVocabulary(data) {
         try {
-            if (data.vocabulary && Array.isArray(data.vocabulary)) {
-                this.vocabulary = new Map(data.vocabulary);
-                this.saveVocabulary();
-                return true;
+            // Handle new format (v2.0)
+            if (data.version === '2.0' && data.learningWords) {
+                this.learningWords = new Map(data.learningWords || []);
+                this.masteredWords = new Map(data.masteredWords || []);
+            } 
+            // Handle old format (v1.0)
+            else if (data.vocabulary && Array.isArray(data.vocabulary)) {
+                // Migrate old data to the new 'learningWords' list
+                this.learningWords = new Map(data.vocabulary);
+                this.masteredWords = new Map();
+            } else {
+                return false;
             }
-            return false;
+            
+            this.saveVocabulary();
+            return true;
         } catch (error) {
             console.error('Error importing vocabulary:', error);
             return false;
@@ -160,47 +228,72 @@ export class VocabularyManager {
     }
 
     /**
-     * Get vocabulary statistics
-     * @returns {Object} Statistics
+     * Get combined statistics for all vocabulary lists.
+     * @returns {Object} Statistics object.
      */
     getStatistics() {
-        const words = Array.from(this.vocabulary.values());
-        const totalReviews = words.reduce((sum, word) => sum + word.reviewCount, 0);
-        const reviewedWords = words.filter(word => word.reviewCount > 0).length;
+        const learning = Array.from(this.learningWords.values());
+        const mastered = Array.from(this.masteredWords.values());
+        const allWords = [...learning, ...mastered];
+        
+        const totalReviews = allWords.reduce((sum, word) => sum + word.reviewCount, 0);
         
         return {
-            totalWords: this.vocabulary.size,
+            learningWords: this.learningWords.size,
+            masteredWords: this.masteredWords.size,
+            totalWords: this.getTotalSize(),
             totalReviews: totalReviews,
-            reviewedWords: reviewedWords,
-            unreviewedWords: this.vocabulary.size - reviewedWords,
-            averageReviewsPerWord: this.vocabulary.size > 0 ? Math.round(totalReviews / this.vocabulary.size * 10) / 10 : 0
         };
     }
 
     /**
-     * Load vocabulary from localStorage
-     * @returns {Map} Vocabulary map
+     * Load vocabulary from localStorage. Handles migration from old format.
+     * @returns {{learningWords: Map, masteredWords: Map}}
      */
     loadVocabulary() {
         const saved = localStorage.getItem('wordDiscovererVocabulary');
-        if (saved) {
-            try {
-                const data = JSON.parse(saved);
-                return new Map(data);
-            } catch (error) {
-                console.error('Error loading vocabulary:', error);
-            }
+        if (!saved) {
+            return { learningWords: new Map(), masteredWords: new Map() };
         }
-        return new Map();
+
+        try {
+            const data = JSON.parse(saved);
+            
+            // Check for new format (v2.0)
+            if (data.version === '2.0') {
+                return {
+                    learningWords: new Map(data.learningWords || []),
+                    masteredWords: new Map(data.masteredWords || [])
+                };
+            }
+            
+            // Check for old format (Array of entries) and migrate
+            if (Array.isArray(data)) {
+                console.log('Migrating old vocabulary format to new v2.0 format.');
+                return {
+                    learningWords: new Map(data),
+                    masteredWords: new Map()
+                };
+            }
+
+        } catch (error) {
+            console.error('Error loading vocabulary:', error);
+        }
+
+        return { learningWords: new Map(), masteredWords: new Map() };
     }
 
     /**
-     * Save vocabulary to localStorage
+     * Save both vocabulary lists to localStorage.
      */
     saveVocabulary() {
-        localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(Array.from(this.vocabulary.entries())));
+        const dataToSave = {
+            version: '2.0',
+            learningWords: Array.from(this.learningWords.entries()),
+            masteredWords: Array.from(this.masteredWords.entries())
+        };
+        localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(dataToSave));
         
-        // Auto-sync to Google Drive if enabled
         if (this.syncEnabled && !this.isSyncing) {
             this.syncToGoogleDrive();
         }

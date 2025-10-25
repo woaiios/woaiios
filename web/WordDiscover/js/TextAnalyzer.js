@@ -21,12 +21,12 @@ export class TextAnalyzer {
     }
 
     /**
-     * Analyze words for difficulty and highlighting
-     * @param {Array<string>} words - Array of words to analyze
-     * @param {string} difficultyLevel - Current difficulty level setting
-     * @param {string} highlightMode - Highlight mode setting
-     * @param {Set} vocabulary - User's vocabulary set
-     * @returns {Object} Analysis results
+     * Analyze words for difficulty and highlighting.
+     * @param {Array<string>} words - Array of words to analyze.
+     * @param {string} difficultyLevel - Current difficulty level setting.
+     * @param {string} highlightMode - Highlight mode setting.
+     * @param {Object} vocabulary - User's vocabulary, containing 'learning' and 'mastered' maps.
+     * @returns {Object} Analysis results.
      */
     analyzeWords(words, difficultyLevel, highlightMode, vocabulary) {
         const analysis = {
@@ -37,6 +37,8 @@ export class TextAnalyzer {
             wordFrequency: {}
         };
 
+        const { learning: learningWords, mastered: masteredWords } = vocabulary;
+
         // Count word frequency
         words.forEach(word => {
             analysis.wordFrequency[word] = (analysis.wordFrequency[word] || 0) + 1;
@@ -46,7 +48,10 @@ export class TextAnalyzer {
         const uniqueWords = [...new Set(words)];
         uniqueWords.forEach(word => {
             const difficulty = this.wordDatabase.getWordDifficulty(word, difficultyLevel);
-            const isHighlighted = this.shouldHighlight(word, difficulty, highlightMode);
+            
+            // A word is never highlighted if it is in the mastered list.
+            const isMastered = masteredWords.has(word);
+            const isHighlighted = !isMastered && this.shouldHighlight(word, difficulty, highlightMode, learningWords);
             
             if (isHighlighted) {
                 analysis.highlightedWords.push({
@@ -56,7 +61,8 @@ export class TextAnalyzer {
                     translation: this.getTranslation(word)
                 });
                 
-                if (!vocabulary.has(word)) {
+                // A word is new only if it's in neither list.
+                if (!learningWords.has(word)) {
                     analysis.newWords.push(word);
                 }
             }
@@ -64,25 +70,29 @@ export class TextAnalyzer {
             analysis.difficultyScore += difficulty.score;
         });
 
-        analysis.difficultyScore = Math.round(analysis.difficultyScore / uniqueWords.length);
+        analysis.difficultyScore = uniqueWords.length > 0 ? Math.round(analysis.difficultyScore / uniqueWords.length) : 0;
         
         return analysis;
     }
 
     /**
-     * Determine if a word should be highlighted
-     * @param {string} word - Word to check
-     * @param {Object} difficulty - Difficulty information
-     * @param {string} highlightMode - Highlight mode
-     * @returns {boolean} Should highlight
+     * Determine if a word should be highlighted based on settings and vocabulary.
+     * @param {string} word - Word to check.
+     * @param {Object} difficulty - Difficulty information.
+     * @param {string} highlightMode - Highlight mode.
+     * @param {Map} learningWords - The user's list of words they are learning.
+     * @returns {boolean} True if the word should be highlighted.
      */
-    shouldHighlight(word, difficulty, highlightMode) {
+    shouldHighlight(word, difficulty, highlightMode, learningWords) {
         switch (highlightMode) {
             case 'unknown':
-                return difficulty.level === 'expert' || difficulty.level === 'advanced';
+                // Highlight difficult words that are not in the learning list.
+                return !learningWords.has(word) && (difficulty.level === 'expert' || difficulty.level === 'advanced');
             case 'difficult':
+                // Highlight all difficult words, regardless of whether they are in the learning list.
                 return difficulty.level === 'expert' || difficulty.level === 'advanced' || difficulty.level === 'intermediate';
             case 'all':
+                // Highlight all words that are not marked as mastered.
                 return true;
             default:
                 return false;

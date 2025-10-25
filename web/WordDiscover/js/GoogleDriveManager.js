@@ -363,7 +363,7 @@ export class GoogleDriveManager {
      * @param {Object} localVocabulary - Local vocabulary data
      * @returns {Promise<Object>} Sync result with status and data
      */
-    async syncVocabulary(localVocabulary) {
+    async syncVocabulary(localData) {
         try {
             if (!this.isSignedIn) {
                 return { success: false, error: 'Not signed in to Google' };
@@ -371,31 +371,51 @@ export class GoogleDriveManager {
 
             const remoteData = await this.downloadVocabulary();
 
-            if (!remoteData) {
-                // No remote data, so we upload the local data.
-                const uploadSuccess = await this.uploadVocabulary(localVocabulary);
+            // If no remote data, upload local data.
+            if (!remoteData || !remoteData.version) {
+                console.log('No remote data or old format found. Uploading local data.');
+                const uploadSuccess = await this.uploadVocabulary(localData);
                 return {
                     success: uploadSuccess,
                     action: 'upload',
-                    data: localVocabulary,
+                    data: localData,
                     error: uploadSuccess ? null : 'Failed to upload vocabulary'
                 };
             }
 
-            // --- Merge Logic ---
-            const localWords = new Map(localVocabulary.vocabulary || []);
-            const remoteWords = new Map(remoteData.vocabulary || []);
-            
-            // Create a new map with remote data, then update with local data.
-            // Local words will overwrite remote words in case of conflict.
-            const mergedWords = new Map([...remoteWords, ...localWords]);
+            // --- Two-Way Merge Logic for v2.0 --- 
+            console.log('Performing two-way merge for vocabulary v2.0');
+
+            const localLearning = new Map(localData.learningWords || []);
+            const localMastered = new Map(localData.masteredWords || []);
+
+            // Handle migration from v1 if necessary
+            const remoteLearning = new Map(remoteData.learningWords || remoteData.vocabulary || []);
+            const remoteMastered = new Map(remoteData.masteredWords || []);
+
+            // Combine lists: local lists take precedence in case of updated metadata for the same word.
+            const mergedLearning = new Map([...remoteLearning, ...localLearning]);
+            const mergedMastered = new Map([...remoteMastered, ...localMastered]);
+
+            // Conflict resolution: local state wins.
+            // If a word is locally mastered, it cannot be in the learning list.
+            for (const word of localMastered.keys()) {
+                if (mergedLearning.has(word)) {
+                    mergedLearning.delete(word);
+                }
+            }
+            // If a word is locally learning, it cannot be in the mastered list.
+            for (const word of localLearning.keys()) {
+                if (mergedMastered.has(word)) {
+                    mergedMastered.delete(word);
+                }
+            }
 
             const mergedVocabulary = {
-                ...remoteData,
-                ...localVocabulary,
-                vocabulary: Array.from(mergedWords.entries()),
+                version: '2.0',
                 exportDate: new Date().toISOString(),
-                totalWords: mergedWords.size
+                learningWords: Array.from(mergedLearning.entries()),
+                masteredWords: Array.from(mergedMastered.entries()),
             };
             // --- End of Merge Logic ---
 
@@ -412,7 +432,7 @@ export class GoogleDriveManager {
                 return {
                     success: false,
                     action: 'merge_fail',
-                    data: localVocabulary,
+                    data: localData,
                     error: 'Failed to upload merged vocabulary'
                 };
             }

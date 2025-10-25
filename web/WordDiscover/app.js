@@ -108,7 +108,7 @@ export class WordDiscoverer {
                 words, 
                 difficultyLevel, 
                 highlightMode, 
-                this.vocabularyManager.vocabulary
+                { learning: this.vocabularyManager.learningWords, mastered: this.vocabularyManager.masteredWords }
             );
             
             // Process text for display

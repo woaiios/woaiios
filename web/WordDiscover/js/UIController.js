@@ -31,6 +31,11 @@ export class UIController {
         this.addEventListener('clearVocabBtn', 'click', () => this.onClearVocabulary());
         this.addEventListener('syncVocabBtn', 'click', () => this.onSyncVocabulary());
         
+        // Vocabulary tabs
+        document.querySelectorAll('.vocab-tab').forEach(tab => {
+            tab.addEventListener('click', (e) => this.handleTabClick(e));
+        });
+
         // Settings controls
         this.addEventListener('exportSettingsBtn', 'click', () => this.onExportSettings());
         this.addEventListener('importSettingsBtn', 'click', () => this.onImportSettings());
@@ -77,12 +82,23 @@ export class UIController {
     }
 
     /**
-     * Update vocabulary count display
+     * Update vocabulary count displays.
      */
     updateVocabularyCount() {
-        const countElement = document.getElementById('vocabCount');
-        if (countElement) {
-            countElement.textContent = this.vocabularyManager.getSize();
+        const learningSize = this.vocabularyManager.getLearningSize();
+        const masteredSize = this.vocabularyManager.masteredWords.size;
+
+        const headerCountEl = document.getElementById('vocabCount');
+        if (headerCountEl) {
+            headerCountEl.textContent = learningSize;
+        }
+        const learningTabEl = document.getElementById('learning-count');
+        if (learningTabEl) {
+            learningTabEl.textContent = learningSize;
+        }
+        const masteredTabEl = document.getElementById('mastered-count');
+        if (masteredTabEl) {
+            masteredTabEl.textContent = masteredSize;
         }
     }
 
@@ -149,7 +165,7 @@ export class UIController {
             highlightedWords: analysis.highlightedWords.length,
             newWords: analysis.newWords.length,
             difficultyScore: analysis.difficultyScore,
-            vocabCount: this.vocabularyManager.getSize()
+            vocabCount: this.vocabularyManager.getTotalSize()
         };
 
         Object.entries(elements).forEach(([id, value]) => {
@@ -202,10 +218,13 @@ export class UIController {
         const addToVocabBtn = document.getElementById('addToVocabBtn');
         if (addToVocabBtn) {
             addToVocabBtn.onclick = () => {
-                this.vocabularyManager.addWord(word, translation);
-                this.hideTooltip();
-                this.updateUI();
-                this.showNotification(`"${word}" added to vocabulary!`);
+                if (this.vocabularyManager.addWord(word, translation)) {
+                    this.hideTooltip();
+                    this.updateUI();
+                    this.showNotification(`"${word}" added to learning list!`);
+                } else {
+                    this.showNotification(`"${word}" is already in your vocabulary.`, 'info');
+                }
             };
         }
     }
@@ -256,10 +275,10 @@ export class UIController {
     }
 
     /**
-     * Open vocabulary modal
+     * Open vocabulary modal and display lists.
      */
     openVocabularyModal() {
-        this.displayVocabularyList();
+        this.displayVocabularyLists();
         const modal = document.getElementById('vocabularyModal');
         if (modal) {
             modal.classList.add('show');
@@ -267,22 +286,42 @@ export class UIController {
     }
 
     /**
-     * Display vocabulary list
+     * Renders both learning and mastered word lists in the vocabulary modal.
      */
-    displayVocabularyList() {
-        const vocabList = document.getElementById('vocabList');
-        if (!vocabList) return;
+    displayVocabularyLists() {
+        const learningListEl = document.getElementById('learning-list');
+        const masteredListEl = document.getElementById('mastered-list');
+        if (!learningListEl || !masteredListEl) return;
+
+        // Render learning list
+        const learningWords = this.vocabularyManager.getSortedByDate(this.vocabularyManager.learningWords);
+        this.renderList(learningListEl, learningWords, 'learning');
+
+        // Render mastered list
+        const masteredWords = this.vocabularyManager.getSortedByDate(this.vocabularyManager.masteredWords);
+        this.renderList(masteredListEl, masteredWords, 'mastered');
         
-        vocabList.innerHTML = '';
-        
-        if (this.vocabularyManager.getSize() === 0) {
-            vocabList.innerHTML = '<p style="text-align: center; color: #6b7280; padding: 2rem;">No words in vocabulary yet.</p>';
+        this.updateVocabularyCount();
+    }
+
+    /**
+     * Helper function to render a single vocabulary list.
+     * @param {HTMLElement} element - The container element for the list.
+     * @param {Array} wordList - The sorted list of words to render.
+     * @param {string} type - The type of list ('learning' or 'mastered').
+     */
+    renderList(element, wordList, type) {
+        element.innerHTML = '';
+        if (wordList.length === 0) {
+            element.innerHTML = `<p style="text-align: center; color: #6b7280; padding: 2rem;">No words in this list yet.</p>`;
             return;
         }
-        
-        const sortedVocab = this.vocabularyManager.getSortedByDate();
-        
-        sortedVocab.forEach(([word, data]) => {
+
+        wordList.forEach(([word, data]) => {
+            const actionButton = type === 'learning'
+                ? `<button class="btn btn-sm btn-success" onclick="uiController.masterWord('${word}')"><i class="fas fa-check"></i> Master</button>`
+                : `<button class="btn btn-sm btn-info" onclick="uiController.unmasterWord('${word}')"><i class="fas fa-undo"></i> Learn</button>`;
+
             const vocabItem = document.createElement('div');
             vocabItem.className = 'vocab-item';
             vocabItem.innerHTML = `
@@ -295,25 +334,66 @@ export class UIController {
                     </div>
                 </div>
                 <div class="vocab-actions">
+                    ${actionButton}
                     <button class="btn btn-sm btn-danger" onclick="uiController.removeFromVocabulary('${word}')">
                         <i class="fas fa-trash"></i>
                     </button>
                 </div>
             `;
-            vocabList.appendChild(vocabItem);
+            element.appendChild(vocabItem);
         });
     }
 
     /**
-     * Remove word from vocabulary
-     * @param {string} word - Word to remove
+     * Handles clicks on the vocabulary tabs.
+     * @param {Event} event - The click event.
+     */
+    handleTabClick(event) {
+        const clickedTab = event.target;
+        const tabName = clickedTab.dataset.tab;
+
+        // Update active state for tabs
+        document.querySelectorAll('.vocab-tab').forEach(tab => tab.classList.remove('active'));
+        clickedTab.classList.add('active');
+
+        // Update active state for content
+        document.querySelectorAll('.vocab-tab-content').forEach(content => content.classList.remove('active'));
+        document.getElementById(`${tabName}-list-container`).classList.add('active');
+    }
+
+    /**
+     * Move a word to the mastered list.
+     * @param {string} word - The word to master.
+     */
+    masterWord(word) {
+        if (this.vocabularyManager.masterWord(word)) {
+            this.displayVocabularyLists();
+            this.showNotification(`"${word}" moved to mastered list.`);
+        }
+    }
+
+    /**
+     * Move a word back to the learning list.
+     * @param {string} word - The word to un-master.
+     */
+    unmasterWord(word) {
+        if (this.vocabularyManager.unmasterWord(word)) {
+            this.displayVocabularyLists();
+            this.showNotification(`"${word}" moved back to learning list.`);
+        }
+    }
+
+    /**
+     * Remove word from vocabulary and refresh the UI.
+     * @param {string} word - Word to remove.
      */
     removeFromVocabulary(word) {
-        if (confirm(`Remove "${word}" from vocabulary?`)) {
-            this.vocabularyManager.removeWord(word);
-            this.displayVocabularyList();
-            this.updateUI();
-            this.showNotification(`"${word}" removed from vocabulary.`);
+        if (confirm(`Are you sure you want to permanently delete "${word}"?`)) {
+            if (this.vocabularyManager.removeWord(word)) {
+                this.displayVocabularyLists();
+                this.updateUI();
+                this.showNotification(`"${word}" has been deleted.`, 'info');
+            }
         }
     }
 
@@ -418,7 +498,7 @@ export class UIController {
 
     onExportVocabulary() {
         const data = this.vocabularyManager.exportVocabulary();
-        this.downloadJSON(data, 'vocabulary.json');
+        this.downloadJSON(data, 'word-discoverer-vocabulary.json');
         this.showNotification('Vocabulary exported successfully!');
     }
 
@@ -438,7 +518,7 @@ export class UIController {
             try {
                 const data = JSON.parse(e.target.result);
                 if (this.vocabularyManager.importVocabulary(data)) {
-                    this.displayVocabularyList();
+                    this.displayVocabularyLists();
                     this.updateUI();
                     this.showNotification('Vocabulary imported successfully!');
                 } else {
@@ -452,11 +532,11 @@ export class UIController {
     }
 
     onClearVocabulary() {
-        if (confirm('Clear all vocabulary? This action cannot be undone.')) {
+        if (confirm('Clear all vocabulary (both learning and mastered)? This action cannot be undone.')) {
             this.vocabularyManager.clearVocabulary();
-            this.displayVocabularyList();
+            this.displayVocabularyLists();
             this.updateUI();
-            this.showNotification('Vocabulary cleared.');
+            this.showNotification('All vocabulary has been cleared.');
         }
     }
 
@@ -559,7 +639,8 @@ export class UIController {
         } catch (error) {
             console.error('Error syncing:', error);
             this.showNotification('Error syncing to Google Drive.', 'error');
-        } finally {
+        }
+    } finally {
             this.showLoading(false);
         }
     }
@@ -662,3 +743,4 @@ export class UIController {
         }
     }
 }
+
