@@ -6,7 +6,8 @@
     <title>Word Discoverer - Expand Your Vocabulary</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
 </head>
 <body>
     <!-- Header -->
@@ -106,147 +107,11 @@
         </div>
     </main>
 
-    <!-- Vocabulary Modal -->
-    <div class="modal" id="vocabularyModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>My Vocabulary</h2>
-                <button class="close-btn" id="closeVocabModal">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="vocab-controls">
-                    <button class="btn btn-primary" id="exportVocabBtn">
-                        <i class="fas fa-download"></i>
-                        Export
-                    </button>
-                    <button class="btn btn-secondary" id="importVocabBtn">
-                        <i class="fas fa-upload"></i>
-                        Import
-                    </button>
-                    <input type="file" id="importFile" accept=".json" style="display: none;">
-                    <button class="btn btn-success" id="syncVocabBtn">
-                        <i class="fab fa-google-drive"></i>
-                        Sync to Drive
-                    </button>
-                    <button class="btn btn-danger" id="clearVocabBtn">
-                        <i class="fas fa-trash"></i>
-                        Clear All
-                    </button>
-                </div>
-                <div class="vocab-tabs">
-                    <button class="vocab-tab active" data-tab="learning">Learning (<span id="learning-count">0</span>)</button>
-                    <button class="vocab-tab" data-tab="mastered">Mastered (<span id="mastered-count">0</span>)</button>
-                </div>
-                <div id="learning-list-container" class="vocab-tab-content active">
-                    <div class="vocab-list" id="learning-list"></div>
-                </div>
-                <div id="mastered-list-container" class="vocab-tab-content">
-                    <div class="vocab-list" id="mastered-list"></div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Vocabulary Modal Placeholder -->
+    <div class="modal" id="vocabularyModal"></div>
 
-    <!-- Settings Modal -->
-    <div class="modal" id="settingsModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Settings</h2>
-                <button class="close-btn" id="closeSettingsModal">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <div class="settings-section">
-                    <h3>Highlighting</h3>
-                    <div class="setting-item">
-                        <label for="highlightColor">Highlight Color:</label>
-                        <input type="color" id="highlightColor" value="#ffeb3b">
-                    </div>
-                    <div class="setting-item">
-                        <label for="highlightOpacity">Opacity:</label>
-                        <input type="range" id="highlightOpacity" min="0.1" max="1" step="0.1" value="0.7">
-                        <span id="opacityValue">70%</span>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <h3>Translation</h3>
-                    <div class="setting-item">
-                        <label for="translationService">Translation Service:</label>
-                        <select id="translationService">
-                            <option value="bing">Bing Translator</option>
-                            <option value="google">Google Translate</option>
-                            <option value="yandex">Yandex Translate</option>
-                        </select>
-                    </div>
-                    <div class="setting-item">
-                        <label for="targetLanguage">Target Language:</label>
-                        <select id="targetLanguage">
-                            <option value="zh">Chinese</option>
-                            <option value="es">Spanish</option>
-                            <option value="fr">French</option>
-                            <option value="de">German</option>
-                            <option value="ja">Japanese</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <h3>Google Drive Sync</h3>
-                    <div class="setting-item">
-                        <div class="google-drive-status" id="googleDriveStatus">
-                            <div class="status-indicator" id="syncStatusIndicator">
-                                <i class="fas fa-circle"></i>
-                                <span id="syncStatusText">Not connected</span>
-                            </div>
-                            <div class="user-info" id="userInfo" style="display: none;">
-                                <img id="userAvatar" src="" alt="User Avatar" class="user-avatar">
-                                <div class="user-details">
-                                    <div class="user-name" id="userName"></div>
-                                    <div class="user-email" id="userEmail"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="sync-controls">
-                            <button class="btn btn-primary" id="enableGoogleDriveBtn">
-                                <i class="fab fa-google-drive"></i>
-                                Connect Google Drive
-                            </button>
-                            <button class="btn btn-secondary" id="syncNowBtn" style="display: none;">
-                                <i class="fas fa-sync"></i>
-                                Sync Now
-                            </button>
-                            <button class="btn btn-danger" id="disconnectGoogleDriveBtn" style="display: none;">
-                                <i class="fas fa-sign-out-alt"></i>
-                                Disconnect
-                            </button>
-                        </div>
-                        <div class="sync-info" id="syncInfo" style="display: none;">
-                            <div class="last-sync">
-                                <i class="fas fa-clock"></i>
-                                Last sync: <span id="lastSyncTime">Never</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="settings-section">
-                    <h3>Data Management</h3>
-                    <div class="setting-item">
-                        <button class="btn btn-primary" id="exportSettingsBtn">
-                            <i class="fas fa-download"></i>
-                            Export Settings
-                        </button>
-                        <button class="btn btn-secondary" id="importSettingsBtn">
-                            <i class="fas fa-upload"></i>
-                            Import Settings
-                        </button>
-                        <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Settings Modal Placeholder -->
+    <div class="modal" id="settingsModal"></div>
 
 
 

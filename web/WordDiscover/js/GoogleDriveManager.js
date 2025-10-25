@@ -13,18 +13,10 @@ export class GoogleDriveManager {
         this.gapiLoaded = false;
     }
 
-    /**
-     * Initialize Google Drive API
-     * @returns {Promise<boolean>} Success status
-     */
     async initialize() {
         try {
-            // Wait for Google Identity Services to load
-            await this.waitForGoogleIdentityServices();
-            
-            // Load Google API client library
-            await this.loadGoogleAPIClient();
-
+            await this._waitForGoogleIdentityServices();
+            await this._loadGoogleAPIClient();
             this.isInitialized = true;
             console.log('Google Drive API initialized successfully');
             return true;
@@ -34,194 +26,33 @@ export class GoogleDriveManager {
         }
     }
 
-    /**
-     * Wait for Google Identity Services to load
-     * @returns {Promise<void>}
-     */
-    waitForGoogleIdentityServices() {
-        return new Promise((resolve, reject) => {
-            if (window.google && window.google.accounts) {
-                resolve();
-                return;
-            }
-
-            const checkInterval = setInterval(() => {
-                if (window.google && window.google.accounts) {
-                    clearInterval(checkInterval);
-                    resolve();
-                }
-            }, 100);
-
-            // Timeout after 10 seconds
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                reject(new Error('Google Identity Services failed to load'));
-            }, 10000);
-        });
-    }
-
-    /**
-     * Load Google API client library
-     * @returns {Promise<void>}
-     */
-    loadGoogleAPIClient() {
-        return new Promise((resolve, reject) => {
-            if (this.gapiLoaded) {
-                resolve();
-                return;
-            }
-
-            if (window.gapi) {
-                this.gapiLoaded = true;
-                resolve();
-                return;
-            }
-
-            const script = document.createElement('script');
-            script.src = 'https://apis.google.com/js/api.js';
-            script.onload = () => {
-                this.gapiLoaded = true;
-                resolve();
-            };
-            script.onerror = reject;
-            document.head.appendChild(script);
-        });
-    }
-
-    /**
-     * Sign in to Google using Google Identity Services
-     * @returns {Promise<boolean>} Success status
-     */
     async signIn(silent = false) {
         try {
             if (!this.isInitialized) {
                 await this.initialize();
             }
-
-            return new Promise((resolve, reject) => {
-                // Use Google Identity Services for authentication
-                const client = window.google.accounts.oauth2.initTokenClient({
-                    client_id: this.clientId,
-                    scope: this.scopes,
-                    callback: (response) => {
-                        if (response.error) {
-                            console.log('OAuth error:', response.error);
-                            if (silent) {
-                                resolve(false);
-                            } else {
-                                reject(new Error(response.error));
-                            }
-                            return;
-                        }
-                        
-                        this.accessToken = response.access_token;
-                        this.isSignedIn = true;
-                        
-                        // Initialize Google API client with the access token
-                        this.initializeGoogleAPIClient().then(() => {
-                            this.findOrCreateVocabularyFile().then(() => {
-                                console.log('Successfully signed in to Google');
-                                resolve(true);
-                            });
-                        }).catch(silent ? () => resolve(false) : reject);
-                    }
-                });
-
-                // Request access token
-                if (silent) {
-                    client.requestAccessToken({ prompt: 'none' });
-                } else {
-                    client.requestAccessToken();
-                }
-            });
+            const tokenResponse = await this._getToken(silent);
+            this.accessToken = tokenResponse.access_token;
+            this.isSignedIn = true;
+            await this._initializeGoogleAPIClient();
+            await this.findOrCreateVocabularyFile();
+            console.log('Successfully signed in to Google');
+            return true;
         } catch (error) {
             console.error('Error signing in:', error);
+            this.isSignedIn = false;
             return false;
         }
     }
 
-    /**
-     * Initialize Google API client with access token
-     * @returns {Promise<void>}
-     */
-    async initializeGoogleAPIClient() {
-        return new Promise((resolve, reject) => {
-            gapi.load('client', async () => {
-                try {
-                    await gapi.client.init({
-                        discoveryDocs: [
-                            'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
-                            'https://people.googleapis.com/$discovery/rest?version=v1'
-                        ]
-                    });
-
-                    // Set the access token
-                    gapi.client.setToken({ access_token: this.accessToken });
-                    
-                    resolve();
-                } catch (error) {
-                    reject(error);
-                }
-            });
-        });
-    }
-
-    /**
-     * Refresh access token
-     * @returns {Promise<boolean>} Success status
-     */
-    async refreshAccessToken() {
-        try {
-            if (!this.isInitialized) {
-                await this.initialize();
-            }
-
-            return new Promise((resolve, reject) => {
-                const client = window.google.accounts.oauth2.initTokenClient({
-                    client_id: this.clientId,
-                    scope: this.scopes,
-                    callback: (response) => {
-                        if (response.error) {
-                            console.error('Token refresh error:', response.error);
-                            reject(new Error(response.error));
-                            return;
-                        }
-                        
-                        this.accessToken = response.access_token;
-                        this.isSignedIn = true;
-                        
-                        // Update gapi client token
-                        if (window.gapi && window.gapi.client) {
-                            gapi.client.setToken({ access_token: this.accessToken });
-                        }
-                        
-                        console.log('Access token refreshed successfully');
-                        resolve(true);
-                    }
-                });
-
-                client.requestAccessToken();
-            });
-        } catch (error) {
-            console.error('Error refreshing access token:', error);
-            return false;
-        }
-    }
-
-    /**
-     * Sign out from Google
-     * @returns {Promise<boolean>} Success status
-     */
     async signOut() {
         try {
-            if (window.google && window.google.accounts) {
+            if (this.accessToken) {
                 window.google.accounts.oauth2.revoke(this.accessToken);
             }
-            
             this.isSignedIn = false;
             this.accessToken = null;
             this.fileId = null;
-            
             console.log('Successfully signed out from Google');
             return true;
         } catch (error) {
@@ -230,51 +61,23 @@ export class GoogleDriveManager {
         }
     }
 
-    /**
-     * Find existing vocabulary file or create a new one
-     * @returns {Promise<string|null>} File ID or null
-     */
     async findOrCreateVocabularyFile() {
         try {
-            // Search for existing vocabulary file in the visible 'drive' space.
-            let response = await gapi.client.drive.files.list({
-                q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",
-                spaces: 'drive',
-                fields: 'files(id, name, modifiedTime)'
-            });
-
-            if (response.result.files && response.result.files.length > 0) {
-                this.fileId = response.result.files[0].id;
+            let file = await this._findFileInSpace('drive');
+            if (file) {
+                this.fileId = file.id;
                 console.log('Found existing vocabulary file in drive:', this.fileId);
                 return this.fileId;
             }
 
-            // For backward compatibility, check if a file exists in the hidden appDataFolder.
-            const appDataResponse = await gapi.client.drive.files.list({
-                spaces: 'appDataFolder',
-                q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",
-                fields: 'files(id, name, modifiedTime)'
-            });
-
-            if (appDataResponse.result.files && appDataResponse.result.files.length > 0) {
-                this.fileId = appDataResponse.result.files[0].id;
-                console.warn('Found vocabulary file in hidden appDataFolder. This file will continue to be used, but will not be visible in your Google Drive. To make it visible, please export, disconnect and reconnect, then import your vocabulary.');
+            file = await this._findFileInSpace('appDataFolder');
+            if (file) {
+                this.fileId = file.id;
+                console.warn('Found vocabulary file in hidden appDataFolder.');
                 return this.fileId;
             }
 
-            // Create new file in the root directory if not found anywhere.
-            console.log('Creating new vocabulary file in the root directory.');
-            const fileMetadata = {
-                name: 'WordDiscoverer_Vocabulary.json',
-                parents: ['root'] // Store in root directory to be visible.
-            };
-
-            const createResponse = await gapi.client.drive.files.create({
-                resource: fileMetadata,
-                fields: 'id'
-            });
-
-            this.fileId = createResponse.result.id;
+            this.fileId = await this._createFile();
             console.log('Created new vocabulary file in root directory:', this.fileId);
             return this.fileId;
         } catch (error) {
@@ -283,74 +86,45 @@ export class GoogleDriveManager {
         }
     }
 
-    /**
-     * Upload vocabulary data to Google Drive
-     * @param {Object} vocabularyData - Vocabulary data to upload
-     * @returns {Promise<boolean>} Success status
-     */
     async uploadVocabulary(vocabularyData) {
         try {
             if (!this.isSignedIn || !this.fileId) {
                 throw new Error('Not signed in or file not found');
             }
-
             const jsonData = JSON.stringify(vocabularyData, null, 2);
-            
-            // Use gapi.client for proper API calls instead of direct fetch
-            const response = await gapi.client.request({
-                path: `https://www.googleapis.com/upload/drive/v3/files/${this.fileId}`,
+            await gapi.client.request({
+                path: `/upload/drive/v3/files/${this.fileId}`,
                 method: 'PATCH',
-                params: {
-                    uploadType: 'media'
-                },
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                params: { uploadType: 'media' },
+                headers: { 'Content-Type': 'application/json' },
                 body: jsonData
             });
-
             console.log('Vocabulary uploaded successfully to Google Drive');
             return true;
         } catch (error) {
             console.error('Error uploading vocabulary:', error);
-            
-            // If the error is due to insufficient permissions, try to refresh token
             if (error.status === 403) {
                 console.log('Attempting to refresh access token...');
-                try {
-                    await this.refreshAccessToken();
-                    // Retry upload after token refresh
-                    return await this.uploadVocabulary(vocabularyData);
-                } catch (refreshError) {
-                    console.error('Failed to refresh token:', refreshError);
-                }
+                await this.refreshAccessToken();
+                return this.uploadVocabulary(vocabularyData); // Retry
             }
-            
             return false;
         }
     }
 
-    /**
-     * Download vocabulary data from Google Drive
-     * @returns {Promise<Object|null>} Vocabulary data or null
-     */
     async downloadVocabulary() {
+        if (!this.isSignedIn || !this.fileId) {
+            throw new Error('Not signed in or file not found');
+        }
         try {
-            if (!this.isSignedIn || !this.fileId) {
-                throw new Error('Not signed in or file not found');
-            }
-
             const response = await gapi.client.drive.files.get({
                 fileId: this.fileId,
                 alt: 'media'
             });
-
             if (response.body) {
-                const vocabularyData = JSON.parse(response.body);
                 console.log('Vocabulary downloaded successfully from Google Drive');
-                return vocabularyData;
+                return JSON.parse(response.body);
             }
-
             return null;
         } catch (error) {
             console.error('Error downloading vocabulary:', error);
@@ -358,149 +132,155 @@ export class GoogleDriveManager {
         }
     }
 
-    /**
-     * Sync vocabulary with Google Drive
-     * @param {Object} localVocabulary - Local vocabulary data
-     * @returns {Promise<Object>} Sync result with status and data
-     */
     async syncVocabulary(localData) {
+        if (!this.isSignedIn) {
+            return { success: false, error: 'Not signed in to Google' };
+        }
         try {
-            if (!this.isSignedIn) {
-                return { success: false, error: 'Not signed in to Google' };
-            }
-
             const remoteData = await this.downloadVocabulary();
-
-            // If no remote data, upload local data.
             if (!remoteData || !remoteData.version) {
                 console.log('No remote data or old format found. Uploading local data.');
                 const uploadSuccess = await this.uploadVocabulary(localData);
-                return {
-                    success: uploadSuccess,
-                    action: 'upload',
-                    data: localData,
-                    error: uploadSuccess ? null : 'Failed to upload vocabulary'
-                };
+                return { success: uploadSuccess, action: 'upload', data: localData };
             }
 
-            // --- Two-Way Merge Logic for v2.0 --- 
-            console.log('Performing two-way merge for vocabulary v2.0');
-
-            const localLearning = new Map(localData.learningWords || []);
-            const localMastered = new Map(localData.masteredWords || []);
-
-            // Handle migration from v1 if necessary
-            const remoteLearning = new Map(remoteData.learningWords || remoteData.vocabulary || []);
-            const remoteMastered = new Map(remoteData.masteredWords || []);
-
-            // Combine lists: local lists take precedence in case of updated metadata for the same word.
-            const mergedLearning = new Map([...remoteLearning, ...localLearning]);
-            const mergedMastered = new Map([...remoteMastered, ...localMastered]);
-
-            // Conflict resolution: local state wins.
-            // If a word is locally mastered, it cannot be in the learning list.
-            for (const word of localMastered.keys()) {
-                if (mergedLearning.has(word)) {
-                    mergedLearning.delete(word);
-                }
-            }
-            // If a word is locally learning, it cannot be in the mastered list.
-            for (const word of localLearning.keys()) {
-                if (mergedMastered.has(word)) {
-                    mergedMastered.delete(word);
-                }
-            }
-
-            const mergedVocabulary = {
-                version: '2.0',
-                exportDate: new Date().toISOString(),
-                learningWords: Array.from(mergedLearning.entries()),
-                masteredWords: Array.from(mergedMastered.entries()),
-            };
-            // --- End of Merge Logic ---
-
+            const mergedVocabulary = this._mergeVocabularies(localData, remoteData);
             const uploadSuccess = await this.uploadVocabulary(mergedVocabulary);
 
-            if (uploadSuccess) {
-                return {
-                    success: true,
-                    action: 'merge',
-                    data: mergedVocabulary,
-                    error: null
-                };
-            } else {
-                return {
-                    success: false,
-                    action: 'merge_fail',
-                    data: localData,
-                    error: 'Failed to upload merged vocabulary'
-                };
-            }
+            return uploadSuccess
+                ? { success: true, action: 'merge', data: mergedVocabulary }
+                : { success: false, action: 'merge_fail', data: localData, error: 'Failed to upload merged vocabulary' };
 
         } catch (error) {
             console.error('Error syncing vocabulary:', error);
-            return {
-                success: false,
-                error: error.message
-            };
+            return { success: false, error: error.message };
         }
     }
 
-    /**
-     * Get authentication status
-     * @returns {Object} Auth status
-     */
     getAuthStatus() {
-        return {
-            isInitialized: this.isInitialized,
-            isSignedIn: this.isSignedIn,
-            hasFile: !!this.fileId
-        };
+        return { isInitialized: this.isInitialized, isSignedIn: this.isSignedIn, hasFile: !!this.fileId };
     }
 
-    /**
-     * Get user info
-     * @returns {Promise<Object|null>} User info or null
-     */
     async getUserInfo() {
+        if (!this.isSignedIn) return null;
         try {
-            if (!this.isSignedIn) {
-                return null;
-            }
-
-            // Fetch user profile from Google People API
-            const response = await gapi.client.request({
-                path: 'https://people.googleapis.com/v1/people/me',
-                params: {
-                    personFields: 'names,emailAddresses,photos'
-                }
+            const response = await gapi.client.people.people.get({
+                resourceName: 'people/me',
+                personFields: 'names,emailAddresses,photos',
             });
-
-            if (response.result) {
-                const person = response.result;
-                const name = person.names && person.names[0] ? person.names[0].displayName : 'Google User';
-                const email = person.emailAddresses && person.emailAddresses[0] ? person.emailAddresses[0].value : '';
-                const imageUrl = person.photos && person.photos[0] ? person.photos[0].url : null;
-
-                return {
-                    name: name,
-                    email: email,
-                    imageUrl: imageUrl
-                };
-            }
-
-            return null;
+            const person = response.result;
+            return {
+                name: person.names && person.names[0] ? person.names[0].displayName : 'Google User',
+                email: person.emailAddresses && person.emailAddresses[0] ? person.emailAddresses[0].value : '',
+                imageUrl: person.photos && person.photos[0] ? person.photos[0].url : null,
+            };
         } catch (error) {
             console.error('Error getting user info:', error);
             return null;
         }
     }
 
-    /**
-     * Check if Google Drive is available
-     * @returns {boolean} Availability status
-     */
-    isAvailable() {
-        return this.isInitialized && typeof gapi !== 'undefined';
+    // "Private" Helper Methods
+
+    _getToken(silent = false) {
+        return new Promise((resolve, reject) => {
+            const client = window.google.accounts.oauth2.initTokenClient({
+                client_id: this.clientId,
+                scope: this.scopes,
+                callback: (response) => response.error ? reject(new Error(response.error_description)) : resolve(response),
+            });
+            client.requestAccessToken({ prompt: silent ? 'none' : '' });
+        });
+    }
+
+    async refreshAccessToken() {
+        try {
+            const tokenResponse = await this._getToken(true);
+            this.accessToken = tokenResponse.access_token;
+            gapi.client.setToken({ access_token: this.accessToken });
+            console.log('Access token refreshed successfully');
+            return true;
+        } catch (error) {
+            console.error('Token refresh error:', error);
+            this.isSignedIn = false;
+            return false;
+        }
+    }
+
+    _waitForGoogleIdentityServices() {
+        return new Promise((resolve, reject) => {
+            if (window.google && window.google.accounts) return resolve();
+            const timeout = setTimeout(() => reject(new Error('Google Identity Services failed to load')), 10000);
+            const interval = setInterval(() => {
+                if (window.google && window.google.accounts) {
+                    clearTimeout(timeout);
+                    clearInterval(interval);
+                    resolve();
+                }
+            }, 100);
+        });
+    }
+
+    _loadGoogleAPIClient() {
+        return new Promise((resolve, reject) => {
+            if (window.gapi && window.gapi.client) return resolve();
+            const script = document.createElement('script');
+            script.src = 'https://apis.google.com/js/api.js';
+            script.onload = () => gapi.load('client', resolve);
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+
+    async _initializeGoogleAPIClient() {
+        await gapi.client.init({
+            discoveryDocs: [
+                'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+                'https://people.googleapis.com/$discovery/rest?version=v1'
+            ]
+        });
+        gapi.client.setToken({ access_token: this.accessToken });
+    }
+
+    async _findFileInSpace(space) {
+        const response = await gapi.client.drive.files.list({
+            q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",
+            spaces: space,
+            fields: 'files(id, name)'
+        });
+        return response.result.files && response.result.files.length > 0 ? response.result.files[0] : null;
+    }
+
+    async _createFile() {
+        const response = await gapi.client.drive.files.create({
+            resource: { name: 'WordDiscoverer_Vocabulary.json', parents: ['root'] },
+            fields: 'id'
+        });
+        return response.result.id;
+    }
+
+    _mergeVocabularies(localData, remoteData) {
+        console.log('Performing two-way merge for vocabulary v2.0');
+        const localLearning = new Map(localData.learningWords || []);
+        const localMastered = new Map(localData.masteredWords || []);
+        const remoteLearning = new Map(remoteData.learningWords || remoteData.vocabulary || []);
+        const remoteMastered = new Map(remoteData.masteredWords || []);
+
+        const mergedLearning = new Map([...remoteLearning, ...localLearning]);
+        const mergedMastered = new Map([...remoteMastered, ...localMastered]);
+
+        for (const word of localMastered.keys()) {
+            if (mergedLearning.has(word)) mergedLearning.delete(word);
+        }
+        for (const word of localLearning.keys()) {
+            if (mergedMastered.has(word)) mergedMastered.delete(word);
+        }
+
+        return {
+            version: '2.0',
+            exportDate: new Date().toISOString(),
+            learningWords: Array.from(mergedLearning.entries()),
+            masteredWords: Array.from(mergedMastered.entries()),
+        };
     }
 }
