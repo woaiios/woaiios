@@ -141,18 +141,81 @@ export class UIController {
      * @param {Function} onWordClick - Word click handler
      * @param {Function} onWordHover - Word hover handler
      */
-    displayAnalyzedText(processedText, onWordClick, onWordHover) {
+    displayAnalyzedText(processedText) {
         const analyzedTextDiv = document.getElementById('analyzedText');
         if (!analyzedTextDiv) return;
         
         analyzedTextDiv.innerHTML = processedText;
         
-        // Add event listeners to highlighted words
         analyzedTextDiv.querySelectorAll('.word-span').forEach(element => {
-            element.addEventListener('mouseenter', (e) => onWordHover(e));
-            element.addEventListener('mouseleave', () => this.hideTooltip());
-            element.addEventListener('click', (e) => onWordClick(e.target.dataset.word, e.target.dataset.translation));
+            let pressTimer;
+            let longPress = false;
+
+            const word = element.dataset.word;
+            const translation = element.dataset.translation;
+
+            // Tap and Long-press for touch devices
+            element.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                longPress = false;
+                pressTimer = window.setTimeout(() => {
+                    longPress = true;
+                    // Long press action
+                    this.handleWordUnmaster(word);
+                }, 500); // 500ms for long press
+            }, { passive: false });
+
+            element.addEventListener('touchend', () => {
+                clearTimeout(pressTimer);
+                if (!longPress) {
+                    // Tap action
+                    this.handleWordMaster(word, translation);
+                }
+            });
+
+            element.addEventListener('touchmove', () => {
+                clearTimeout(pressTimer);
+            });
+
+            // Click for non-touch devices (desktop)
+            element.addEventListener('click', () => {
+                this.handleWordMaster(word, translation);
+            });
         });
+    }
+
+    /**
+     * Handles the logic for mastering a word (tap/click action).
+     * @param {string} word The word to master.
+     * @param {string} translation The word's translation.
+     */
+    handleWordMaster(word, translation) {
+        const result = this.vocabularyManager.masterWord(word, translation);
+        switch (result) {
+            case 'added_to_mastered':
+                this.showNotification(`✅ '${word}' marked as mastered.`);
+                break;
+            case 'moved_to_mastered':
+                this.showNotification(`✅ '${word}' moved to mastered list.`);
+                break;
+            case 'already_mastered':
+                // Optional: show a subtle notification that it's already known
+                // this.showNotification(`'${word}' is already in your mastered list.`, 'info');
+                break;
+        }
+        this.updateUI();
+    }
+
+    /**
+     * Handles the logic for moving a word to the learning list (long-press action).
+     * @param {string} word The word to un-master.
+     */
+    handleWordUnmaster(word) {
+        const result = this.vocabularyManager.unmasterWord(word);
+        if (result === 'moved_to_learning') {
+            this.showNotification(`📖 '${word}' moved to learning list.`);
+            this.updateUI();
+        }
     }
 
     /**
@@ -191,53 +254,7 @@ export class UIController {
         }
     }
 
-    /**
-     * Show tooltip for word
-     * @param {Event} event - Mouse event
-     * @param {string} word - Word
-     * @param {string} translation - Translation
-     */
-    showTooltip(event, word, translation) {
-        this.hideTooltip(); // Hide existing tooltip
-        
-        const tooltip = document.getElementById('translationTooltip');
-        if (!tooltip) return;
-        
-        const tooltipWord = document.getElementById('tooltipWord');
-        const tooltipTranslation = document.getElementById('tooltipTranslation');
-        
-        if (tooltipWord) tooltipWord.textContent = word;
-        if (tooltipTranslation) tooltipTranslation.textContent = translation;
-        
-        const rect = event.target.getBoundingClientRect();
-        tooltip.style.left = rect.left + 'px';
-        tooltip.style.top = (rect.bottom + 5) + 'px';
-        tooltip.classList.add('show');
-        
-        // Update add to vocab button
-        const addToVocabBtn = document.getElementById('addToVocabBtn');
-        if (addToVocabBtn) {
-            addToVocabBtn.onclick = () => {
-                if (this.vocabularyManager.addWord(word, translation)) {
-                    this.hideTooltip();
-                    this.updateUI();
-                    this.showNotification(`"${word}" added to learning list!`);
-                } else {
-                    this.showNotification(`"${word}" is already in your vocabulary.`, 'info');
-                }
-            };
-        }
-    }
 
-    /**
-     * Hide tooltip
-     */
-    hideTooltip() {
-        const tooltip = document.getElementById('translationTooltip');
-        if (tooltip) {
-            tooltip.classList.remove('show');
-        }
-    }
 
     /**
      * Show notification

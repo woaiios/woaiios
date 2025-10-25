@@ -452,45 +452,7 @@ body {
     min-width: 200px;
 }
 
-/* Tooltip */
-.tooltip {
-    position: absolute;
-    background: white;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 1rem;
-    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
-    z-index: 1001;
-    max-width: 300px;
-    display: none;
-}
 
-.tooltip.show {
-    display: block;
-    animation: fadeIn 0.2s ease;
-}
-
-.tooltip-content {
-    text-align: center;
-}
-
-.tooltip-word {
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 0.5rem;
-    font-size: 1.1rem;
-}
-
-.tooltip-translation {
-    color: #6b7280;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-}
-
-.tooltip-actions {
-    display: flex;
-    justify-content: center;
-}
 
 /* Loading Overlay */
 .loading-overlay {

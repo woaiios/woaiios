@@ -115,11 +115,7 @@ export class WordDiscoverer {
             const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
             
             // Update UI
-            this.uiController.displayAnalyzedText(
-                processedText,
-                (word, translation) => this.addToVocabulary(word, translation),
-                (event) => this.uiController.showTooltip(event, event.target.dataset.word, event.target.dataset.translation)
-            );
+            this.uiController.displayAnalyzedText(processedText);
             
             this.uiController.updateStatistics(analysis);
             this.uiController.showAnalyzedTextSection();

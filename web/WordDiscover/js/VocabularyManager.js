@@ -43,29 +43,46 @@ export class VocabularyManager {
      * @param {string} word - The word to master.
      * @returns {boolean} True if the word was moved, false otherwise.
      */
-    masterWord(word) {
-        if (this.learningWords.has(word)) {
-            const wordData = this.learningWords.get(word);
-            this.learningWords.delete(word);
-            this.masteredWords.set(word, wordData);
-            this.saveVocabulary();
-            return true;
+    masterWord(word, translation) {
+        const lowerCaseWord = word.toLowerCase();
+        if (this.masteredWords.has(lowerCaseWord)) {
+            return 'already_mastered';
         }
-        return false;
+
+        let wordData;
+        if (this.learningWords.has(lowerCaseWord)) {
+            wordData = this.learningWords.get(lowerCaseWord);
+            this.learningWords.delete(lowerCaseWord);
+            this.masteredWords.set(lowerCaseWord, wordData);
+            this.saveVocabulary();
+            return 'moved_to_mastered';
+        }
+
+        // Add new word directly to mastered list
+        wordData = {
+            translation: translation,
+            addedDate: new Date().toISOString(),
+            reviewCount: 0, // New mastered words start with 0 reviews
+            lastReviewed: null
+        };
+        this.masteredWords.set(lowerCaseWord, wordData);
+        this.saveVocabulary();
+        return 'added_to_mastered';
     }
 
     /**
      * Move a word from the mastered list back to the learning list.
      * @param {string} word - The word to un-master.
-     * @returns {boolean} True if the word was moved, false otherwise.
+     * @returns {string|boolean} 'moved_to_learning' on success, false otherwise.
      */
     unmasterWord(word) {
-        if (this.masteredWords.has(word)) {
-            const wordData = this.masteredWords.get(word);
-            this.masteredWords.delete(word);
-            this.learningWords.set(word, wordData);
+        const lowerCaseWord = word.toLowerCase();
+        if (this.masteredWords.has(lowerCaseWord)) {
+            const wordData = this.masteredWords.get(lowerCaseWord);
+            this.masteredWords.delete(lowerCaseWord);
+            this.learningWords.set(lowerCaseWord, wordData);
             this.saveVocabulary();
-            return true;
+            return 'moved_to_learning';
         }
         return false;
     }
