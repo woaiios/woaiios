@@ -226,13 +226,13 @@ export class VocabularyManager {
      * Enable Google Drive sync
      * @returns {Promise<boolean>} Success status
      */
-    async enableGoogleDriveSync() {
+    async enableGoogleDriveSync(silent = false) {
         try {
             if (!this.googleDriveManager.isInitialized) {
                 await this.initializeGoogleDrive();
             }
 
-            const signInSuccess = await this.googleDriveManager.signIn();
+            const signInSuccess = await this.googleDriveManager.signIn(silent);
             if (signInSuccess) {
                 this.syncEnabled = true;
                 
@@ -279,12 +279,16 @@ export class VocabularyManager {
             const syncResult = await this.googleDriveManager.syncVocabulary(vocabularyData);
             
             if (syncResult.success) {
-                if (syncResult.action === 'download') {
-                    // Remote data is newer, update local vocabulary
+                if (syncResult.action === 'merge') {
+                    // Merged data is available, update local vocabulary
+                    this.importVocabulary(syncResult.data);
+                    console.log('Vocabulary merged and synced with Google Drive');
+                } else if (syncResult.action === 'download') {
+                    // This case is for compatibility if sync logic changes back.
                     this.importVocabulary(syncResult.data);
                     console.log('Vocabulary synced from Google Drive');
                 } else if (syncResult.action === 'upload') {
-                    console.log('Vocabulary synced to Google Drive');
+                    console.log('Vocabulary uploaded to Google Drive');
                 }
                 
                 this.lastSyncTime = new Date().toISOString();

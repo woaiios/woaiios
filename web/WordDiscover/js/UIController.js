@@ -533,6 +533,7 @@ export class UIController {
             const success = await this.vocabularyManager.enableGoogleDriveSync();
             if (success) {
                 this.showNotification('Google Drive sync enabled successfully!');
+                this.settingsManager.setSetting('googleDriveSync', true);
                 await this.updateGoogleDriveStatus();
             } else {
                 this.showNotification('Failed to enable Google Drive sync.', 'error');
@@ -569,6 +570,7 @@ export class UIController {
                 const success = await this.vocabularyManager.disableGoogleDriveSync();
                 if (success) {
                     this.showNotification('Disconnected from Google Drive.');
+                    this.settingsManager.setSetting('googleDriveSync', false);
                     await this.updateGoogleDriveStatus();
                 } else {
                     this.showNotification('Failed to disconnect from Google Drive.', 'error');

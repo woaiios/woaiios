@@ -100,7 +100,8 @@ export class SettingsManager {
             fontSize: 'medium',
             enableNotifications: true,
             reviewReminder: true,
-            reviewInterval: 7 // days
+            reviewInterval: 7, // days
+            googleDriveSync: false
         };
     }
 

@@ -38,6 +38,19 @@ export class WordDiscoverer {
             
             // Initialize Google Drive integration
             await this.uiController.initializeGoogleDrive();
+
+            if (this.settingsManager.getSetting('googleDriveSync')) {
+                console.log('Attempting to restore Google Drive session...');
+                const success = await this.vocabularyManager.enableGoogleDriveSync(true); // silent sign-in
+                if (success) {
+                    console.log('Google Drive session restored.');
+                    this.uiController.showNotification('Google Drive connected.', 'info');
+                } else {
+                    console.log('Could not restore Google Drive session silently.');
+                    this.settingsManager.setSetting('googleDriveSync', false);
+                }
+                await this.uiController.updateGoogleDriveStatus();
+            }
             
             console.log('WordDiscoverer initialized successfully');
         } catch (error) {

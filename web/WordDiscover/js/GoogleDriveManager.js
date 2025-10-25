@@ -92,7 +92,7 @@ export class GoogleDriveManager {
      * Sign in to Google using Google Identity Services
      * @returns {Promise<boolean>} Success status
      */
-    async signIn() {
+    async signIn(silent = false) {
         try {
             if (!this.isInitialized) {
                 await this.initialize();
@@ -105,8 +105,12 @@ export class GoogleDriveManager {
                     scope: this.scopes,
                     callback: (response) => {
                         if (response.error) {
-                            console.error('OAuth error:', response.error);
-                            reject(new Error(response.error));
+                            console.log('OAuth error:', response.error);
+                            if (silent) {
+                                resolve(false);
+                            } else {
+                                reject(new Error(response.error));
+                            }
                             return;
                         }
                         
@@ -119,12 +123,16 @@ export class GoogleDriveManager {
                                 console.log('Successfully signed in to Google');
                                 resolve(true);
                             });
-                        }).catch(reject);
+                        }).catch(silent ? () => resolve(false) : reject);
                     }
                 });
 
                 // Request access token
-                client.requestAccessToken();
+                if (silent) {
+                    client.requestAccessToken({ prompt: 'none' });
+                } else {
+                    client.requestAccessToken();
+                }
             });
         } catch (error) {
             console.error('Error signing in:', error);
@@ -228,22 +236,37 @@ export class GoogleDriveManager {
      */
     async findOrCreateVocabularyFile() {
         try {
-            // Search for existing vocabulary file
-            const response = await gapi.client.drive.files.list({
+            // Search for existing vocabulary file in the visible 'drive' space.
+            let response = await gapi.client.drive.files.list({
                 q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",
+                spaces: 'drive',
                 fields: 'files(id, name, modifiedTime)'
             });
 
             if (response.result.files && response.result.files.length > 0) {
                 this.fileId = response.result.files[0].id;
-                console.log('Found existing vocabulary file:', this.fileId);
+                console.log('Found existing vocabulary file in drive:', this.fileId);
                 return this.fileId;
             }
 
-            // Create new file if not found
+            // For backward compatibility, check if a file exists in the hidden appDataFolder.
+            const appDataResponse = await gapi.client.drive.files.list({
+                spaces: 'appDataFolder',
+                q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",
+                fields: 'files(id, name, modifiedTime)'
+            });
+
+            if (appDataResponse.result.files && appDataResponse.result.files.length > 0) {
+                this.fileId = appDataResponse.result.files[0].id;
+                console.warn('Found vocabulary file in hidden appDataFolder. This file will continue to be used, but will not be visible in your Google Drive. To make it visible, please export, disconnect and reconnect, then import your vocabulary.');
+                return this.fileId;
+            }
+
+            // Create new file in the root directory if not found anywhere.
+            console.log('Creating new vocabulary file in the root directory.');
             const fileMetadata = {
                 name: 'WordDiscoverer_Vocabulary.json',
-                parents: ['appDataFolder'] // Store in app-specific folder
+                parents: ['root'] // Store in root directory to be visible.
             };
 
             const createResponse = await gapi.client.drive.files.create({
@@ -252,7 +275,7 @@ export class GoogleDriveManager {
             });
 
             this.fileId = createResponse.result.id;
-            console.log('Created new vocabulary file:', this.fileId);
+            console.log('Created new vocabulary file in root directory:', this.fileId);
             return this.fileId;
         } catch (error) {
             console.error('Error finding/creating vocabulary file:', error);
@@ -346,11 +369,10 @@ export class GoogleDriveManager {
                 return { success: false, error: 'Not signed in to Google' };
             }
 
-            // Download remote data
             const remoteData = await this.downloadVocabulary();
-            
+
             if (!remoteData) {
-                // No remote data, upload local data
+                // No remote data, so we upload the local data.
                 const uploadSuccess = await this.uploadVocabulary(localVocabulary);
                 return {
                     success: uploadSuccess,
@@ -360,36 +382,41 @@ export class GoogleDriveManager {
                 };
             }
 
-            // Compare timestamps to determine sync strategy
-            const localTimestamp = localVocabulary.exportDate || new Date().toISOString();
-            const remoteTimestamp = remoteData.exportDate || new Date().toISOString();
+            // --- Merge Logic ---
+            const localWords = new Map(localVocabulary.vocabulary || []);
+            const remoteWords = new Map(remoteData.vocabulary || []);
+            
+            // Create a new map with remote data, then update with local data.
+            // Local words will overwrite remote words in case of conflict.
+            const mergedWords = new Map([...remoteWords, ...localWords]);
 
-            if (new Date(localTimestamp) > new Date(remoteTimestamp)) {
-                // Local is newer, upload local data
-                const uploadSuccess = await this.uploadVocabulary(localVocabulary);
-                return {
-                    success: uploadSuccess,
-                    action: 'upload',
-                    data: localVocabulary,
-                    error: uploadSuccess ? null : 'Failed to upload vocabulary'
-                };
-            } else if (new Date(remoteTimestamp) > new Date(localTimestamp)) {
-                // Remote is newer, return remote data for local update
+            const mergedVocabulary = {
+                ...remoteData,
+                ...localVocabulary,
+                vocabulary: Array.from(mergedWords.entries()),
+                exportDate: new Date().toISOString(),
+                totalWords: mergedWords.size
+            };
+            // --- End of Merge Logic ---
+
+            const uploadSuccess = await this.uploadVocabulary(mergedVocabulary);
+
+            if (uploadSuccess) {
                 return {
                     success: true,
-                    action: 'download',
-                    data: remoteData,
+                    action: 'merge',
+                    data: mergedVocabulary,
                     error: null
                 };
             } else {
-                // Same timestamp, no sync needed
                 return {
-                    success: true,
-                    action: 'none',
+                    success: false,
+                    action: 'merge_fail',
                     data: localVocabulary,
-                    error: null
+                    error: 'Failed to upload merged vocabulary'
                 };
             }
+
         } catch (error) {
             console.error('Error syncing vocabulary:', error);
             return {
