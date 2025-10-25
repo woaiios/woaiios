@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word Discoverer - Expand Your Vocabulary</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <h1 class="logo">
+                    <i class="fas fa-book-open"></i>
+                    Word Discoverer
+                </h1>
+                <div class="header-controls">
+                    <button class="btn btn-outline" id="settingsBtn">
+                        <i class="fas fa-cog"></i>
+                        Settings
+                    </button>
+                    <button class="btn btn-primary" id="vocabularyBtn">
+                        <i class="fas fa-list"></i>
+                        Vocabulary (<span id="vocabCount">0</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Text Input Area -->
+            <div class="text-input-section">
+                <div class="input-group">
+                    <textarea id="textInput" placeholder="Paste your English text here to discover new words and expand your vocabulary..."></textarea>
+                    <div class="input-controls">
+                        <button class="btn btn-secondary" id="clearBtn">
+                            <i class="fas fa-trash"></i>
+                            Clear
+                        </button>
+                        <button class="btn btn-primary" id="analyzeBtn">
+                            <i class="fas fa-search"></i>
+                            Analyze Text
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Controls -->
+            <div class="analysis-controls">
+                <div class="control-group">
+                    <label for="difficultyLevel">Difficulty Level:</label>
+                    <select id="difficultyLevel">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate" selected>Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="highlightMode">Highlight Mode:</label>
+                    <select id="highlightMode">
+                        <option value="unknown">Unknown Words Only</option>
+                        <option value="difficult" selected>Difficult Words</option>
+                        <option value="all">All Words</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showTranslations" checked>
+                        Show Translations on Hover
+                    </label>
+                </div>
+            </div>
+
+            <!-- Analyzed Text Display -->
+            <div class="analyzed-text-section" id="analyzedTextSection" style="display: none;">
+                <h3>Analyzed Text</h3>
+                <div class="analyzed-text" id="analyzedText"></div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="statistics" id="statistics" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalWords">0</div>
+                    <div class="stat-label">Total Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="highlightedWords">0</div>
+                    <div class="stat-label">Highlighted Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="newWords">0</div>
+                    <div class="stat-label">New Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="difficultyScore">0</div>
+                    <div class="stat-label">Difficulty Score</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Vocabulary Modal -->
+    <div class="modal" id="vocabularyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>My Vocabulary</h2>
+                <button class="close-btn" id="closeVocabModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="vocab-controls">
+                    <button class="btn btn-primary" id="exportVocabBtn">
+                        <i class="fas fa-download"></i>
+                        Export
+                    </button>
+                    <button class="btn btn-secondary" id="importVocabBtn">
+                        <i class="fas fa-upload"></i>
+                        Import
+                    </button>
+                    <input type="file" id="importFile" accept=".json" style="display: none;">
+                    <button class="btn btn-danger" id="clearVocabBtn">
+                        <i class="fas fa-trash"></i>
+                        Clear All
+                    </button>
+                </div>
+                <div class="vocab-list" id="vocabList"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal" id="settingsModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button class="close-btn" id="closeSettingsModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3>Highlighting</h3>
+                    <div class="setting-item">
+                        <label for="highlightColor">Highlight Color:</label>
+                        <input type="color" id="highlightColor" value="#ffeb3b">
+                    </div>
+                    <div class="setting-item">
+                        <label for="highlightOpacity">Opacity:</label>
+                        <input type="range" id="highlightOpacity" min="0.1" max="1" step="0.1" value="0.7">
+                        <span id="opacityValue">70%</span>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Translation</h3>
+                    <div class="setting-item">
+                        <label for="translationService">Translation Service:</label>
+                        <select id="translationService">
+                            <option value="bing">Bing Translator</option>
+                            <option value="google">Google Translate</option>
+                            <option value="yandex">Yandex Translate</option>
+                        </select>
+                    </div>
+                    <div class="setting-item">
+                        <label for="targetLanguage">Target Language:</label>
+                        <select id="targetLanguage">
+                            <option value="zh">Chinese</option>
+                            <option value="es">Spanish</option>
+                            <option value="fr">French</option>
+                            <option value="de">German</option>
+                            <option value="ja">Japanese</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Data Management</h3>
+                    <div class="setting-item">
+                        <button class="btn btn-primary" id="exportSettingsBtn">
+                            <i class="fas fa-download"></i>
+                            Export Settings
+                        </button>
+                        <button class="btn btn-secondary" id="importSettingsBtn">
+                            <i class="fas fa-upload"></i>
+                            Import Settings
+                        </button>
+                        <input type="file" id="importSettingsFile" accept=".json" style="display: none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Translation Tooltip -->
+    <div class="tooltip" id="translationTooltip">
+        <div class="tooltip-content">
+            <div class="tooltip-word" id="tooltipWord"></div>
+            <div class="tooltip-translation" id="tooltipTranslation"></div>
+            <div class="tooltip-actions">
+                <button class="btn btn-sm btn-primary" id="addToVocabBtn">
+                    <i class="fas fa-plus"></i>
+                    Add to Vocabulary
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Analyzing text...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
