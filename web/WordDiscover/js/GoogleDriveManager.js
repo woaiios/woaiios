@@ -5,7 +5,7 @@
 export class GoogleDriveManager {
     constructor() {
         this.clientId = '781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com';
-        this.scopes = 'https://www.googleapis.com/auth/drive.appdata';
+        this.scopes = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
         this.isInitialized = false;
         this.isSignedIn = false;
         this.accessToken = null;
@@ -156,6 +156,48 @@ export class GoogleDriveManager {
     }
 
     /**
+     * Refresh access token
+     * @returns {Promise<boolean>} Success status
+     */
+    async refreshAccessToken() {
+        try {
+            if (!this.isInitialized) {
+                await this.initialize();
+            }
+
+            return new Promise((resolve, reject) => {
+                const client = window.google.accounts.oauth2.initTokenClient({
+                    client_id: this.clientId,
+                    scope: this.scopes,
+                    callback: (response) => {
+                        if (response.error) {
+                            console.error('Token refresh error:', response.error);
+                            reject(new Error(response.error));
+                            return;
+                        }
+                        
+                        this.accessToken = response.access_token;
+                        this.isSignedIn = true;
+                        
+                        // Update gapi client token
+                        if (window.gapi && window.gapi.client) {
+                            gapi.client.setToken({ access_token: this.accessToken });
+                        }
+                        
+                        console.log('Access token refreshed successfully');
+                        resolve(true);
+                    }
+                });
+
+                client.requestAccessToken();
+            });
+        } catch (error) {
+            console.error('Error refreshing access token:', error);
+            return false;
+        }
+    }
+
+    /**
      * Sign out from Google
      * @returns {Promise<boolean>} Success status
      */
@@ -227,31 +269,37 @@ export class GoogleDriveManager {
             }
 
             const jsonData = JSON.stringify(vocabularyData, null, 2);
-            const blob = new Blob([jsonData], { type: 'application/json' });
-
-            const form = new FormData();
-            form.append('metadata', new Blob([JSON.stringify({
-                name: 'WordDiscoverer_Vocabulary.json',
-                parents: ['appDataFolder']
-            })], { type: 'application/json' }));
-            form.append('file', blob);
-
-            const response = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${this.fileId}?uploadType=multipart`, {
+            
+            // Use gapi.client for proper API calls instead of direct fetch
+            const response = await gapi.client.request({
+                path: `https://www.googleapis.com/upload/drive/v3/files/${this.fileId}`,
                 method: 'PATCH',
-                headers: {
-                    'Authorization': `Bearer ${this.accessToken}`
+                params: {
+                    uploadType: 'media'
                 },
-                body: form
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: jsonData
             });
-
-            if (!response.ok) {
-                throw new Error(`Upload failed: ${response.statusText}`);
-            }
 
             console.log('Vocabulary uploaded successfully to Google Drive');
             return true;
         } catch (error) {
             console.error('Error uploading vocabulary:', error);
+            
+            // If the error is due to insufficient permissions, try to refresh token
+            if (error.status === 403) {
+                console.log('Attempting to refresh access token...');
+                try {
+                    await this.refreshAccessToken();
+                    // Retry upload after token refresh
+                    return await this.uploadVocabulary(vocabularyData);
+                } catch (refreshError) {
+                    console.error('Failed to refresh token:', refreshError);
+                }
+            }
+            
             return false;
         }
     }
