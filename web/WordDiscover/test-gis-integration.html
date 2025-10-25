@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Drive Integration Test - Updated</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .btn {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .btn:hover {
+            background: #3367d6;
+        }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Google Drive Integration Test - Updated</h1>
+        <p>This test verifies that the Google Drive integration has been successfully migrated from the deprecated gapi.auth2 to the new Google Identity Services.</p>
+        
+        <div class="status info" id="initStatus">
+            <strong>Status:</strong> Initializing Google Drive API...
+        </div>
+        
+        <div class="test-controls">
+            <button class="btn" id="testSignIn">Test Sign In</button>
+            <button class="btn" id="testSync" disabled>Test Sync</button>
+            <button class="btn" id="testSignOut" disabled>Sign Out</button>
+        </div>
+        
+        <div class="status" id="authStatus" style="display: none;">
+            <h3>Authentication Status</h3>
+            <div id="authDetails"></div>
+        </div>
+        
+        <div class="status" id="syncStatus" style="display: none;">
+            <h3>Sync Test Results</h3>
+            <div id="syncDetails"></div>
+        </div>
+        
+        <h3>Console Log</h3>
+        <div class="log" id="consoleLog"></div>
+    </div>
+
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <script type="module">
+        import { GoogleDriveManager } from './js/GoogleDriveManager.js';
+        
+        // Override console.log to display in the page
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logDiv = document.getElementById('consoleLog');
+        
+        function addToLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? 'red' : 'black';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToLog(args.join(' '), 'error');
+        };
+        
+        // Initialize Google Drive Manager
+        const googleDriveManager = new GoogleDriveManager();
+        
+        // Test elements
+        const initStatus = document.getElementById('initStatus');
+        const authStatus = document.getElementById('authStatus');
+        const authDetails = document.getElementById('authDetails');
+        const syncStatus = document.getElementById('syncStatus');
+        const syncDetails = document.getElementById('syncDetails');
+        const testSignIn = document.getElementById('testSignIn');
+        const testSync = document.getElementById('testSync');
+        const testSignOut = document.getElementById('testSignOut');
+        
+        // Initialize Google Drive
+        async function initializeDrive() {
+            try {
+                console.log('Initializing Google Drive with new Google Identity Services...');
+                const success = await googleDriveManager.initialize();
+                if (success) {
+                    console.log('✅ Google Drive initialized successfully with new authentication');
+                    initStatus.className = 'status success';
+                    initStatus.innerHTML = '<strong>Status:</strong> ✅ Google Drive API initialized successfully with new Google Identity Services';
+                    updateAuthStatus();
+                } else {
+                    console.error('❌ Failed to initialize Google Drive');
+                    initStatus.className = 'status error';
+                    initStatus.innerHTML = '<strong>Status:</strong> ❌ Failed to initialize Google Drive';
+                }
+            } catch (error) {
+                console.error('❌ Error initializing Google Drive:', error);
+                initStatus.className = 'status error';
+                initStatus.innerHTML = `<strong>Status:</strong> ❌ Error: ${error.message}`;
+            }
+        }
+        
+        // Update authentication status display
+        function updateAuthStatus() {
+            const authStatusData = googleDriveManager.getAuthStatus();
+            const userInfo = googleDriveManager.getUserInfo();
+            
+            let statusHtml = '<h3>Authentication Status</h3>';
+            statusHtml += `<p><strong>Initialized:</strong> ${authStatusData.isInitialized ? '✅ Yes' : '❌ No'}</p>`;
+            statusHtml += `<p><strong>Signed In:</strong> ${authStatusData.isSignedIn ? '✅ Yes' : '❌ No'}</p>`;
+            statusHtml += `<p><strong>Has File:</strong> ${authStatusData.hasFile ? '✅ Yes' : '❌ No'}</p>`;
+            
+            if (userInfo) {
+                statusHtml += '<h3>User Info</h3>';
+                statusHtml += `<p><strong>Name:</strong> ${userInfo.name}</p>`;
+                statusHtml += `<p><strong>Email:</strong> ${userInfo.email}</p>`;
+                if (userInfo.imageUrl) {
+                    statusHtml += `<img src="${userInfo.imageUrl}" alt="User Avatar" style="width: 50px; height: 50px; border-radius: 50%;">`;
+                }
+            }
+            
+            authDetails.innerHTML = statusHtml;
+            authStatus.style.display = 'block';
+            
+            // Update button states
+            testSignIn.disabled = authStatusData.isSignedIn;
+            testSync.disabled = !authStatusData.isSignedIn;
+            testSignOut.disabled = !authStatusData.isSignedIn;
+        }
+        
+        // Event listeners
+        testSignIn.addEventListener('click', async () => {
+            console.log('🔄 Testing sign in with new Google Identity Services...');
+            const success = await googleDriveManager.signIn();
+            if (success) {
+                console.log('✅ Sign in successful');
+                updateAuthStatus();
+            } else {
+                console.error('❌ Sign in failed');
+            }
+        });
+        
+        testSync.addEventListener('click', async () => {
+            console.log('🔄 Testing sync functionality...');
+            const testData = {
+                exportDate: new Date().toISOString(),
+                words: {
+                    'test': {
+                        translation: 'prueba',
+                        addedDate: new Date().toISOString(),
+                        difficulty: 'intermediate'
+                    }
+                }
+            };
+            
+            const syncResult = await googleDriveManager.syncVocabulary(testData);
+            console.log('📊 Sync result:', syncResult);
+            
+            let syncHtml = '<h3>Sync Test Results</h3>';
+            if (syncResult.success) {
+                syncHtml += '<p class="success">✅ Sync successful</p>';
+                syncHtml += `<p><strong>Action:</strong> ${syncResult.action}</p>`;
+                if (syncResult.data) {
+                    syncHtml += `<p><strong>Data synced:</strong> ${Object.keys(syncResult.data.words || {}).length} words</p>`;
+                }
+            } else {
+                syncHtml += `<p class="error">❌ Sync failed: ${syncResult.error}</p>`;
+            }
+            
+            syncDetails.innerHTML = syncHtml;
+            syncStatus.style.display = 'block';
+        });
+        
+        testSignOut.addEventListener('click', async () => {
+            console.log('🔄 Testing sign out...');
+            const success = await googleDriveManager.signOut();
+            if (success) {
+                console.log('✅ Sign out successful');
+                updateAuthStatus();
+            } else {
+                console.error('❌ Sign out failed');
+            }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Starting Google Drive integration test with new authentication...');
+            initializeDrive();
+        });
+    </script>
+</body>
+</html>

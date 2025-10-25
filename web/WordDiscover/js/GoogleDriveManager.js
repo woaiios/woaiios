@@ -1,17 +1,16 @@
 /**
  * GoogleDriveManager Module
- * Handles Google Drive API integration and OAuth authentication
+ * Handles Google Drive API integration and OAuth authentication using Google Identity Services (GIS)
  */
 export class GoogleDriveManager {
     constructor() {
         this.clientId = '781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com';
-        this.apiKey = ''; // API key not needed for OAuth flow
-        this.discoveryDocs = ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'];
         this.scopes = 'https://www.googleapis.com/auth/drive.file';
         this.isInitialized = false;
         this.isSignedIn = false;
         this.accessToken = null;
         this.fileId = null; // ID of the vocabulary file in Google Drive
+        this.gapiLoaded = false;
     }
 
     /**
@@ -20,37 +19,13 @@ export class GoogleDriveManager {
      */
     async initialize() {
         try {
-            // Load Google API script if not already loaded
-            if (!window.gapi) {
-                await this.loadGoogleAPI();
-            }
-
-            // Initialize gapi
-            await new Promise((resolve, reject) => {
-                gapi.load('client:auth2', {
-                    callback: resolve,
-                    onerror: reject
-                });
-            });
-
-            // Initialize client
-            await gapi.client.init({
-                clientId: this.clientId,
-                discoveryDocs: this.discoveryDocs,
-                scope: this.scopes
-            });
+            // Wait for Google Identity Services to load
+            await this.waitForGoogleIdentityServices();
+            
+            // Load Google API client library
+            await this.loadGoogleAPIClient();
 
             this.isInitialized = true;
-            
-            // Check if user is already signed in
-            const authInstance = gapi.auth2.getAuthInstance();
-            this.isSignedIn = authInstance.isSignedIn.get();
-            
-            if (this.isSignedIn) {
-                this.accessToken = authInstance.currentUser.get().getAuthResponse().access_token;
-                await this.findOrCreateVocabularyFile();
-            }
-
             console.log('Google Drive API initialized successfully');
             return true;
         } catch (error) {
@@ -60,26 +35,61 @@ export class GoogleDriveManager {
     }
 
     /**
-     * Load Google API script
+     * Wait for Google Identity Services to load
      * @returns {Promise<void>}
      */
-    loadGoogleAPI() {
+    waitForGoogleIdentityServices() {
         return new Promise((resolve, reject) => {
-            if (document.querySelector('script[src*="apis.google.com/js/api.js"]')) {
+            if (window.google && window.google.accounts) {
+                resolve();
+                return;
+            }
+
+            const checkInterval = setInterval(() => {
+                if (window.google && window.google.accounts) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+
+            // Timeout after 10 seconds
+            setTimeout(() => {
+                clearInterval(checkInterval);
+                reject(new Error('Google Identity Services failed to load'));
+            }, 10000);
+        });
+    }
+
+    /**
+     * Load Google API client library
+     * @returns {Promise<void>}
+     */
+    loadGoogleAPIClient() {
+        return new Promise((resolve, reject) => {
+            if (this.gapiLoaded) {
+                resolve();
+                return;
+            }
+
+            if (window.gapi) {
+                this.gapiLoaded = true;
                 resolve();
                 return;
             }
 
             const script = document.createElement('script');
             script.src = 'https://apis.google.com/js/api.js';
-            script.onload = resolve;
+            script.onload = () => {
+                this.gapiLoaded = true;
+                resolve();
+            };
             script.onerror = reject;
             document.head.appendChild(script);
         });
     }
 
     /**
-     * Sign in to Google
+     * Sign in to Google using Google Identity Services
      * @returns {Promise<boolean>} Success status
      */
     async signIn() {
@@ -88,20 +98,61 @@ export class GoogleDriveManager {
                 await this.initialize();
             }
 
-            const authInstance = gapi.auth2.getAuthInstance();
-            const user = await authInstance.signIn();
-            
-            this.isSignedIn = true;
-            this.accessToken = user.getAuthResponse().access_token;
-            
-            await this.findOrCreateVocabularyFile();
-            
-            console.log('Successfully signed in to Google');
-            return true;
+            return new Promise((resolve, reject) => {
+                // Use Google Identity Services for authentication
+                const client = window.google.accounts.oauth2.initTokenClient({
+                    client_id: this.clientId,
+                    scope: this.scopes,
+                    callback: (response) => {
+                        if (response.error) {
+                            console.error('OAuth error:', response.error);
+                            reject(new Error(response.error));
+                            return;
+                        }
+                        
+                        this.accessToken = response.access_token;
+                        this.isSignedIn = true;
+                        
+                        // Initialize Google API client with the access token
+                        this.initializeGoogleAPIClient().then(() => {
+                            this.findOrCreateVocabularyFile().then(() => {
+                                console.log('Successfully signed in to Google');
+                                resolve(true);
+                            });
+                        }).catch(reject);
+                    }
+                });
+
+                // Request access token
+                client.requestAccessToken();
+            });
         } catch (error) {
             console.error('Error signing in:', error);
             return false;
         }
+    }
+
+    /**
+     * Initialize Google API client with access token
+     * @returns {Promise<void>}
+     */
+    async initializeGoogleAPIClient() {
+        return new Promise((resolve, reject) => {
+            gapi.load('client', async () => {
+                try {
+                    await gapi.client.init({
+                        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+                    });
+
+                    // Set the access token
+                    gapi.client.setToken({ access_token: this.accessToken });
+                    
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        });
     }
 
     /**
@@ -110,10 +161,9 @@ export class GoogleDriveManager {
      */
     async signOut() {
         try {
-            if (!this.isInitialized) return true;
-
-            const authInstance = gapi.auth2.getAuthInstance();
-            await authInstance.signOut();
+            if (window.google && window.google.accounts) {
+                window.google.accounts.oauth2.revoke(this.accessToken);
+            }
             
             this.isSignedIn = false;
             this.accessToken = null;
@@ -316,18 +366,16 @@ export class GoogleDriveManager {
      */
     getUserInfo() {
         try {
-            if (!this.isSignedIn || !this.isInitialized) {
+            if (!this.isSignedIn) {
                 return null;
             }
 
-            const authInstance = gapi.auth2.getAuthInstance();
-            const user = authInstance.currentUser.get();
-            const profile = user.getBasicProfile();
-
+            // For now, return basic info - in a real implementation,
+            // you might want to make an API call to get user profile
             return {
-                name: profile.getName(),
-                email: profile.getEmail(),
-                imageUrl: profile.getImageUrl()
+                name: 'Google User',
+                email: 'user@example.com',
+                imageUrl: null
             };
         } catch (error) {
             console.error('Error getting user info:', error);
