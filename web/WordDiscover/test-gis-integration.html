@@ -146,7 +146,7 @@
                     console.log('✅ Google Drive initialized successfully with new authentication');
                     initStatus.className = 'status success';
                     initStatus.innerHTML = '<strong>Status:</strong> ✅ Google Drive API initialized successfully with new Google Identity Services';
-                    updateAuthStatus();
+                    await updateAuthStatus();
                 } else {
                     console.error('❌ Failed to initialize Google Drive');
                     initStatus.className = 'status error';
@@ -160,9 +160,9 @@
         }
         
         // Update authentication status display
-        function updateAuthStatus() {
+        async function updateAuthStatus() {
             const authStatusData = googleDriveManager.getAuthStatus();
-            const userInfo = googleDriveManager.getUserInfo();
+            const userInfo = await googleDriveManager.getUserInfo();
             
             let statusHtml = '<h3>Authentication Status</h3>';
             statusHtml += `<p><strong>Initialized:</strong> ${authStatusData.isInitialized ? '✅ Yes' : '❌ No'}</p>`;
@@ -193,7 +193,7 @@
             const success = await googleDriveManager.signIn();
             if (success) {
                 console.log('✅ Sign in successful');
-                updateAuthStatus();
+                await updateAuthStatus();
             } else {
                 console.error('❌ Sign in failed');
             }
@@ -235,7 +235,7 @@
             const success = await googleDriveManager.signOut();
             if (success) {
                 console.log('✅ Sign out successful');
-                updateAuthStatus();
+                await updateAuthStatus();
             } else {
                 console.error('❌ Sign out failed');
             }

@@ -5,7 +5,7 @@
 export class GoogleDriveManager {
     constructor() {
         this.clientId = '781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com';
-        this.scopes = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file';
+        this.scopes = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
         this.isInitialized = false;
         this.isSignedIn = false;
         this.accessToken = null;
@@ -141,7 +141,10 @@ export class GoogleDriveManager {
             gapi.load('client', async () => {
                 try {
                     await gapi.client.init({
-                        discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest']
+                        discoveryDocs: [
+                            'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+                            'https://people.googleapis.com/$discovery/rest?version=v1'
+                        ]
                     });
 
                     // Set the access token
@@ -410,21 +413,36 @@ export class GoogleDriveManager {
 
     /**
      * Get user info
-     * @returns {Object|null} User info or null
+     * @returns {Promise<Object|null>} User info or null
      */
-    getUserInfo() {
+    async getUserInfo() {
         try {
             if (!this.isSignedIn) {
                 return null;
             }
 
-            // For now, return basic info - in a real implementation,
-            // you might want to make an API call to get user profile
-            return {
-                name: 'Google User',
-                email: 'user@example.com',
-                imageUrl: null
-            };
+            // Fetch user profile from Google People API
+            const response = await gapi.client.request({
+                path: 'https://people.googleapis.com/v1/people/me',
+                params: {
+                    personFields: 'names,emailAddresses,photos'
+                }
+            });
+
+            if (response.result) {
+                const person = response.result;
+                const name = person.names && person.names[0] ? person.names[0].displayName : 'Google User';
+                const email = person.emailAddresses && person.emailAddresses[0] ? person.emailAddresses[0].value : '';
+                const imageUrl = person.photos && person.photos[0] ? person.photos[0].url : null;
+
+                return {
+                    name: name,
+                    email: email,
+                    imageUrl: imageUrl
+                };
+            }
+
+            return null;
         } catch (error) {
             console.error('Error getting user info:', error);
             return null;

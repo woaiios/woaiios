@@ -515,7 +515,7 @@ export class UIController {
             const success = await this.vocabularyManager.syncToGoogleDrive();
             if (success) {
                 this.showNotification('Vocabulary synced to Google Drive successfully!');
-                this.updateGoogleDriveStatus();
+                await this.updateGoogleDriveStatus();
             } else {
                 this.showNotification('Failed to sync vocabulary to Google Drive.', 'error');
             }
@@ -533,7 +533,7 @@ export class UIController {
             const success = await this.vocabularyManager.enableGoogleDriveSync();
             if (success) {
                 this.showNotification('Google Drive sync enabled successfully!');
-                this.updateGoogleDriveStatus();
+                await this.updateGoogleDriveStatus();
             } else {
                 this.showNotification('Failed to enable Google Drive sync.', 'error');
             }
@@ -551,7 +551,7 @@ export class UIController {
             const success = await this.vocabularyManager.syncToGoogleDrive();
             if (success) {
                 this.showNotification('Sync completed successfully!');
-                this.updateGoogleDriveStatus();
+                await this.updateGoogleDriveStatus();
             } else {
                 this.showNotification('Sync failed.', 'error');
             }
@@ -569,7 +569,7 @@ export class UIController {
                 const success = await this.vocabularyManager.disableGoogleDriveSync();
                 if (success) {
                     this.showNotification('Disconnected from Google Drive.');
-                    this.updateGoogleDriveStatus();
+                    await this.updateGoogleDriveStatus();
                 } else {
                     this.showNotification('Failed to disconnect from Google Drive.', 'error');
                 }
@@ -583,8 +583,8 @@ export class UIController {
     /**
      * Update Google Drive status display
      */
-    updateGoogleDriveStatus() {
-        const status = this.vocabularyManager.getGoogleDriveStatus();
+    async updateGoogleDriveStatus() {
+        const status = await this.vocabularyManager.getGoogleDriveStatus();
         
         // Update status indicator
         const statusIndicator = document.getElementById('syncStatusIndicator');
@@ -654,7 +654,7 @@ export class UIController {
     async initializeGoogleDrive() {
         try {
             await this.vocabularyManager.initializeGoogleDrive();
-            this.updateGoogleDriveStatus();
+            await this.updateGoogleDriveStatus();
         } catch (error) {
             console.error('Error initializing Google Drive:', error);
         }

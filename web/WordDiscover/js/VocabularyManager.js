@@ -325,11 +325,11 @@ export class VocabularyManager {
 
     /**
      * Get Google Drive sync status
-     * @returns {Object} Sync status
+     * @returns {Promise<Object>} Sync status
      */
-    getGoogleDriveStatus() {
+    async getGoogleDriveStatus() {
         const authStatus = this.googleDriveManager.getAuthStatus();
-        const userInfo = this.googleDriveManager.getUserInfo();
+        const userInfo = await this.googleDriveManager.getUserInfo();
         
         return {
             syncEnabled: this.syncEnabled,

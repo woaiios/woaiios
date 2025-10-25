@@ -89,7 +89,7 @@
                 const success = await googleDriveManager.initialize();
                 if (success) {
                     console.log('Google Drive initialized successfully');
-                    updateDriveStatus();
+                    await updateDriveStatus();
                 } else {
                     console.error('Failed to initialize Google Drive');
                     driveStatus.innerHTML = '<p style="color: red;">Failed to initialize Google Drive</p>';
@@ -101,9 +101,9 @@
         }
         
         // Update drive status display
-        function updateDriveStatus() {
+        async function updateDriveStatus() {
             const authStatus = googleDriveManager.getAuthStatus();
-            const userInfo = googleDriveManager.getUserInfo();
+            const userInfo = await googleDriveManager.getUserInfo();
             
             let statusHtml = '<h3>Google Drive Status</h3>';
             statusHtml += `<p><strong>Initialized:</strong> ${authStatus.isInitialized ? 'Yes' : 'No'}</p>`;
@@ -131,7 +131,7 @@
             const success = await googleDriveManager.signIn();
             if (success) {
                 console.log('Sign in successful');
-                updateDriveStatus();
+                await updateDriveStatus();
             } else {
                 console.error('Sign in failed');
             }
@@ -161,7 +161,7 @@
             const success = await googleDriveManager.signOut();
             if (success) {
                 console.log('Sign out successful');
-                updateDriveStatus();
+                await updateDriveStatus();
             } else {
                 console.error('Sign out failed');
             }
