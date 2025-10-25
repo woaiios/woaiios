@@ -5,7 +5,7 @@
 export class GoogleDriveManager {
     constructor() {
         this.clientId = '781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com';
-        this.scopes = 'https://www.googleapis.com/auth/drive.file';
+        this.scopes = 'https://www.googleapis.com/auth/drive.appdata';
         this.isInitialized = false;
         this.isSignedIn = false;
         this.accessToken = null;

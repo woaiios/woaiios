@@ -93,7 +93,7 @@ web/WordDiscover/
 应用使用以下Google OAuth配置：
 - **Client ID**: `781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com`
 - **Redirect URI**: `https://woaiios.github.io/`
-- **Scope**: `https://www.googleapis.com/auth/drive.file`
+- **Scope**: `https://www.googleapis.com/auth/drive.appdata`
 - **API**: Google Drive API v3
 
 ## 安全考虑
