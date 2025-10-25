@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordDiscoverer - Google Drive Integration Test</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Google Drive Integration Test</h1>
+        
+        <div class="test-section">
+            <h2>Google Drive Status</h2>
+            <div id="driveStatus">
+                <p>Initializing...</p>
+            </div>
+            
+            <div class="test-controls">
+                <button id="testSignIn" class="btn btn-primary">Test Sign In</button>
+                <button id="testSync" class="btn btn-secondary" disabled>Test Sync</button>
+                <button id="testSignOut" class="btn btn-danger" disabled>Sign Out</button>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Test Vocabulary</h2>
+            <div class="test-vocab">
+                <button id="addTestWord" class="btn btn-success">Add Test Word</button>
+                <button id="showVocab" class="btn btn-info">Show Vocabulary</button>
+                <div id="vocabDisplay"></div>
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h2>Console Log</h2>
+            <div id="consoleLog" style="background: #f5f5f5; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { GoogleDriveManager } from './js/GoogleDriveManager.js';
+        import { VocabularyManager } from './js/VocabularyManager.js';
+        
+        // Override console.log to display in the page
+        const originalLog = console.log;
+        const originalError = console.error;
+        const logDiv = document.getElementById('consoleLog');
+        
+        function addToLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? 'red' : 'black';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logDiv.appendChild(logEntry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToLog(args.join(' '), 'log');
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToLog(args.join(' '), 'error');
+        };
+        
+        // Initialize managers
+        const googleDriveManager = new GoogleDriveManager();
+        const vocabularyManager = new VocabularyManager();
+        
+        // Test elements
+        const driveStatus = document.getElementById('driveStatus');
+        const testSignIn = document.getElementById('testSignIn');
+        const testSync = document.getElementById('testSync');
+        const testSignOut = document.getElementById('testSignOut');
+        const addTestWord = document.getElementById('addTestWord');
+        const showVocab = document.getElementById('showVocab');
+        const vocabDisplay = document.getElementById('vocabDisplay');
+        
+        // Initialize Google Drive
+        async function initializeDrive() {
+            try {
+                console.log('Initializing Google Drive...');
+                const success = await googleDriveManager.initialize();
+                if (success) {
+                    console.log('Google Drive initialized successfully');
+                    updateDriveStatus();
+                } else {
+                    console.error('Failed to initialize Google Drive');
+                    driveStatus.innerHTML = '<p style="color: red;">Failed to initialize Google Drive</p>';
+                }
+            } catch (error) {
+                console.error('Error initializing Google Drive:', error);
+                driveStatus.innerHTML = '<p style="color: red;">Error: ' + error.message + '</p>';
+            }
+        }
+        
+        // Update drive status display
+        function updateDriveStatus() {
+            const authStatus = googleDriveManager.getAuthStatus();
+            const userInfo = googleDriveManager.getUserInfo();
+            
+            let statusHtml = '<h3>Google Drive Status</h3>';
+            statusHtml += `<p><strong>Initialized:</strong> ${authStatus.isInitialized ? 'Yes' : 'No'}</p>`;
+            statusHtml += `<p><strong>Signed In:</strong> ${authStatus.isSignedIn ? 'Yes' : 'No'}</p>`;
+            statusHtml += `<p><strong>Has File:</strong> ${authStatus.hasFile ? 'Yes' : 'No'}</p>`;
+            
+            if (userInfo) {
+                statusHtml += '<h3>User Info</h3>';
+                statusHtml += `<p><strong>Name:</strong> ${userInfo.name}</p>`;
+                statusHtml += `<p><strong>Email:</strong> ${userInfo.email}</p>`;
+                statusHtml += `<img src="${userInfo.imageUrl}" alt="User Avatar" style="width: 50px; height: 50px; border-radius: 50%;">`;
+            }
+            
+            driveStatus.innerHTML = statusHtml;
+            
+            // Update button states
+            testSignIn.disabled = authStatus.isSignedIn;
+            testSync.disabled = !authStatus.isSignedIn;
+            testSignOut.disabled = !authStatus.isSignedIn;
+        }
+        
+        // Event listeners
+        testSignIn.addEventListener('click', async () => {
+            console.log('Testing sign in...');
+            const success = await googleDriveManager.signIn();
+            if (success) {
+                console.log('Sign in successful');
+                updateDriveStatus();
+            } else {
+                console.error('Sign in failed');
+            }
+        });
+        
+        testSync.addEventListener('click', async () => {
+            console.log('Testing sync...');
+            const vocabData = vocabularyManager.exportVocabulary();
+            const syncResult = await googleDriveManager.syncVocabulary(vocabData);
+            console.log('Sync result:', syncResult);
+            
+            if (syncResult.success) {
+                console.log('Sync successful');
+                if (syncResult.action === 'download') {
+                    console.log('Downloaded data from Drive');
+                    vocabularyManager.importVocabulary(syncResult.data);
+                } else if (syncResult.action === 'upload') {
+                    console.log('Uploaded data to Drive');
+                }
+            } else {
+                console.error('Sync failed:', syncResult.error);
+            }
+        });
+        
+        testSignOut.addEventListener('click', async () => {
+            console.log('Testing sign out...');
+            const success = await googleDriveManager.signOut();
+            if (success) {
+                console.log('Sign out successful');
+                updateDriveStatus();
+            } else {
+                console.error('Sign out failed');
+            }
+        });
+        
+        addTestWord.addEventListener('click', () => {
+            const testWords = ['serendipity', 'ephemeral', 'ubiquitous', 'mellifluous', 'petrichor'];
+            const randomWord = testWords[Math.floor(Math.random() * testWords.length)];
+            const added = vocabularyManager.addWord(randomWord, `Test translation for ${randomWord}`);
+            if (added) {
+                console.log(`Added test word: ${randomWord}`);
+            } else {
+                console.log(`Word ${randomWord} already exists`);
+            }
+        });
+        
+        showVocab.addEventListener('click', () => {
+            const vocab = vocabularyManager.getAllWords();
+            let vocabHtml = '<h3>Current Vocabulary</h3>';
+            if (vocab.length === 0) {
+                vocabHtml += '<p>No words in vocabulary</p>';
+            } else {
+                vocabHtml += '<ul>';
+                vocab.forEach(([word, data]) => {
+                    vocabHtml += `<li><strong>${word}</strong>: ${data.translation}</li>`;
+                });
+                vocabHtml += '</ul>';
+            }
+            vocabDisplay.innerHTML = vocabHtml;
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Starting Google Drive integration test...');
+            initializeDrive();
+        });
+    </script>
+</body>
+</html>

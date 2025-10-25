@@ -2,9 +2,14 @@
  * VocabularyManager Module
  * Handles vocabulary management and persistence
  */
+import { GoogleDriveManager } from './GoogleDriveManager.js';
+
 export class VocabularyManager {
     constructor() {
         this.vocabulary = this.loadVocabulary();
+        this.googleDriveManager = new GoogleDriveManager();
+        this.syncEnabled = false;
+        this.lastSyncTime = null;
     }
 
     /**
@@ -193,5 +198,153 @@ export class VocabularyManager {
      */
     saveVocabulary() {
         localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(Array.from(this.vocabulary.entries())));
+        
+        // Auto-sync to Google Drive if enabled
+        if (this.syncEnabled) {
+            this.syncToGoogleDrive();
+        }
+    }
+
+    /**
+     * Initialize Google Drive integration
+     * @returns {Promise<boolean>} Success status
+     */
+    async initializeGoogleDrive() {
+        try {
+            const success = await this.googleDriveManager.initialize();
+            if (success) {
+                console.log('Google Drive integration initialized');
+            }
+            return success;
+        } catch (error) {
+            console.error('Error initializing Google Drive:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Enable Google Drive sync
+     * @returns {Promise<boolean>} Success status
+     */
+    async enableGoogleDriveSync() {
+        try {
+            if (!this.googleDriveManager.isInitialized) {
+                await this.initializeGoogleDrive();
+            }
+
+            const signInSuccess = await this.googleDriveManager.signIn();
+            if (signInSuccess) {
+                this.syncEnabled = true;
+                
+                // Perform initial sync
+                await this.syncToGoogleDrive();
+                
+                console.log('Google Drive sync enabled');
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error enabling Google Drive sync:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Disable Google Drive sync
+     * @returns {Promise<boolean>} Success status
+     */
+    async disableGoogleDriveSync() {
+        try {
+            this.syncEnabled = false;
+            await this.googleDriveManager.signOut();
+            console.log('Google Drive sync disabled');
+            return true;
+        } catch (error) {
+            console.error('Error disabling Google Drive sync:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Sync vocabulary to Google Drive
+     * @returns {Promise<boolean>} Success status
+     */
+    async syncToGoogleDrive() {
+        try {
+            if (!this.syncEnabled || !this.googleDriveManager.isSignedIn) {
+                return false;
+            }
+
+            const vocabularyData = this.exportVocabulary();
+            const syncResult = await this.googleDriveManager.syncVocabulary(vocabularyData);
+            
+            if (syncResult.success) {
+                if (syncResult.action === 'download') {
+                    // Remote data is newer, update local vocabulary
+                    this.importVocabulary(syncResult.data);
+                    console.log('Vocabulary synced from Google Drive');
+                } else if (syncResult.action === 'upload') {
+                    console.log('Vocabulary synced to Google Drive');
+                }
+                
+                this.lastSyncTime = new Date().toISOString();
+                return true;
+            } else {
+                console.error('Sync failed:', syncResult.error);
+                return false;
+            }
+        } catch (error) {
+            console.error('Error syncing to Google Drive:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Force sync from Google Drive
+     * @returns {Promise<boolean>} Success status
+     */
+    async forceSyncFromGoogleDrive() {
+        try {
+            if (!this.googleDriveManager.isSignedIn) {
+                return false;
+            }
+
+            const remoteData = await this.googleDriveManager.downloadVocabulary();
+            if (remoteData) {
+                this.importVocabulary(remoteData);
+                this.lastSyncTime = new Date().toISOString();
+                console.log('Vocabulary force synced from Google Drive');
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error('Error force syncing from Google Drive:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get Google Drive sync status
+     * @returns {Object} Sync status
+     */
+    getGoogleDriveStatus() {
+        const authStatus = this.googleDriveManager.getAuthStatus();
+        const userInfo = this.googleDriveManager.getUserInfo();
+        
+        return {
+            syncEnabled: this.syncEnabled,
+            isSignedIn: authStatus.isSignedIn,
+            hasFile: authStatus.hasFile,
+            lastSyncTime: this.lastSyncTime,
+            userInfo: userInfo
+        };
+    }
+
+    /**
+     * Get Google Drive manager instance
+     * @returns {GoogleDriveManager} Google Drive manager
+     */
+    getGoogleDriveManager() {
+        return this.googleDriveManager;
     }
 }

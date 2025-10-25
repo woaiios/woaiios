@@ -29,11 +29,17 @@ export class UIController {
         this.addEventListener('importVocabBtn', 'click', () => this.onImportVocabulary());
         this.addEventListener('importFile', 'change', (e) => this.onImportFileChange(e));
         this.addEventListener('clearVocabBtn', 'click', () => this.onClearVocabulary());
+        this.addEventListener('syncVocabBtn', 'click', () => this.onSyncVocabulary());
         
         // Settings controls
         this.addEventListener('exportSettingsBtn', 'click', () => this.onExportSettings());
         this.addEventListener('importSettingsBtn', 'click', () => this.onImportSettings());
         this.addEventListener('importSettingsFile', 'change', (e) => this.onImportSettingsFileChange(e));
+        
+        // Google Drive controls
+        this.addEventListener('enableGoogleDriveBtn', 'click', () => this.onEnableGoogleDrive());
+        this.addEventListener('syncNowBtn', 'click', () => this.onSyncNow());
+        this.addEventListener('disconnectGoogleDriveBtn', 'click', () => this.onDisconnectGoogleDrive());
         
         // Settings updates
         this.addEventListener('highlightOpacity', 'input', (e) => this.onOpacityChange(e));
@@ -500,5 +506,157 @@ export class UIController {
 
     onColorChange(event) {
         this.settingsManager.setSetting('highlightColor', event.target.value);
+    }
+
+    // Google Drive event handlers
+    async onSyncVocabulary() {
+        try {
+            this.showLoading(true);
+            const success = await this.vocabularyManager.syncToGoogleDrive();
+            if (success) {
+                this.showNotification('Vocabulary synced to Google Drive successfully!');
+                this.updateGoogleDriveStatus();
+            } else {
+                this.showNotification('Failed to sync vocabulary to Google Drive.', 'error');
+            }
+        } catch (error) {
+            console.error('Error syncing vocabulary:', error);
+            this.showNotification('Error syncing vocabulary to Google Drive.', 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    async onEnableGoogleDrive() {
+        try {
+            this.showLoading(true);
+            const success = await this.vocabularyManager.enableGoogleDriveSync();
+            if (success) {
+                this.showNotification('Google Drive sync enabled successfully!');
+                this.updateGoogleDriveStatus();
+            } else {
+                this.showNotification('Failed to enable Google Drive sync.', 'error');
+            }
+        } catch (error) {
+            console.error('Error enabling Google Drive sync:', error);
+            this.showNotification('Error enabling Google Drive sync.', 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    async onSyncNow() {
+        try {
+            this.showLoading(true);
+            const success = await this.vocabularyManager.syncToGoogleDrive();
+            if (success) {
+                this.showNotification('Sync completed successfully!');
+                this.updateGoogleDriveStatus();
+            } else {
+                this.showNotification('Sync failed.', 'error');
+            }
+        } catch (error) {
+            console.error('Error syncing:', error);
+            this.showNotification('Error syncing to Google Drive.', 'error');
+        } finally {
+            this.showLoading(false);
+        }
+    }
+
+    async onDisconnectGoogleDrive() {
+        try {
+            if (confirm('Disconnect from Google Drive? This will stop automatic syncing.')) {
+                const success = await this.vocabularyManager.disableGoogleDriveSync();
+                if (success) {
+                    this.showNotification('Disconnected from Google Drive.');
+                    this.updateGoogleDriveStatus();
+                } else {
+                    this.showNotification('Failed to disconnect from Google Drive.', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Error disconnecting from Google Drive:', error);
+            this.showNotification('Error disconnecting from Google Drive.', 'error');
+        }
+    }
+
+    /**
+     * Update Google Drive status display
+     */
+    updateGoogleDriveStatus() {
+        const status = this.vocabularyManager.getGoogleDriveStatus();
+        
+        // Update status indicator
+        const statusIndicator = document.getElementById('syncStatusIndicator');
+        const statusText = document.getElementById('syncStatusText');
+        
+        if (statusIndicator && statusText) {
+            statusIndicator.className = 'status-indicator';
+            
+            if (status.syncEnabled && status.isSignedIn) {
+                statusIndicator.classList.add('connected');
+                statusText.textContent = 'Connected to Google Drive';
+            } else {
+                statusText.textContent = 'Not connected';
+            }
+        }
+
+        // Update user info
+        const userInfo = document.getElementById('userInfo');
+        const userAvatar = document.getElementById('userAvatar');
+        const userName = document.getElementById('userName');
+        const userEmail = document.getElementById('userEmail');
+        
+        if (userInfo && status.userInfo) {
+            userInfo.style.display = 'flex';
+            if (userAvatar) userAvatar.src = status.userInfo.imageUrl;
+            if (userName) userName.textContent = status.userInfo.name;
+            if (userEmail) userEmail.textContent = status.userInfo.email;
+        } else if (userInfo) {
+            userInfo.style.display = 'none';
+        }
+
+        // Update sync controls
+        const enableBtn = document.getElementById('enableGoogleDriveBtn');
+        const syncNowBtn = document.getElementById('syncNowBtn');
+        const disconnectBtn = document.getElementById('disconnectGoogleDriveBtn');
+        
+        if (enableBtn && syncNowBtn && disconnectBtn) {
+            if (status.syncEnabled && status.isSignedIn) {
+                enableBtn.style.display = 'none';
+                syncNowBtn.style.display = 'inline-flex';
+                disconnectBtn.style.display = 'inline-flex';
+            } else {
+                enableBtn.style.display = 'inline-flex';
+                syncNowBtn.style.display = 'none';
+                disconnectBtn.style.display = 'none';
+            }
+        }
+
+        // Update sync info
+        const syncInfo = document.getElementById('syncInfo');
+        const lastSyncTime = document.getElementById('lastSyncTime');
+        
+        if (syncInfo && lastSyncTime) {
+            if (status.lastSyncTime) {
+                syncInfo.style.display = 'block';
+                const syncDate = new Date(status.lastSyncTime);
+                lastSyncTime.textContent = syncDate.toLocaleString();
+            } else {
+                syncInfo.style.display = 'none';
+            }
+        }
+    }
+
+    /**
+     * Initialize Google Drive integration
+     */
+    async initializeGoogleDrive() {
+        try {
+            await this.vocabularyManager.initializeGoogleDrive();
+            this.updateGoogleDriveStatus();
+        } catch (error) {
+            console.error('Error initializing Google Drive:', error);
+        }
     }
 }

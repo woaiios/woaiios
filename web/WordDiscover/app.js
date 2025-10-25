@@ -36,6 +36,9 @@ export class WordDiscoverer {
             // Initialize word database
             await this.wordDatabase.initialize();
             
+            // Initialize Google Drive integration
+            await this.uiController.initializeGoogleDrive();
+            
             console.log('WordDiscoverer initialized successfully');
         } catch (error) {
             console.error('Error initializing WordDiscoverer:', error);

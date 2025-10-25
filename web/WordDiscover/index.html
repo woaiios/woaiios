@@ -126,6 +126,10 @@
                         Import
                     </button>
                     <input type="file" id="importFile" accept=".json" style="display: none;">
+                    <button class="btn btn-success" id="syncVocabBtn">
+                        <i class="fab fa-google-drive"></i>
+                        Sync to Drive
+                    </button>
                     <button class="btn btn-danger" id="clearVocabBtn">
                         <i class="fas fa-trash"></i>
                         Clear All
@@ -177,6 +181,44 @@
                             <option value="de">German</option>
                             <option value="ja">Japanese</option>
                         </select>
+                    </div>
+                </div>
+                <div class="settings-section">
+                    <h3>Google Drive Sync</h3>
+                    <div class="setting-item">
+                        <div class="google-drive-status" id="googleDriveStatus">
+                            <div class="status-indicator" id="syncStatusIndicator">
+                                <i class="fas fa-circle"></i>
+                                <span id="syncStatusText">Not connected</span>
+                            </div>
+                            <div class="user-info" id="userInfo" style="display: none;">
+                                <img id="userAvatar" src="" alt="User Avatar" class="user-avatar">
+                                <div class="user-details">
+                                    <div class="user-name" id="userName"></div>
+                                    <div class="user-email" id="userEmail"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="sync-controls">
+                            <button class="btn btn-primary" id="enableGoogleDriveBtn">
+                                <i class="fab fa-google-drive"></i>
+                                Connect Google Drive
+                            </button>
+                            <button class="btn btn-secondary" id="syncNowBtn" style="display: none;">
+                                <i class="fas fa-sync"></i>
+                                Sync Now
+                            </button>
+                            <button class="btn btn-danger" id="disconnectGoogleDriveBtn" style="display: none;">
+                                <i class="fas fa-sign-out-alt"></i>
+                                Disconnect
+                            </button>
+                        </div>
+                        <div class="sync-info" id="syncInfo" style="display: none;">
+                            <div class="last-sync">
+                                <i class="fas fa-clock"></i>
+                                Last sync: <span id="lastSyncTime">Never</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="settings-section">
