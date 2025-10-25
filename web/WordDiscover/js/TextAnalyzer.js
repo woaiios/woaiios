@@ -47,11 +47,11 @@ export class TextAnalyzer {
         // Analyze each unique word
         const uniqueWords = [...new Set(words)];
         uniqueWords.forEach(word => {
-            const difficulty = this.wordDatabase.getWordDifficulty(word, difficultyLevel);
+            const difficulty = this.wordDatabase.getWordDifficulty(word);
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(word);
-            const isHighlighted = !isMastered && this.shouldHighlight(word, difficulty, highlightMode, learningWords);
+            const isHighlighted = !isMastered && this.shouldHighlight(word, difficulty, highlightMode, learningWords, difficultyLevel);
             
             if (isHighlighted) {
                 analysis.highlightedWords.push({
@@ -81,16 +81,24 @@ export class TextAnalyzer {
      * @param {Object} difficulty - Difficulty information.
      * @param {string} highlightMode - Highlight mode.
      * @param {Map} learningWords - The user's list of words they are learning.
+     * @param {string} userDifficultyLevel - The user's selected difficulty threshold.
      * @returns {boolean} True if the word should be highlighted.
      */
-    shouldHighlight(word, difficulty, highlightMode, learningWords) {
+    shouldHighlight(word, difficulty, highlightMode, learningWords, userDifficultyLevel) {
+        const difficultyOrder = { 'common': 0, 'beginner': 1, 'intermediate': 2, 'advanced': 3, 'expert': 4, 'unknown': 5 };
+        const wordDifficultyIndex = difficultyOrder[difficulty.level];
+        const userDifficultyIndex = difficultyOrder[userDifficultyLevel];
+
+        // Determine if the word is considered difficult for the user
+        const isDifficultForUser = wordDifficultyIndex > userDifficultyIndex;
+
         switch (highlightMode) {
             case 'unknown':
                 // Highlight difficult words that are not in the learning list.
-                return !learningWords.has(word) && (difficulty.level === 'expert' || difficulty.level === 'advanced');
+                return isDifficultForUser && !learningWords.has(word);
             case 'difficult':
-                // Highlight all difficult words, regardless of whether they are in the learning list.
-                return difficulty.level === 'expert' || difficulty.level === 'advanced' || difficulty.level === 'intermediate';
+                // Highlight all words considered difficult for the user.
+                return isDifficultForUser;
             case 'all':
                 // Highlight all words that are not marked as mastered.
                 return true;

@@ -99,9 +99,21 @@ export class VocabularyComponent {
     updateCounts() {
         const learningSize = this.vocabularyManager.getLearningSize();
         const masteredSize = this.vocabularyManager.masteredWords.size;
-        document.getElementById('vocabCount').textContent = learningSize;
-        document.getElementById('learning-count').textContent = learningSize;
-        document.getElementById('mastered-count').textContent = masteredSize;
+        
+        const vocabCountEl = document.getElementById('vocabCount');
+        if (vocabCountEl) {
+            vocabCountEl.textContent = learningSize;
+        }
+
+        const learningCountEl = document.getElementById('learning-count');
+        if (learningCountEl) {
+            learningCountEl.textContent = learningSize;
+        }
+
+        const masteredCountEl = document.getElementById('mastered-count');
+        if (masteredCountEl) {
+            masteredCountEl.textContent = masteredSize;
+        }
     }
 
     handleTabClick(event) {

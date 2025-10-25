@@ -94,7 +94,7 @@ export class WordDatabase {
      * @param {string} difficultyLevel - Current difficulty level setting
      * @returns {Object} Difficulty information
      */
-    getWordDifficulty(word, difficultyLevel) {
+    getWordDifficulty(word) {
         if (!this.isLoaded) {
             return {
                 level: 'unknown',
@@ -103,15 +103,14 @@ export class WordDatabase {
             };
         }
 
-        const levels = ['common', 'beginner', 'intermediate', 'advanced'];
-        const levelIndex = levels.indexOf(difficultyLevel);
-        
-        for (let i = 0; i <= levelIndex; i++) {
-            if (this.database[levels[i]].has(word)) {
+        const levels = ['common', 'beginner', 'intermediate', 'advanced', 'expert'];
+        for (let i = 0; i < levels.length; i++) {
+            const level = levels[i];
+            if (this.database[level].has(word)) {
                 return {
-                    level: levels[i],
+                    level: level,
                     score: i * 25,
-                    className: levels[i]
+                    className: level
                 };
             }
         }

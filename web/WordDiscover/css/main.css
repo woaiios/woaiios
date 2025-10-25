@@ -230,16 +230,24 @@ body {
     transform: scale(1.05);
 }
 
-.highlighted-word.unknown {
-    background: rgba(244, 67, 54, 0.7);
-}
-
-.highlighted-word.difficult {
-    background: rgba(255, 152, 0, 0.7);
+.highlighted-word.beginner {
+    background: rgba(255, 245, 157, 0.7); /* Lighter Yellow */
 }
 
 .highlighted-word.intermediate {
-    background: rgba(255, 235, 59, 0.7);
+    background: rgba(255, 235, 59, 0.7); /* Yellow */
+}
+
+.highlighted-word.advanced {
+    background: rgba(255, 152, 0, 0.7); /* Orange */
+}
+
+.highlighted-word.expert {
+    background: rgba(244, 67, 54, 0.7); /* Red */
+}
+
+.highlighted-word.unknown {
+    background: rgba(244, 67, 54, 0.7); /* Red */
 }
 
 /* Statistics */
