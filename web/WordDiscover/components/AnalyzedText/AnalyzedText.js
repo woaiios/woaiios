@@ -1,4 +1,4 @@
-import { Component } from './Component.js';
+import { Component } from '../Component.js';
 
 export class AnalyzedTextComponent extends Component {
     constructor(selector, vocabularyManager) {
