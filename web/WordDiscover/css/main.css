@@ -337,6 +337,10 @@ body {
     z-index: 10000;
 }
 
+.modal.show {
+    display: flex;
+}
+
 .modal-content {
     background: white;
     padding: 0;
@@ -388,6 +392,10 @@ body {
 #wordModalContent {
     max-width: 300px;
     position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    margin: 0;
 }
 
 #wordModalTranslation {

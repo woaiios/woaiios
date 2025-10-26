@@ -105,14 +105,8 @@ export class AnalyzedTextComponent extends Component {
         closeBtn.onclick = () => this.closeWordModal();
         modalActions.appendChild(closeBtn);
         
-        // 设置模态框居中显示
-        modalContent.style.top = '50%';
-        modalContent.style.left = '50%';
-        modalContent.style.transform = 'translate(-50%, -50%)';
-        modalContent.style.margin = '0';
-        
-        // 显示模态框
-        modal.style.display = 'flex';
+        // 显示模态框 (positioning handled by CSS)
+        modal.classList.add('show');
         
         // 添加点击背景关闭模态框的事件监听器
         modal.onclick = (e) => {
@@ -124,7 +118,7 @@ export class AnalyzedTextComponent extends Component {
 
     closeWordModal() {
         const modal = document.getElementById('wordModal');
-        modal.style.display = 'none';
+        modal.classList.remove('show');
     }
 
     handleWordAddToLearning(word, translation) {

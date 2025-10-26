@@ -42,7 +42,7 @@ class WordDiscoverer {
         const wordModalClose = document.getElementById('wordModalClose');
         if (wordModalClose) {
             wordModalClose.addEventListener('click', () => {
-                document.getElementById('wordModal').style.display = 'none';
+                document.getElementById('wordModal').classList.remove('show');
             });
         }
         
