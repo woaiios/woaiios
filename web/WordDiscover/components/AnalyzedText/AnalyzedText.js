@@ -53,10 +53,10 @@ export class AnalyzedTextComponent extends Component {
             modalTranslation.textContent = translation;
         }
         
-        // 清空之前的操作按钮
+        // 清空操作按钮容器
         modalActions.innerHTML = '';
         
-        // 创建操作按钮
+        // 根据单词状态添加操作按钮
         if (this.vocabularyManager.masteredWords.has(word)) {
             // 单词已在掌握列表中
             const unmasterBtn = document.createElement('button');
@@ -105,26 +105,11 @@ export class AnalyzedTextComponent extends Component {
         closeBtn.onclick = () => this.closeWordModal();
         modalActions.appendChild(closeBtn);
         
-        // 设置模态框位置
-        modalContent.style.top = `${event.clientY + 10}px`;
-        modalContent.style.left = `${event.clientX}px`;
-        modalContent.style.transform = 'translate(-50%, 0)';
-        
-        // 确保模态框不会超出视窗边界
-        setTimeout(() => {
-            const rect = modalContent.getBoundingClientRect();
-            if (rect.right > window.innerWidth) {
-                modalContent.style.left = 'auto';
-                modalContent.style.right = '10px';
-            }
-            if (rect.bottom > window.innerHeight) {
-                modalContent.style.top = `${event.clientY - rect.height - 10}px`;
-            }
-            if (rect.left < 0) {
-                modalContent.style.left = '10px';
-                modalContent.style.transform = 'none';
-            }
-        }, 0);
+        // 设置模态框居中显示
+        modalContent.style.top = '50%';
+        modalContent.style.left = '50%';
+        modalContent.style.transform = 'translate(-50%, -50%)';
+        modalContent.style.margin = '0';
         
         // 显示模态框
         modal.style.display = 'flex';
