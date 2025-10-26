@@ -40,10 +40,45 @@ export class Modal extends Component {
         if (modalBody) {
             modalBody.innerHTML = content;
         }
+        
+        // 预先计算并设置模态框位置，避免闪烁
+        this.calculatePosition();
+        
+        // 触发浏览器重排
+        this.element.offsetHeight;
+        
         this.element.classList.add('show');
     }
 
     close() {
         this.element.classList.remove('show');
+    }
+    
+    calculatePosition() {
+        // 预先计算模态框尺寸和位置
+        const content = this.modalContent;
+        if (!content) return;
+        
+        // 重置样式以便准确测量
+        content.style.marginTop = '';
+        content.style.marginBottom = '';
+        
+        // 强制重排以获取准确尺寸
+        content.offsetHeight;
+        
+        // 获取视窗和内容尺寸
+        const viewportHeight = window.innerHeight;
+        const contentHeight = content.offsetHeight;
+        
+        // 计算垂直居中位置
+        if (contentHeight < viewportHeight) {
+            const topMargin = (viewportHeight - contentHeight) / 2;
+            content.style.marginTop = `${topMargin}px`;
+            content.style.marginBottom = 'auto';
+        } else {
+            // 如果内容高度超过视窗高度，则顶部对齐并允许滚动
+            content.style.marginTop = '20px';
+            content.style.marginBottom = '20px';
+        }
     }
 }
