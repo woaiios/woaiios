@@ -395,10 +395,18 @@ export class VocabularyManager {
                     // Merged data is available, update local vocabulary
                     this.importVocabulary(syncResult.data);
                     console.log('Vocabulary merged and synced with Google Drive');
+                    // 在这里添加文本分析刷新调用
+                    if (window.wordDiscoverer) {
+                        window.wordDiscoverer.refreshTextAnalysis();
+                    }
                 } else if (syncResult.action === 'download') {
                     // This case is for compatibility if sync logic changes back.
                     this.importVocabulary(syncResult.data);
                     console.log('Vocabulary synced from Google Drive');
+                    // 在这里添加文本分析刷新调用
+                    if (window.wordDiscoverer) {
+                        window.wordDiscoverer.refreshTextAnalysis();
+                    }
                 } else if (syncResult.action === 'upload') {
                     console.log('Vocabulary uploaded to Google Drive');
                 }
@@ -432,6 +440,10 @@ export class VocabularyManager {
                 this.importVocabulary(remoteData);
                 this.lastSyncTime = new Date().toISOString();
                 console.log('Vocabulary force synced from Google Drive');
+                // 在这里添加文本分析刷新调用
+                if (window.wordDiscoverer) {
+                    window.wordDiscoverer.refreshTextAnalysis();
+                }
                 return true;
             }
             return false;

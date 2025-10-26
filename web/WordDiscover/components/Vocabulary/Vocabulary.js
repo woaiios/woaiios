@@ -130,6 +130,7 @@ export class VocabularyComponent {
         if (this.vocabularyManager.masterWord(word)) {
             this.updateAndRenderLists();
             this.app.showNotification(`'${word}' moved to mastered list.`);
+            this.app.refreshTextAnalysis(); // 添加这行
         }
     }
 
@@ -137,6 +138,7 @@ export class VocabularyComponent {
         if (this.vocabularyManager.unmasterWord(word)) {
             this.updateAndRenderLists();
             this.app.showNotification(`'${word}' moved back to learning list.`);
+            this.app.refreshTextAnalysis(); // 添加这行
         }
     }
 
@@ -145,6 +147,7 @@ export class VocabularyComponent {
             if (this.vocabularyManager.removeWord(word)) {
                 this.updateAndRenderLists();
                 this.app.showNotification(`'${word}' has been deleted.`, 'info');
+                this.app.refreshTextAnalysis(); // 添加这行
             }
         }
     }
@@ -165,6 +168,7 @@ export class VocabularyComponent {
                 if (this.vocabularyManager.importVocabulary(data)) {
                     this.updateAndRenderLists();
                     this.app.showNotification('Vocabulary imported successfully!');
+                    this.app.refreshTextAnalysis(); // 添加这行
                 } else {
                     this.app.showNotification('Error importing vocabulary. Check file format.', 'error');
                 }
@@ -180,6 +184,7 @@ export class VocabularyComponent {
             this.vocabularyManager.clearVocabulary();
             this.updateAndRenderLists();
             this.app.showNotification('All vocabulary has been cleared.');
+            this.app.refreshTextAnalysis(); // 添加这行
         }
     }
 }

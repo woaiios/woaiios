@@ -51,7 +51,9 @@ export class TextAnalyzer {
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(word);
-            const isHighlighted = !isMastered && this.shouldHighlight(word, difficulty, highlightMode, learningWords, difficultyLevel);
+            // A word should always be highlighted if it is in the learning list.
+            const isLearning = learningWords.has(word);
+            const isHighlighted = !isMastered && (isLearning || this.shouldHighlight(word, difficulty, highlightMode, learningWords, difficultyLevel));
             
             if (isHighlighted) {
                 analysis.highlightedWords.push({

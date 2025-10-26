@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Word Discoverer - Expand Your Vocabulary</title>
+    <title>WordDiscover - Expand Your English Vocabulary</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
 </head>
@@ -15,18 +14,18 @@
     <header class="header">
         <div class="container">
             <div class="header-content">
-                <h1 class="logo">
-                    <i class="fas fa-book-open"></i>
-                    Word Discoverer
-                </h1>
+                <div class="logo">
+                    <i class="fas fa-book"></i>
+                    <span>WordDiscover</span>
+                </div>
                 <div class="header-controls">
+                    <button class="btn btn-outline" id="vocabularyBtn">
+                        <i class="fas fa-graduation-cap"></i>
+                        Vocabulary
+                    </button>
                     <button class="btn btn-outline" id="settingsBtn">
                         <i class="fas fa-cog"></i>
                         Settings
-                    </button>
-                    <button class="btn btn-primary" id="vocabularyBtn">
-                        <i class="fas fa-list"></i>
-                        Vocabulary (<span id="vocabCount">0</span>)
                     </button>
                 </div>
             </div>
@@ -114,7 +113,19 @@
     <!-- Settings Modal Placeholder -->
     <div class="modal" id="settingsModal"></div>
 
-
+    <!-- Word Modal -->
+    <div class="modal" id="wordModal" style="display: none;">
+        <div class="modal-content" id="wordModalContent">
+            <div class="modal-header">
+                <h3 id="wordModalTitle"></h3>
+                <button class="modal-close" id="wordModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="wordModalTranslation"></p>
+                <div class="modal-actions" id="wordModalActions"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">

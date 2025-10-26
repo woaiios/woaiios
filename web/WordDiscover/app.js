@@ -38,11 +38,20 @@ class WordDiscoverer {
         document.getElementById('vocabularyBtn').addEventListener('click', () => this.vocabularyComponent.open());
         document.getElementById('settingsBtn').addEventListener('click', () => this.settingsComponent.open());
         
+        // 添加单词模态框关闭按钮事件监听器
+        const wordModalClose = document.getElementById('wordModalClose');
+        if (wordModalClose) {
+            wordModalClose.addEventListener('click', () => {
+                document.getElementById('wordModal').style.display = 'none';
+            });
+        }
+        
         // Synchronize difficulty level between main page and settings
         const mainDifficultyLevel = document.getElementById('mainDifficultyLevel');
         if (mainDifficultyLevel) {
             mainDifficultyLevel.addEventListener('change', (e) => {
                 this.settingsManager.setSetting('difficultyLevel', e.target.value);
+                this.refreshTextAnalysis(); // 添加这行
             });
         }
         
@@ -51,6 +60,7 @@ class WordDiscoverer {
         if (mainHighlightMode) {
             mainHighlightMode.addEventListener('change', (e) => {
                 this.settingsManager.setSetting('highlightMode', e.target.value);
+                this.refreshTextAnalysis(); // 添加这行
             });
         }
     }
@@ -87,6 +97,27 @@ class WordDiscoverer {
         } finally {
             loadingOverlay.classList.remove('show');
         }
+    }
+    
+    // 添加这个新方法来刷新文本分析
+    refreshTextAnalysis() {
+        // 只有在已经有分析过的文本时才刷新
+        if (document.getElementById('analyzedTextSection').style.display !== 'block') return;
+        
+        const text = document.getElementById('textInput').value.trim();
+        if (!text) return;
+
+        const words = this.textAnalyzer.extractWords(text);
+        const analysis = this.textAnalyzer.analyzeWords(
+            words,
+            this.settingsManager.getSetting('difficultyLevel'),
+            this.settingsManager.getSetting('highlightMode'),
+            { learning: this.vocabularyManager.learningWords, mastered: this.vocabularyManager.masteredWords }
+        );
+
+        const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
+        this.analyzedTextComponent.render(processedText);
+        this.updateStatistics(analysis);
     }
     
     updateStatistics(analysis) {
