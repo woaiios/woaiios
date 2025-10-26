@@ -6,6 +6,51 @@ export class TextAnalyzer {
     constructor(wordDatabase, translationService) {
         this.wordDatabase = wordDatabase;
         this.translationService = translationService;
+        this.dictionary = null;
+        this.wordFormsMap = new Map(); // Map word forms to their base forms
+        this.loadDictionaries();
+    }
+
+    /**
+     * Load the English-Chinese dictionary from JSON file and word forms mapping
+     */
+    async loadDictionaries() {
+        try {
+            // Load the JSON dictionary
+            const dictResponse = await fetch('./eng-zho.json');
+            if (dictResponse.ok) {
+                this.dictionary = await dictResponse.json();
+                console.log('JSON dictionary loaded successfully');
+            } else {
+                console.warn('Failed to load JSON dictionary');
+            }
+
+            // Load the word forms mapping from eng_dict.txt
+            const formsResponse = await fetch('./eng_dict.txt');
+            if (formsResponse.ok) {
+                const text = await formsResponse.text();
+                const lines = text.split('\n');
+                
+                // Create a mapping from word forms to their base forms (first word in each line)
+                lines.forEach(line => {
+                    if (line.trim()) {
+                        const words = line.split('\t').map(word => word.trim().toLowerCase()).filter(word => word);
+                        const baseForm = words[0]; // First word is the base form
+                        
+                        // Map each word form to its base form
+                        words.forEach(word => {
+                            this.wordFormsMap.set(word, baseForm);
+                        });
+                    }
+                });
+                
+                console.log(`Word forms mapping loaded: ${this.wordFormsMap.size} entries`);
+            } else {
+                console.warn('Failed to load word forms mapping');
+            }
+        } catch (error) {
+            console.warn('Error loading dictionaries:', error);
+        }
     }
 
     /**
@@ -115,8 +160,34 @@ export class TextAnalyzer {
      * @returns {string} Translation
      */
     getTranslation(word) {
-        // Mock translation - in a real app, you'd call a translation API
-        const translations = {
+        // First try to find the base form of the word
+        let baseForm = this.wordFormsMap.get(word);
+        
+        // If we couldn't find a base form, use the word itself
+        if (!baseForm) {
+            baseForm = word;
+        }
+        
+        // Use real dictionary if loaded
+        if (this.dictionary && this.dictionary[baseForm]) {
+            try {
+                // Parse the HTML to extract the Chinese translation
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(this.dictionary[baseForm], 'text/html');
+                const translations = doc.querySelectorAll('.quote');
+                
+                if (translations.length > 0) {
+                    // Get all translations and join them
+                    const translationTexts = Array.from(translations).map(t => t.textContent.trim());
+                    return translationTexts.join('; ');
+                }
+            } catch (error) {
+                console.warn(`Error parsing translation for word "${baseForm}":`, error);
+            }
+        }
+        
+        // Fallback to mock translations if dictionary not available or word not found
+        const mockTranslations = {
             'hello': '你好',
             'world': '世界',
             'beautiful': '美丽的',
@@ -129,7 +200,7 @@ export class TextAnalyzer {
             'extraordinary': '非凡的'
         };
         
-        return translations[word] || 'Translation not available';
+        return mockTranslations[word] || 'Translation not available';
     }
 
     /**
