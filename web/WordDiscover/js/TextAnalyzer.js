@@ -170,20 +170,14 @@ export class TextAnalyzer {
         
         // Use real dictionary if loaded
         if (this.dictionary && this.dictionary[baseForm]) {
-            try {
-                // Parse the HTML to extract the Chinese translation
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(this.dictionary[baseForm], 'text/html');
-                const translations = doc.querySelectorAll('.quote');
-                
-                if (translations.length > 0) {
-                    // Get all translations and join them
-                    const translationTexts = Array.from(translations).map(t => t.textContent.trim());
-                    return translationTexts.join('; ');
-                }
-            } catch (error) {
-                console.warn(`Error parsing translation for word "${baseForm}":`, error);
-            }
+            // Return the full HTML fragment with corrected paths
+            let htmlFragment = this.dictionary[baseForm];
+            
+            // Fix the stylesheet paths by replacing ~/ with the correct relative path
+            // The CSS files are located in eng-zho.json_res/css/ relative to the project root
+            htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
+            
+            return htmlFragment;
         }
         
         // Fallback to mock translations if dictionary not available or word not found
@@ -230,7 +224,15 @@ export class TextAnalyzer {
                 classes += ` highlighted-word ${highlightedInfo.difficulty.className}`;
             }
 
-            return `<span class="${classes}" data-word="${part}" data-translation="${translation}">${part}</span>`;
+            // Escape HTML for the data attribute
+            const escapedTranslation = translation
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
+            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
         }).join('');
     }
 

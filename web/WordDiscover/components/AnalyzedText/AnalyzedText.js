@@ -44,7 +44,14 @@ export class AnalyzedTextComponent extends Component {
         
         // 设置模态框内容
         modalTitle.textContent = word;
-        modalTranslation.textContent = translation;
+        // Check if translation is HTML content (contains HTML tags)
+        if (translation.includes('<') && translation.includes('>')) {
+            // If it's HTML, use innerHTML to render it properly
+            modalTranslation.innerHTML = translation;
+        } else {
+            // If it's plain text, use textContent
+            modalTranslation.textContent = translation;
+        }
         
         // 清空之前的操作按钮
         modalActions.innerHTML = '';
