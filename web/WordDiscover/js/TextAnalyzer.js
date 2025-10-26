@@ -194,7 +194,14 @@ export class TextAnalyzer {
             'extraordinary': '非凡的'
         };
         
-        return mockTranslations[word] || 'Translation not available';
+        const translation = mockTranslations[word] || 'Translation not available';
+        
+        // If translation is not available, provide a Google search link
+        if (translation === 'Translation not available') {
+            return `<a href="https://www.google.com/search?q=${encodeURIComponent(word)}+meaning in Chinese" target="_blank" style="color: #1a0dab; text-decoration: underline;">Translation not available - Search on Google</a>`;
+        }
+        
+        return translation;
     }
 
     /**
