@@ -89,7 +89,9 @@ class WordDiscoverer {
             
             document.getElementById('analyzedTextSection').style.display = 'block';
             document.getElementById('statistics').style.display = 'flex';
+            document.getElementById('highlightedWordsList').style.display = 'block';
             this.updateStatistics(analysis);
+            this.displayHighlightedWords(analysis.highlightedWords);
 
         } catch (error) {
             console.error('Analysis error:', error);
@@ -118,6 +120,7 @@ class WordDiscoverer {
         const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
         this.analyzedTextComponent.render(processedText);
         this.updateStatistics(analysis);
+        this.displayHighlightedWords(analysis.highlightedWords);
     }
     
     updateStatistics(analysis) {
@@ -125,6 +128,52 @@ class WordDiscoverer {
         document.getElementById('highlightedWords').textContent = analysis.highlightedWords.length;
         document.getElementById('newWords').textContent = analysis.newWords.length;
         document.getElementById('difficultyScore').textContent = analysis.difficultyScore;
+    }
+
+    displayHighlightedWords(highlightedWords) {
+        const container = document.getElementById('highlightedWordsContainer');
+        container.innerHTML = '';
+
+        if (highlightedWords.length === 0) {
+            container.innerHTML = '<p>No highlighted words found.</p>';
+            return;
+        }
+
+        highlightedWords.forEach(wordInfo => {
+            const wordItem = document.createElement('div');
+            wordItem.className = 'highlighted-word-item';
+            
+            // Parse the HTML translation to extract pronunciation and meaning
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = wordInfo.translation;
+            
+            // Extract pronunciation and translation
+            let pronunciation = '';
+            let translation = '';
+            
+            const pronElement = tempDiv.querySelector('.pron');
+            if (pronElement) {
+                pronunciation = pronElement.textContent.trim();
+            }
+            
+            const transElement = tempDiv.querySelector('.trans');
+            if (transElement) {
+                translation = transElement.textContent.trim();
+            }
+            
+            // If we couldn't parse the structured translation, use the raw HTML
+            if (!pronElement && !transElement) {
+                translation = wordInfo.translation;
+            }
+            
+            wordItem.innerHTML = `
+                <div class="word">${wordInfo.word}</div>
+                ${pronunciation ? `<div class="pronunciation">/${pronunciation}/</div>` : ''}
+                <div class="translation">${translation}</div>
+            `;
+            
+            container.appendChild(wordItem);
+        });
     }
 
     updateCounts() {
