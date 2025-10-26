@@ -117,7 +117,7 @@ export class SettingsManager {
             highlightOpacity: (val) => typeof val === 'number' && val >= 0 && val <= 1,
             translationService: (val) => ['bing', 'google', 'yandex'].includes(val),
             targetLanguage: (val) => typeof val === 'string' && val.length === 2,
-            difficultyLevel: (val) => ['common', 'beginner', 'intermediate', 'advanced'].includes(val),
+            difficultyLevel: (val) => ['common', 'beginner', 'intermediate', 'advanced', 'expert'].includes(val),
             highlightMode: (val) => ['unknown', 'difficult', 'all'].includes(val),
             autoSave: (val) => typeof val === 'boolean',
             showTooltips: (val) => typeof val === 'boolean',
@@ -175,7 +175,8 @@ export class SettingsManager {
                     { value: 'common', label: 'Common' },
                     { value: 'beginner', label: 'Beginner' },
                     { value: 'intermediate', label: 'Intermediate' },
-                    { value: 'advanced', label: 'Advanced' }
+                    { value: 'advanced', label: 'Advanced' },
+                    { value: 'expert', label: 'Expert' }
                 ]
             },
             highlightMode: {

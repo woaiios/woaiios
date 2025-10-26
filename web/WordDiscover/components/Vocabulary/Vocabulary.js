@@ -105,6 +105,7 @@ export class VocabularyComponent {
             vocabCountEl.textContent = learningSize;
         }
 
+        // Only update modal counts if modal is open (elements exist in DOM)
         const learningCountEl = document.getElementById('learning-count');
         if (learningCountEl) {
             learningCountEl.textContent = learningSize;

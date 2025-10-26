@@ -37,6 +37,22 @@ class WordDiscoverer {
         document.getElementById('analyzeBtn').addEventListener('click', () => this.analyzeText());
         document.getElementById('vocabularyBtn').addEventListener('click', () => this.vocabularyComponent.open());
         document.getElementById('settingsBtn').addEventListener('click', () => this.settingsComponent.open());
+        
+        // Synchronize difficulty level between main page and settings
+        const mainDifficultyLevel = document.getElementById('mainDifficultyLevel');
+        if (mainDifficultyLevel) {
+            mainDifficultyLevel.addEventListener('change', (e) => {
+                this.settingsManager.setSetting('difficultyLevel', e.target.value);
+            });
+        }
+        
+        // Synchronize highlight mode between main page and settings
+        const mainHighlightMode = document.getElementById('mainHighlightMode');
+        if (mainHighlightMode) {
+            mainHighlightMode.addEventListener('change', (e) => {
+                this.settingsManager.setSetting('highlightMode', e.target.value);
+            });
+        }
     }
 
     async analyzeText() {
