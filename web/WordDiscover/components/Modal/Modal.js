@@ -41,13 +41,15 @@ export class Modal extends Component {
             modalBody.innerHTML = content;
         }
         
-        // 预先计算并设置模态框位置，避免闪烁
-        this.calculatePosition();
-        
         // 触发浏览器重排
         this.element.offsetHeight;
         
         this.element.classList.add('show');
+        
+        // 在下一帧重新计算位置，确保内容已渲染
+        requestAnimationFrame(() => {
+            this.calculatePosition();
+        });
     }
 
     close() {
@@ -70,15 +72,16 @@ export class Modal extends Component {
         const viewportHeight = window.innerHeight;
         const contentHeight = content.offsetHeight;
         
-        // 计算垂直居中位置
+        // 计算垂直居中位置，但确保顶部有一定边距
         if (contentHeight < viewportHeight) {
-            const topMargin = (viewportHeight - contentHeight) / 2;
+            // 在移动设备上确保顶部边距不小于10px
+            const topMargin = Math.max(10, (viewportHeight - contentHeight) / 2);
             content.style.marginTop = `${topMargin}px`;
             content.style.marginBottom = 'auto';
         } else {
             // 如果内容高度超过视窗高度，则顶部对齐并允许滚动
-            content.style.marginTop = '20px';
-            content.style.marginBottom = '20px';
+            content.style.marginTop = '10px';
+            content.style.marginBottom = '10px';
         }
     }
 }

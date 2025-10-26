@@ -206,6 +206,10 @@ body {
     font-size: 1.1rem;
     line-height: 1.8;
     color: #374151;
+    /* 防止文本溢出 */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
 }
 
 /* Highlighted Words */
@@ -223,6 +227,12 @@ body {
     border-radius: 4px;
     transition: all 0.2s ease;
     position: relative;
+    /* 防止高亮单词导致文本溢出 */
+    display: inline-block;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    word-break: break-word;
 }
 
 .highlighted-word:hover {
@@ -435,6 +445,18 @@ body {
     .setting-item label {
         min-width: auto;
     }
+    
+    /* Modal adjustments for mobile */
+    .modal-content {
+        max-height: 85vh;
+        width: 95%;
+    }
+    
+    /* 确保在移动设备上文本不会溢出 */
+    .analyzed-text {
+        font-size: 1rem;
+        line-height: 1.6;
+    }
 }
 
 @media (max-width: 480px) {
@@ -457,5 +479,17 @@ body {
     
     .sync-controls .btn {
         width: 100%;
+    }
+    
+    /* Further modal adjustments for small screens */
+    .modal-content {
+        max-height: 80vh;
+        width: 98%;
+    }
+    
+    /* 在小屏幕上进一步优化文本显示 */
+    .analyzed-text {
+        font-size: 0.95rem;
+        line-height: 1.5;
     }
 }
