@@ -91,14 +91,17 @@ export class TextAnalyzer {
             return Array.from(segments)
                 .filter(segment => segment.isWordLike)
                 .map(segment => segment.segment)
-                .filter(word => word.length > 0);
+                .filter(word => word.length > 1)
+                // Only include English words (containing only Latin alphabet characters)
+                .filter(word => /^[a-zA-Z]+$/.test(word));
         }
         
         // Fallback to original method
-        return text.toLowerCase()
-            .replace(/[^\w\s]/g, ' ')
+        return text
             .split(/\s+/)
-            .filter(word => word.length > 0);
+            .filter(word => word.length > 1)
+            // Only include English words (containing only Latin alphabet characters)
+            .filter(word => /^[a-zA-Z]+$/.test(word));
     }
 
     /**
@@ -120,33 +123,37 @@ export class TextAnalyzer {
 
         const { learning: learningWords, mastered: masteredWords } = vocabulary;
 
-        // Count word frequency
+        // Count word frequency using lowercase for counting but preserving original case for display
         words.forEach(word => {
-            analysis.wordFrequency[word] = (analysis.wordFrequency[word] || 0) + 1;
+            const lowerWord = word.toLowerCase();
+            analysis.wordFrequency[lowerWord] = (analysis.wordFrequency[lowerWord] || 0) + 1;
         });
 
-        // Analyze each unique word
-        const uniqueWords = [...new Set(words)];
-        uniqueWords.forEach(word => {
-            const difficulty = this.wordDatabase.getWordDifficulty(word);
+        // Analyze each unique word (using lowercase for comparison)
+        const uniqueWords = [...new Set(words.map(word => word.toLowerCase()))];
+        uniqueWords.forEach(lowerWord => {
+            // Find the original casing of the word for display
+            const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
+            
+            const difficulty = this.wordDatabase.getWordDifficulty(lowerWord);
             
             // A word is never highlighted if it is in the mastered list.
-            const isMastered = masteredWords.has(word);
+            const isMastered = masteredWords.has(lowerWord);
             // A word should always be highlighted if it is in the learning list.
-            const isLearning = learningWords.has(word);
-            const isHighlighted = !isMastered && (isLearning || this.shouldHighlight(word, difficulty, highlightMode, learningWords, difficultyLevel));
+            const isLearning = learningWords.has(lowerWord);
+            const isHighlighted = !isMastered && (isLearning || this.shouldHighlight(lowerWord, difficulty, highlightMode, learningWords, difficultyLevel));
             
             if (isHighlighted) {
                 analysis.highlightedWords.push({
-                    word: word,
+                    word: originalWord, // Use original casing for display
                     difficulty: difficulty,
-                    frequency: analysis.wordFrequency[word],
-                    translation: this.getTranslation(word)
+                    frequency: analysis.wordFrequency[lowerWord],
+                    translation: this.getTranslation(originalWord) // Use original casing for lookup
                 });
                 
                 // A word is new only if it's in neither list.
-                if (!learningWords.has(word)) {
-                    analysis.newWords.push(word);
+                if (!learningWords.has(lowerWord)) {
+                    analysis.newWords.push(lowerWord);
                 }
             }
             
@@ -196,19 +203,36 @@ export class TextAnalyzer {
      * @returns {string} Translation
      */
     getTranslation(word) {
-        // First try to find the base form of the word
-        // TODO: Handle proper nouns without converting to lowercase to preserve their original form
-        let baseForm = this.wordFormsMap.get(word.toLowerCase());
+        // First try to find the base form of the word with original casing
+        let baseForm = this.wordFormsMap.get(word);
         
-        // If we couldn't find a base form, use the word itself
+        // If not found, try with lowercase
         if (!baseForm) {
-            baseForm = word.toLowerCase();
+            baseForm = this.wordFormsMap.get(word.toLowerCase());
         }
         
-        // Use real dictionary if loaded
+        // If we couldn't find a base form, use the word itself (try original case first)
+        if (!baseForm) {
+            baseForm = word;
+        }
+        
+        // Use real dictionary if loaded - try original case first
         if (this.dictionary && this.dictionary[baseForm]) {
             // Return the full HTML fragment with corrected paths
             let htmlFragment = this.dictionary[baseForm];
+            
+            // Fix the stylesheet paths by replacing ~/ with the correct relative path
+            // The CSS files are located in eng-zho.json_res/css/ relative to the project root
+            htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
+            
+            return htmlFragment;
+        }
+        
+        // If not found, try with lowercase
+        const lowerBaseForm = word.toLowerCase();
+        if (this.dictionary && this.dictionary[lowerBaseForm]) {
+            // Return the full HTML fragment with corrected paths
+            let htmlFragment = this.dictionary[lowerBaseForm];
             
             // Fix the stylesheet paths by replacing ~/ with the correct relative path
             // The CSS files are located in eng-zho.json_res/css/ relative to the project root
@@ -231,8 +255,12 @@ export class TextAnalyzer {
             'extraordinary': '非凡的'
         };
         
-        // TODO: Handle proper nouns without converting to lowercase to preserve their original form
-        const translation = mockTranslations[word.toLowerCase()] || 'Translation not available';
+        // Try original case first
+        let translation = mockTranslations[word];
+        if (!translation) {
+            // Fall back to lowercase
+            translation = mockTranslations[word.toLowerCase()] || 'Translation not available';
+        }
         
         // If translation is not available, provide a Google search link
         if (translation === 'Translation not available') {
@@ -249,7 +277,7 @@ export class TextAnalyzer {
      * @returns {string} Processed HTML text
      */
     processTextForDisplay(originalText, analysis) {
-        const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word, item]));
+        const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
 
         // Split the text by word boundaries, keeping the delimiters.
         const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
@@ -262,7 +290,8 @@ export class TextAnalyzer {
             }
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
-            const translation = this.getTranslation(lowerCasePart);
+            // Use the original part for translation to preserve casing
+            const translation = this.getTranslation(part);
             let classes = 'word-span';
 
             if (highlightedInfo) {
