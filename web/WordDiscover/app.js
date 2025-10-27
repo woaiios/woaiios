@@ -37,6 +37,7 @@ class WordDiscoverer {
         document.getElementById('analyzeBtn').addEventListener('click', () => this.analyzeText());
         document.getElementById('vocabularyBtn').addEventListener('click', () => this.vocabularyComponent.open());
         document.getElementById('settingsBtn').addEventListener('click', () => this.settingsComponent.open());
+        document.getElementById('clearBtn').addEventListener('click', () => this.clearText());
         
         // 添加单词模态框关闭按钮事件监听器
         const wordModalClose = document.getElementById('wordModalClose');
@@ -203,6 +204,28 @@ class WordDiscoverer {
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
+    }
+    
+    clearText() {
+        const textInput = document.getElementById('textInput');
+        textInput.value = '';
+        
+        // Hide analysis results
+        document.getElementById('analyzedTextSection').style.display = 'none';
+        document.getElementById('statistics').style.display = 'none';
+        document.getElementById('highlightedWordsList').style.display = 'none';
+        
+        // Clear analyzed text display
+        document.getElementById('analyzedText').innerHTML = '';
+        
+        // Reset statistics
+        document.getElementById('totalWords').textContent = '0';
+        document.getElementById('highlightedWords').textContent = '0';
+        document.getElementById('newWords').textContent = '0';
+        document.getElementById('difficultyScore').textContent = '0';
+        
+        // Clear highlighted words list
+        document.getElementById('highlightedWordsContainer').innerHTML = '';
     }
 }
 
