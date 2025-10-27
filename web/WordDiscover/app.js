@@ -77,14 +77,7 @@ class WordDiscoverer {
         loadingOverlay.classList.add('show');
 
         try {
-            const words = this.textAnalyzer.extractWords(text);
-            const analysis = this.textAnalyzer.analyzeWords(
-                words,
-                this.settingsManager.getSetting('difficultyLevel'),
-                this.settingsManager.getSetting('highlightMode'),
-                { learning: this.vocabularyManager.learningWords, mastered: this.vocabularyManager.masteredWords }
-            );
-
+            const analysis = this.performTextAnalysis(text);
             const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
             this.analyzedTextComponent.render(processedText);
             
@@ -102,6 +95,17 @@ class WordDiscoverer {
         }
     }
     
+    // Centralized method for text analysis
+    performTextAnalysis(text) {
+        const words = this.textAnalyzer.extractWords(text);
+        return this.textAnalyzer.analyzeWords(
+            words,
+            this.settingsManager.getSetting('difficultyLevel'),
+            this.settingsManager.getSetting('highlightMode'),
+            { learning: this.vocabularyManager.learningWords, mastered: this.vocabularyManager.masteredWords }
+        );
+    }
+    
     // 添加这个新方法来刷新文本分析
     refreshTextAnalysis() {
         // 只有在已经有分析过的文本时才刷新
@@ -110,14 +114,7 @@ class WordDiscoverer {
         const text = document.getElementById('textInput').value.trim();
         if (!text) return;
 
-        const words = this.textAnalyzer.extractWords(text);
-        const analysis = this.textAnalyzer.analyzeWords(
-            words,
-            this.settingsManager.getSetting('difficultyLevel'),
-            this.settingsManager.getSetting('highlightMode'),
-            { learning: this.vocabularyManager.learningWords, mastered: this.vocabularyManager.masteredWords }
-        );
-
+        const analysis = this.performTextAnalysis(text);
         const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
         this.analyzedTextComponent.render(processedText);
         this.updateStatistics(analysis);

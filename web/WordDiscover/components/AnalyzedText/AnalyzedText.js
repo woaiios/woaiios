@@ -154,22 +154,14 @@ export class AnalyzedTextComponent extends Component {
         const currentText = document.getElementById('textInput').value;
         if (!currentText) return;
         
-        // 重新分析文本
-        const words = this.app.textAnalyzer.extractWords(currentText);
-        const analysis = this.app.textAnalyzer.analyzeWords(
-            words,
-            this.app.settingsManager.getSetting('difficultyLevel'),
-            this.app.settingsManager.getSetting('highlightMode'),
-            { 
-                learning: this.vocabularyManager.learningWords, 
-                mastered: this.vocabularyManager.masteredWords 
-            }
-        );
-        
+        // Use the centralized analysis method
+        const analysis = this.app.performTextAnalysis(currentText);
         const processedText = this.app.textAnalyzer.processTextForDisplay(currentText, analysis);
         this.render(processedText);
         
-        // 更新统计信息
-        this.app.updateStatistics(analysis);
+        // 更新统计信息 (only if we're on the main page)
+        if (this.app.updateStatistics) {
+            this.app.updateStatistics(analysis);
+        }
     }
 }

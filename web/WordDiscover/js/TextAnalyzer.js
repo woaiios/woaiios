@@ -161,11 +161,12 @@ export class TextAnalyzer {
      */
     getTranslation(word) {
         // First try to find the base form of the word
-        let baseForm = this.wordFormsMap.get(word);
+        // TODO: Handle proper nouns without converting to lowercase to preserve their original form
+        let baseForm = this.wordFormsMap.get(word.toLowerCase());
         
         // If we couldn't find a base form, use the word itself
         if (!baseForm) {
-            baseForm = word;
+            baseForm = word.toLowerCase();
         }
         
         // Use real dictionary if loaded
@@ -194,7 +195,8 @@ export class TextAnalyzer {
             'extraordinary': '非凡的'
         };
         
-        const translation = mockTranslations[word] || 'Translation not available';
+        // TODO: Handle proper nouns without converting to lowercase to preserve their original form
+        const translation = mockTranslations[word.toLowerCase()] || 'Translation not available';
         
         // If translation is not available, provide a Google search link
         if (translation === 'Translation not available') {
