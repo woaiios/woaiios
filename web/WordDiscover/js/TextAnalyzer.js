@@ -8,7 +8,9 @@ export class TextAnalyzer {
         this.translationService = translationService;
         this.dictionary = null;
         this.wordFormsMap = new Map(); // Map word forms to their base forms
+        this.tokenizer = null;
         this.loadDictionaries();
+        this.loadTokenizer();
     }
 
     /**
@@ -54,11 +56,45 @@ export class TextAnalyzer {
     }
 
     /**
+     * Load tokenizer - now using Intl.Segmenter
+     */
+    async loadTokenizer() {
+        try {
+            // Check if Intl.Segmenter is available
+            if (Intl.Segmenter) {
+                // Create a segmenter for English
+                this.tokenizer = new Intl.Segmenter(undefined, { granularity: 'word' });
+                console.log('Intl.Segmenter loaded successfully');
+            } else {
+                throw new Error('Intl.Segmenter not supported in this browser');
+            }
+        } catch (error) {
+            console.warn('Error loading Intl.Segmenter, falling back to simple extraction:', error);
+            // Fallback function in case Intl.Segmenter fails
+            this.tokenizer = {
+                tokenize: (text) => {
+                    return text.split(/\s+/).map(token => ({ value: token, tag: 'word' }));
+                }
+            };
+        }
+    }
+
+    /**
      * Extract words from text
      * @param {string} text - Input text
      * @returns {Array<string>} Array of words
      */
     extractWords(text) {
+        // Use Intl.Segmenter if available
+        if (this.tokenizer && this.tokenizer.segment) {
+            const segments = this.tokenizer.segment(text);
+            return Array.from(segments)
+                .filter(segment => segment.isWordLike)
+                .map(segment => segment.segment)
+                .filter(word => word.length > 0);
+        }
+        
+        // Fallback to original method
         return text.toLowerCase()
             .replace(/[^\w\s]/g, ' ')
             .split(/\s+/)
@@ -66,7 +102,7 @@ export class TextAnalyzer {
     }
 
     /**
-     * Analyze words for difficulty and highlighting.
+ * Analyze words for difficulty and highlighting.
      * @param {Array<string>} words - Array of words to analyze.
      * @param {string} difficultyLevel - Current difficulty level setting.
      * @param {string} highlightMode - Highlight mode setting.
