@@ -1,3 +1,5 @@
+import { WordLemmatizer } from './WordLemmatizer.js';
+
 /**
  * WordDatabase Module
  * Handles dictionary loading and word difficulty analysis
@@ -104,6 +106,8 @@ export class WordDatabase {
         }
 
         const levels = ['common', 'beginner', 'intermediate', 'advanced', 'expert'];
+        
+        // First try the word as-is
         for (let i = 0; i < levels.length; i++) {
             const level = levels[i];
             if (this.database[level].has(word)) {
@@ -112,6 +116,21 @@ export class WordDatabase {
                     score: i * 25,
                     className: level
                 };
+            }
+        }
+        
+        // If not found, try lemmatized forms
+        const lemmas = WordLemmatizer.lemmatize(word);
+        for (const lemma of lemmas) {
+            for (let i = 0; i < levels.length; i++) {
+                const level = levels[i];
+                if (this.database[level].has(lemma)) {
+                    return {
+                        level: level,
+                        score: i * 25,
+                        className: level
+                    };
+                }
             }
         }
         
