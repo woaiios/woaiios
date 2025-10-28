@@ -5,7 +5,7 @@ import { copyFileSync, existsSync, mkdirSync } from 'fs';
 // https://vitejs.dev/config/
 export default defineConfig({
   // Base public path when served in production
-  base: './',
+  base: '/woaiios/',
   
   // Public directory for static assets
   publicDir: 'public',
