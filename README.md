@@ -57,11 +57,22 @@
 
 ## 部署说明
 
-### GitHub Pages部署
-1. 将代码推送到GitHub仓库
-2. 在仓库设置中启用GitHub Pages
-3. 选择源分支（通常是main或master）
-4. 访问 `https://yourusername.github.io/repository-name/web/WordDiscover/`
+### GitHub Pages自动部署
+本项目已配置GitHub Actions自动部署到GitHub Pages。
+
+**在线访问地址**: https://woaiios.github.io/woaiios/
+
+#### 自动部署流程
+1. 代码推送到 `main` 或 `master` 分支会自动触发部署
+2. GitHub Actions会自动构建并部署到GitHub Pages
+3. 也可以在仓库的 Actions 标签页手动触发部署
+
+#### 首次启用GitHub Pages
+如果是首次部署，需要在仓库设置中启用GitHub Pages：
+1. 进入仓库的 Settings -> Pages
+2. 在 "Build and deployment" 下
+3. Source 选择 "GitHub Actions"
+4. 保存设置后，工作流将自动部署网站
 
 ### 本地运行
 1. 克隆或下载代码
