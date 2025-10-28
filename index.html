@@ -142,6 +142,25 @@
         </div>
     </div>
 
+    <!-- Database Loading Progress -->
+    <div class="db-loading-overlay" id="dbLoadingOverlay">
+        <div class="db-loading-content">
+            <div class="db-loading-icon">
+                <i class="fas fa-database"></i>
+            </div>
+            <h3>Loading Dictionary Database</h3>
+            <p class="db-loading-message" id="dbLoadingMessage">Initializing...</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="dbProgressBar"></div>
+            </div>
+            <div class="progress-info">
+                <span id="dbProgressPercentage">0%</span>
+                <span id="dbProgressChunks">0/10 chunks</span>
+            </div>
+            <p class="db-loading-tip">💡 The app will work with high-frequency words first, more words loading in background...</p>
+        </div>
+    </div>
+
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script type="module" src="app.js"></script>

@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmSync, cpSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { gzip } from 'zlib';
@@ -26,6 +26,33 @@ try {
 } catch (error) {
     console.error('✗ Failed to copy sql-wasm.wasm:', error.message);
     process.exit(1);
+}
+
+// Copy db-chunks directory
+const chunksSource = resolve(__dirname, '../public/db-chunks');
+const chunksDest = resolve(__dirname, '../docs/db-chunks');
+
+if (existsSync(chunksSource)) {
+    try {
+        if (existsSync(chunksDest)) {
+            rmSync(chunksDest, { recursive: true });
+        }
+        cpSync(chunksSource, chunksDest, { recursive: true });
+        console.log('✓ Copied db-chunks directory to docs/');
+        
+        // Count and log chunk sizes
+        const metadataPath = resolve(chunksDest, 'metadata.json');
+        if (existsSync(metadataPath)) {
+            const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8'));
+            const totalSize = metadata.chunks.reduce((sum, chunk) => sum + chunk.sizeBytes, 0);
+            console.log(`  Total chunks: ${metadata.totalChunks}, Total size: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+        }
+    } catch (error) {
+        console.error('✗ Failed to copy db-chunks:', error.message);
+        process.exit(1);
+    }
+} else {
+    console.warn('⚠ db-chunks directory not found, skipping...');
 }
 
 // Compress database file with gzip

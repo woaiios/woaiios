@@ -1,0 +1,87 @@
+{
+  "version": "1.0",
+  "totalChunks": 10,
+  "totalWords": 770611,
+  "chunks": [
+    {
+      "chunkNumber": 1,
+      "filename": "chunk-1.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 7119413,
+      "offset": 0,
+      "priority": 1
+    },
+    {
+      "chunkNumber": 2,
+      "filename": "chunk-2.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3667354,
+      "offset": 77062,
+      "priority": 2
+    },
+    {
+      "chunkNumber": 3,
+      "filename": "chunk-3.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3694511,
+      "offset": 154124,
+      "priority": 3
+    },
+    {
+      "chunkNumber": 4,
+      "filename": "chunk-4.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3748232,
+      "offset": 231186,
+      "priority": 4
+    },
+    {
+      "chunkNumber": 5,
+      "filename": "chunk-5.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3713822,
+      "offset": 308248,
+      "priority": 5
+    },
+    {
+      "chunkNumber": 6,
+      "filename": "chunk-6.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3696185,
+      "offset": 385310,
+      "priority": 6
+    },
+    {
+      "chunkNumber": 7,
+      "filename": "chunk-7.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3679862,
+      "offset": 462372,
+      "priority": 7
+    },
+    {
+      "chunkNumber": 8,
+      "filename": "chunk-8.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3739533,
+      "offset": 539434,
+      "priority": 8
+    },
+    {
+      "chunkNumber": 9,
+      "filename": "chunk-9.db.gz",
+      "wordCount": 77062,
+      "sizeBytes": 3824164,
+      "offset": 616496,
+      "priority": 9
+    },
+    {
+      "chunkNumber": 10,
+      "filename": "chunk-10.db.gz",
+      "wordCount": 77053,
+      "sizeBytes": 3890494,
+      "offset": 693558,
+      "priority": 10
+    }
+  ]
+}

@@ -2,17 +2,30 @@
  * WordDatabase Module
  * Handles ECDICT SQLite database loading and word analysis
  * Using ECDICT database with 760,000+ words
+ * Implements progressive loading for faster initial load times
  */
+import { ProgressiveDatabaseLoader } from './ProgressiveDatabaseLoader.js';
+
 export class WordDatabase {
     constructor() {
         this.db = null;
         this.isLoaded = false;
         this.queryCache = new Map(); // Cache for frequently queried words
         this.SQL = null;
+        this.progressiveLoader = null;
+        this.progressCallback = null;
     }
 
     /**
-     * Initialize SQLite database with ECDICT data
+     * Set progress callback
+     * @param {Function} callback - Progress callback function
+     */
+    setProgressCallback(callback) {
+        this.progressCallback = callback;
+    }
+
+    /**
+     * Initialize SQLite database with ECDICT data using progressive loading
      * @returns {Promise<boolean>} Loading status
      */
     async initialize() {
@@ -34,59 +47,45 @@ export class WordDatabase {
                 }
             });
             
-            console.log('Loading ECDICT database (stardict.db.gz)...');
+            console.log('🚀 Using progressive database loading...');
             
-            // Fetch the compressed database file
-            const dbPath = import.meta.env.DEV 
-                ? '/stardict.db' 
-                : `${import.meta.env.BASE_URL}stardict.db.gz`;
+            // Create progressive loader
+            this.progressiveLoader = new ProgressiveDatabaseLoader(this.SQL);
             
-            console.log(`Fetching database from: ${dbPath}`);
-            const response = await fetch(dbPath);
-            if (!response.ok) {
-                throw new Error(`Failed to load database: ${response.status} ${response.statusText}`);
-            }
+            // Register event listeners
+            this.progressiveLoader.on('progress', (data) => {
+                if (this.progressCallback) {
+                    this.progressCallback(data);
+                }
+            });
             
-            // Get the database and decompress if needed
-            let buffer;
-            if (dbPath.endsWith('.gz')) {
-                console.log('Decompressing gzipped database...');
-                const compressedBuffer = await response.arrayBuffer();
-                console.log(`Compressed size: ${(compressedBuffer.length / 1024 / 1024).toFixed(2)} MB`);
-                
-                // Decompress using browser's native DecompressionStream API
-                const blob = new Blob([compressedBuffer]);
-                const decompressedStream = blob.stream().pipeThrough(
-                    new DecompressionStream('gzip')
-                );
-                const decompressedBlob = await new Response(decompressedStream).blob();
-                buffer = await decompressedBlob.arrayBuffer();
-                console.log(`Decompressed size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
-            } else {
-                buffer = await response.arrayBuffer();
-                console.log(`Database file loaded, size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
-            }
+            this.progressiveLoader.on('chunkLoaded', (data) => {
+                console.log(`✅ Chunk ${data.chunkNumber} loaded (${data.percentage.toFixed(1)}% complete)`);
+            });
             
-            const uint8Array = new Uint8Array(buffer);
+            this.progressiveLoader.on('complete', (data) => {
+                console.log(`✨ All database chunks loaded! Total: ${data.totalWords.toLocaleString()} words`);
+            });
             
-            // Create the database
-            this.db = new this.SQL.Database(uint8Array);
+            this.progressiveLoader.on('error', (error) => {
+                console.error('Progressive loader error:', error);
+            });
+            
+            // Initialize loader
+            await this.progressiveLoader.initialize();
+            
+            // Load first 3 chunks (high-frequency words) immediately
+            // This allows the app to work quickly with most common words
+            await this.progressiveLoader.loadPriorityChunks(3);
+            
+            // Get database reference
+            this.db = this.progressiveLoader.getDatabase();
             
             // Test query to verify database structure
             const testResult = this.db.exec("SELECT COUNT(*) as count FROM words LIMIT 1");
             if (testResult.length > 0) {
                 const wordCount = testResult[0].values[0][0];
-                console.log(`ECDICT database loaded successfully with ${wordCount.toLocaleString()} words`);
-            }
-            
-            // Create indexes for better performance if they don't exist
-            try {
-                this.db.exec(`
-                    CREATE INDEX IF NOT EXISTS idx_word ON words(word);
-                `);
-                console.log('Database indexes created');
-            } catch (e) {
-                console.log('Indexes already exist or cannot be created:', e.message);
+                console.log(`ECDICT database ready with ${wordCount.toLocaleString()} words (loading more in background...)`);
             }
             
             this.isLoaded = true;

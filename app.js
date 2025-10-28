@@ -29,7 +29,44 @@ class WordDiscoverer {
     async initialize() {
         this.addEventListeners();
         this.updateCounts();
+        
+        // Show database loading overlay
+        const dbLoadingOverlay = document.getElementById('dbLoadingOverlay');
+        const dbProgressBar = document.getElementById('dbProgressBar');
+        const dbProgressPercentage = document.getElementById('dbProgressPercentage');
+        const dbProgressChunks = document.getElementById('dbProgressChunks');
+        const dbLoadingMessage = document.getElementById('dbLoadingMessage');
+        
+        dbLoadingOverlay.classList.add('show');
+        
+        // Set progress callback
+        this.wordDatabase.setProgressCallback((data) => {
+            dbProgressBar.style.width = `${data.percentage.toFixed(1)}%`;
+            dbProgressPercentage.textContent = `${data.percentage.toFixed(1)}%`;
+            dbLoadingMessage.textContent = data.message || 'Loading...';
+        });
+        
+        // Set chunk loaded callback
+        if (this.wordDatabase.progressiveLoader) {
+            this.wordDatabase.progressiveLoader.on('chunkLoaded', (data) => {
+                dbProgressChunks.textContent = `${data.loaded}/${data.total} chunks`;
+            });
+            
+            this.wordDatabase.progressiveLoader.on('complete', () => {
+                // Hide overlay after a short delay
+                setTimeout(() => {
+                    dbLoadingOverlay.classList.remove('show');
+                }, 1000);
+            });
+        }
+        
         await this.wordDatabase.initialize();
+        
+        // Hide overlay after first chunks are loaded (app is usable)
+        setTimeout(() => {
+            dbLoadingOverlay.classList.remove('show');
+        }, 500);
+        
         console.log('WordDiscoverer initialized successfully');
     }
 

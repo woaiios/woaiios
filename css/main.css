@@ -585,3 +585,142 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* Database Loading Progress Overlay */
+.db-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.db-loading-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.db-loading-content {
+    background: white;
+    padding: 2.5rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    max-width: 500px;
+    width: 90%;
+    text-align: center;
+}
+
+.db-loading-icon {
+    font-size: 3rem;
+    color: var(--primary-color, #4f46e5);
+    margin-bottom: 1rem;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
+.db-loading-content h3 {
+    margin: 0 0 0.5rem 0;
+    color: #1f2937;
+    font-size: 1.5rem;
+}
+
+.db-loading-message {
+    color: #6b7280;
+    margin: 0 0 1.5rem 0;
+    font-size: 1rem;
+}
+
+.progress-bar-container {
+    width: 100%;
+    height: 12px;
+    background: #e5e7eb;
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary-color, #4f46e5), #7c3aed);
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    width: 0%;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.3),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.875rem;
+    color: #6b7280;
+    margin-bottom: 1rem;
+}
+
+.db-loading-tip {
+    font-size: 0.875rem;
+    color: #059669;
+    margin: 1rem 0 0 0;
+    padding: 0.75rem;
+    background: #d1fae5;
+    border-radius: 8px;
+    border-left: 3px solid #059669;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .db-loading-content {
+        padding: 2rem 1.5rem;
+    }
+    
+    .db-loading-content h3 {
+        font-size: 1.25rem;
+    }
+    
+    .db-loading-icon {
+        font-size: 2.5rem;
+    }
+}
