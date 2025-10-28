@@ -1,63 +1,148 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <title></title>
-    <!-- Required meta tags -->
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WordDiscover - Expand Your English Vocabulary</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-book"></i>
+                    <span>WordDiscover</span>
+                </div>
+                <div class="header-controls">
+                    <button class="btn btn-outline" id="vocabularyBtn">
+                        <i class="fas fa-graduation-cap"></i>
+                        Vocabulary
+                    </button>
+                    <button class="btn btn-outline" id="settingsBtn">
+                        <i class="fas fa-cog"></i>
+                        Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
 
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
-    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
-  </head>
-  <body style="font-family: 'Roboto', sans-serif;">
-      <div class="container">
-          <div class="row" style="height: 100vh;">
-              <div class="col-12 text-center align-self-center">
-                  <span id="day" style="font-size: 44px;">365</span>D<span id="hms" style="font-size: 30px">00:00:00</span>S
-                  <p><span id="mmm" style="font-size: 20px;">000</span>m</p>  
-              </div>
-          </div>
-      </div>
-    <!-- Optional JavaScript -->
-    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
-    <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
-    <script src="./moment.js"></script>
-    <script type="text/javascript">
-        
-       $(document).ready(function () {
-            window.requestAnimationFrame(draw);
-       });
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Text Input Area -->
+            <div class="text-input-section">
+                <div class="input-group">
+                    <textarea id="textInput" placeholder="Paste your English text here to discover new words and expand your vocabulary..."></textarea>
+                    <div class="input-controls">
+                        <button class="btn btn-secondary" id="clearBtn">
+                            <i class="fas fa-trash"></i>
+                            Clear
+                        </button>
+                        <button class="btn btn-primary" id="analyzeBtn">
+                            <i class="fas fa-search"></i>
+                            Analyze Text
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-       function draw() {
-        var date = new Date(2019,02,21);
-        var current = new Date();
-        var ms = date - current;
-        var diff = new moment.duration(ms);
-        var day = parseInt(diff.asDays());
-        var hours = parseInt(parseInt(diff.asHours()) -  day * 24);
-        var min = parseInt(parseInt(diff.asMinutes()) - parseInt(diff.asHours()) * 60);
-        var sec =  parseInt(parseInt(diff.asSeconds()) - parseInt(diff.asMinutes()) * 60);
-        var mms = diff.asMilliseconds() - parseInt(diff.asSeconds()) * 1000;
-        var dayString = "" + day;
-         if (hours < 10) {
-          hours = "0" + hours;
-         }
-         if (min < 10) {
-           min = "0" + min;
-         }
-         if (sec < 10) {
-           sec = "0" + sec;
-         }
-        var hmsString = "" + hours + ":" + min + ":" + sec;
-        var mmsString = "" + parseInt(mms/100);
-        $("#day").text(dayString);
-        $("#hms").text(hmsString);
-        $("#mmm").text(mmsString)
-        window.requestAnimationFrame(draw);
-       }
-    </script>
-  </body>
+            <!-- Analysis Controls -->
+            <div class="analysis-controls">
+                <div class="control-group">
+                    <label for="mainDifficultyLevel">Difficulty Level:</label>
+                    <select id="mainDifficultyLevel">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate" selected>Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="mainHighlightMode">Highlight Mode:</label>
+                    <select id="mainHighlightMode">
+                        <option value="unknown">Unknown Words Only</option>
+                        <option value="difficult" selected>Difficult Words</option>
+                        <option value="all">All Words</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showTranslations" checked>
+                        Show Translations on Hover
+                    </label>
+                </div>
+            </div>
+
+            <!-- Analyzed Text Display -->
+            <div class="analyzed-text-section" id="analyzedTextSection" style="display: none;">
+                <h3>Analyzed Text</h3>
+                <div class="analyzed-text" id="analyzedText"></div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="statistics" id="statistics" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalWords">0</div>
+                    <div class="stat-label">Total Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="highlightedWords">0</div>
+                    <div class="stat-label">Highlighted Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="newWords">0</div>
+                    <div class="stat-label">New Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="difficultyScore">0</div>
+                    <div class="stat-label">Difficulty Score</div>
+                </div>
+            </div>
+
+            <!-- Highlighted Words List -->
+            <div class="highlighted-words-list" id="highlightedWordsList" style="display: none;">
+                <h3>Highlighted Words</h3>
+                <div id="highlightedWordsContainer"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Vocabulary Modal Placeholder -->
+    <div class="modal" id="vocabularyModal"></div>
+
+    <!-- Settings Modal Placeholder -->
+    <div class="modal" id="settingsModal"></div>
+
+    <!-- Word Modal -->
+    <div class="modal" id="wordModal">
+        <div class="modal-content" id="wordModalContent">
+            <div class="modal-header">
+                <h3 id="wordModalTitle"></h3>
+                <button class="modal-close" id="wordModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="wordModalTranslation"></p>
+                <div class="modal-actions" id="wordModalActions"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Analyzing text...</p>
+        </div>
+    </div>
+
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script type="module" src="app.js"></script>
+</body>
 </html>

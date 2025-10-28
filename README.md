@@ -1,7 +1,97 @@
-### FreeCodeCamp Challenge Project
+# Word Discoverer - Web Version
 
-* Homepage [404](https://woaiios.github.io/woaiios/)
-* [personal portfolio](https://woaiios.github.io/woaiios/web/PersonalPortfolio/index.html)
-* [PomodoroClock](https://woaiios.github.io/woaiios/web/PomodoroClock/index.html)
-* [Weather](https://woaiios.github.io/woaiios/web/ShowTheLocalWeather/index.html)
-# * [Word Discover](https://woaiios.github.io/woaiios/web/WordDiscover/index.html) - 英语词汇学习工具
+一个基于网页的英语词汇学习工具，帮助您发现和掌握新单词。
+
+## 功能特性
+
+### 🎯 核心功能
+- **智能词汇分析** - 自动识别文本中的生词和难词
+- **多级难度设置** - 支持初学者、中级、高级、专家四个难度级别
+- **实时高亮显示** - 根据难度级别高亮显示不同颜色的单词
+- **悬停翻译** - 鼠标悬停显示单词翻译
+- **词汇管理** - 个人生词本，支持添加、删除、查看
+
+### 🔧 高级功能
+- **导入导出** - 支持词汇本和设置的导入导出
+- **自定义配置** - 可调整高亮颜色、透明度等
+- **统计信息** - 显示文本分析统计和难度评分
+- **本地存储** - 数据保存在浏览器本地，保护隐私
+
+### 🎨 用户体验
+- **响应式设计** - 支持桌面和移动设备
+- **现代化界面** - 简洁美观的用户界面
+- **实时反馈** - 操作即时反馈和通知
+- **数据持久化** - 自动保存用户数据
+
+## 使用方法
+
+### 1. 文本分析
+1. 在文本输入框中粘贴或输入英文文本
+2. 选择难度级别（初学者/中级/高级/专家）
+3. 选择高亮模式（仅生词/难词/全部单词）
+4. 点击"分析文本"按钮
+
+### 2. 词汇学习
+1. 悬停在黄色高亮的单词上查看翻译
+2. 点击单词添加到个人词汇本
+3. 在词汇本中管理已保存的单词
+
+### 3. 设置管理
+1. 点击"设置"按钮打开配置面板
+2. 调整高亮颜色和透明度
+3. 选择翻译服务和目标语言
+4. 导出/导入设置进行备份
+
+### 4. 数据管理
+1. 在词汇本中导出数据为JSON文件
+2. 导入之前导出的词汇数据
+3. 清空词汇本重新开始
+
+## 技术特性
+
+- **纯前端实现** - 无需服务器，完全在浏览器中运行
+- **本地存储** - 使用localStorage保存用户数据
+- **响应式设计** - 适配各种屏幕尺寸
+- **现代JavaScript** - 使用ES6+语法和现代Web API
+- **无依赖** - 不依赖外部库，轻量级实现
+
+## 部署说明
+
+### GitHub Pages部署
+1. 将代码推送到GitHub仓库
+2. 在仓库设置中启用GitHub Pages
+3. 选择源分支（通常是main或master）
+4. 访问 `https://yourusername.github.io/repository-name/web/WordDiscover/`
+
+### 本地运行
+1. 克隆或下载代码
+2. 使用任何HTTP服务器运行（如Live Server、Python SimpleHTTPServer等）
+3. 访问 `index.html` 文件
+
+## 浏览器支持
+
+- Chrome 60+
+- Firefox 55+
+- Safari 12+
+- Edge 79+
+
+## 更新日志
+
+### v1.0.0
+- 初始版本发布
+- 实现核心词汇分析功能
+- 添加词汇本管理
+- 支持设置自定义
+- 实现导入导出功能
+
+## 贡献
+
+欢迎提交Issue和Pull Request来改进这个项目！
+
+## 许可证
+
+MIT License - 详见 [LICENSE](LICENSE) 文件
+
+## 致谢
+
+灵感来源于 [Word Discoverer Chrome Extension](https://github.com/Leon406/word-discoverer-ng)
