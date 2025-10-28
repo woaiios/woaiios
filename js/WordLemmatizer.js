@@ -241,10 +241,8 @@ export class WordLemmatizer {
         if (lowerWord.endsWith('ous') && lowerWord.length > 5) {
             const stem = lowerWord.slice(0, -3);
             candidates.push(stem);
-            // famous -> fame (ous -> e)
-            candidates.push(stem + 'e');
-            // nervous -> nerve (ous -> e)
-            if (stem.endsWith('v')) {
+            // famous -> fame, nervous -> nerve (ous -> e)
+            if (!stem.endsWith('e')) {
                 candidates.push(stem + 'e');
             }
         }
@@ -252,12 +250,13 @@ export class WordLemmatizer {
         // Rule 10: -ive adjectives (active -> act, creative -> create)
         if (lowerWord.endsWith('ive') && lowerWord.length > 5) {
             const stem = lowerWord.slice(0, -3);
-            candidates.push(stem);
-            // creative -> create (drop e before ive)
-            candidates.push(stem + 'e');
-            // active -> act (remove ive)
-            if (stem.endsWith('t')) {
+            // active -> act (stem without 'ive')
+            if (!candidates.includes(stem)) {
                 candidates.push(stem);
+            }
+            // creative -> create (drop e before ive)
+            if (!stem.endsWith('e')) {
+                candidates.push(stem + 'e');
             }
         }
         

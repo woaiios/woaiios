@@ -338,16 +338,21 @@ export class TextAnalyzer {
         }
         
         // Try splitting at various positions (for words like groundwater -> ground + water)
-        for (let i = 3; i <= word.length - 3; i++) {
+        // Limit search to reasonable split positions to avoid unnecessary iterations
+        const maxIterations = Math.min(word.length - 5, 15); // Limit to 15 iterations max
+        for (let i = 3; i <= word.length - 3 && i - 3 <= maxIterations; i++) {
             const part1 = word.substring(0, i);
             const part2 = word.substring(i);
             
             // Check if both parts exist and have translations
             if (part2.length > 2) {
                 const part1Chinese = this.getChineseForPart(part1);
+                // Early termination if part1 has no translation
+                if (!part1Chinese) continue;
+                
                 const part2Chinese = this.getChineseForPart(part2);
                 
-                if (part1Chinese && part2Chinese) {
+                if (part2Chinese) {
                     return `<span class="compound-word">${part1Chinese}${part2Chinese}</span>`;
                 }
             }
