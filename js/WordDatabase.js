@@ -33,25 +33,23 @@ export class WordDatabase {
             console.log('Initializing sql.js...');
             
             // Dynamically import sql.js
-            // Use the direct file reference in development
+            // In development, Vite requires loading via script tag due to module resolution
             let initSqlJs;
             if (import.meta.env.DEV) {
-                // In development, import from node_modules
-                const sqlWasm = await import('/node_modules/sql.js/dist/sql-wasm.js?url');
-                // Load the module using script tag approach
-                const script = document.createElement('script');
-                script.src = '/node_modules/sql.js/dist/sql-wasm.js';
-                document.head.appendChild(script);
-                await new Promise((resolve) => {
+                // Development: Load via script tag to bypass Vite's module system
+                await new Promise((resolve, reject) => {
+                    const script = document.createElement('script');
+                    script.src = '/node_modules/sql.js/dist/sql-wasm.js';
                     script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
                 });
                 initSqlJs = window.initSqlJs;
             } else {
+                // Production: Use standard ES module import
                 const sqlModule = await import('sql.js/dist/sql-wasm.js');
                 initSqlJs = sqlModule.default;
             }
-            
-            console.log('initSqlJs type:', typeof initSqlJs);
             
             // Initialize sql.js with the wasm file
             this.SQL = await initSqlJs({

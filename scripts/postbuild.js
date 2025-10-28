@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmSync, cpSync } from 'fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, rmSync, cpSync, readdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { gzip } from 'zlib';
@@ -41,7 +41,6 @@ if (existsSync(chunksSource)) {
         console.log('✓ Copied db-chunks directory to docs/');
         
         // Remove uncompressed .db files (keep only .gz)
-        const { readdirSync } = await import('fs');
         const files = readdirSync(chunksDest);
         for (const file of files) {
             if (file.endsWith('.db') && !file.endsWith('.db.gz')) {
