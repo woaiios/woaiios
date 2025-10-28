@@ -34,3 +34,13 @@ yarn-error.log*
 .tmp/
 tmp/
 temp/
+
+# Test files (temporary)
+test-*.js
+test-*.html
+!test-lemmatization.js
+!test-lemmatization.html
+!test-modules.js
+!test-settings.html
+!test-gis-integration.html
+!test-google-drive.html

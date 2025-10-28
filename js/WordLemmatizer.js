@@ -1,10 +1,76 @@
 /**
  * WordLemmatizer Module
  * Handles English word lemmatization (finding base forms of inflected words)
+ * Uses wink-lemmatizer for robust lemmatization with fallback to custom rules
  */
+
+// Dynamic import for wink-lemmatizer
+let winkLemmatizer = null;
+let winkLemmatizerPromise = null;
+
+// Initialize wink-lemmatizer asynchronously
+function initWinkLemmatizer() {
+    if (!winkLemmatizerPromise) {
+        winkLemmatizerPromise = (async () => {
+            try {
+                const module = await import('wink-lemmatizer');
+                winkLemmatizer = module.default;
+            } catch (error) {
+                // Silently fall back to custom rules if wink-lemmatizer fails to load
+                winkLemmatizer = null;
+            }
+        })();
+    }
+    return winkLemmatizerPromise;
+}
+
+// Start loading immediately
+initWinkLemmatizer();
+
 export class WordLemmatizer {
     /**
-     * Lemmatize a word by removing common English inflections
+     * Map of American to British spelling variants
+     * Used to handle dictionary lookups when one spelling is not available
+     */
+    static spellingVariants = {
+        // American -> British
+        'meter': 'metre',
+        'kilometer': 'kilometre',
+        'centimeter': 'centimetre',
+        'millimeter': 'millimetre',
+        'liter': 'litre',
+        'milliliter': 'millilitre',
+        'fiber': 'fibre',
+        'center': 'centre',
+        'theater': 'theatre',
+        'color': 'colour',
+        'favor': 'favour',
+        'honor': 'honour',
+        'labor': 'labour',
+        'neighbor': 'neighbour',
+        'flavor': 'flavour',
+        'humor': 'humour',
+        // British -> American (for reverse lookup)
+        'metre': 'meter',
+        'kilometre': 'kilometer',
+        'centimetre': 'centimeter',
+        'millimetre': 'millimeter',
+        'litre': 'liter',
+        'millilitre': 'milliliter',
+        'fibre': 'fiber',
+        'centre': 'center',
+        'theatre': 'theater',
+        'colour': 'color',
+        'favour': 'favor',
+        'honour': 'honor',
+        'labour': 'labor',
+        'neighbour': 'neighbor',
+        'flavour': 'flavor',
+        'humour': 'humor'
+    };
+
+    /**
+     * Lemmatize a word using wink-lemmatizer with fallback to custom rules
      * @param {string} word - Word to lemmatize
      * @returns {Array<string>} Possible base forms (first is original, rest are candidates)
      */
@@ -12,6 +78,44 @@ export class WordLemmatizer {
         const lowerWord = word.toLowerCase();
         const candidates = [lowerWord]; // Always include the original word
         
+        // Try wink-lemmatizer if available
+        if (winkLemmatizer) {
+            try {
+                // Try as noun, verb, and adjective to get all possible lemmas
+                const nounLemma = winkLemmatizer.noun(lowerWord);
+                const verbLemma = winkLemmatizer.verb(lowerWord);
+                const adjLemma = winkLemmatizer.adjective(lowerWord);
+                
+                if (nounLemma !== lowerWord) candidates.push(nounLemma);
+                if (verbLemma !== lowerWord) candidates.push(verbLemma);
+                if (adjLemma !== lowerWord) candidates.push(adjLemma);
+            } catch (error) {
+                // Fall back to custom rules if wink-lemmatizer encounters an error
+            }
+        }
+        
+        // Fallback: Apply custom lemmatization rules
+        this.applyCustomRules(lowerWord, candidates);
+        
+        // Add spelling variants for all candidates
+        const allCandidates = [...candidates];
+        allCandidates.forEach(candidate => {
+            const variant = this.spellingVariants[candidate];
+            if (variant) {
+                candidates.push(variant);
+            }
+        });
+        
+        // Remove duplicates and return
+        return [...new Set(candidates)];
+    }
+
+    /**
+     * Apply custom lemmatization rules (fallback)
+     * @param {string} lowerWord - Lowercase word
+     * @param {Array<string>} candidates - Array to add candidates to
+     */
+    static applyCustomRules(lowerWord, candidates) {
         // Rule 1: Plurals ending in -s, -es
         if (lowerWord.endsWith('sses')) {
             // classes -> class
@@ -95,9 +199,6 @@ export class WordLemmatizer {
                 candidates.push(stem.slice(0, -1) + 'y');
             }
         }
-        
-        // Remove duplicates and return
-        return [...new Set(candidates)];
     }
 
     /**
