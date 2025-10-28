@@ -53,20 +53,65 @@
 - **本地存储** - 使用localStorage保存用户数据
 - **响应式设计** - 适配各种屏幕尺寸
 - **现代JavaScript** - 使用ES6+语法和现代Web API
-- **无依赖** - 不依赖外部库，轻量级实现
+- **模块化架构** - 采用ES6模块化开发，代码结构清晰
+- **现代构建工具** - 使用Vite进行快速开发和优化打包
+
+## 开发与构建
+
+### 环境要求
+- Node.js 18+ 
+- npm 或 yarn
+
+### 安装依赖
+```bash
+npm install
+```
+
+### 开发模式
+启动开发服务器，支持热更新：
+```bash
+npm run dev
+```
+开发服务器将在 `http://localhost:3000` 启动
+
+### 生产构建
+构建优化后的生产版本：
+```bash
+npm run build
+```
+构建结果将输出到 `dist/` 目录，包含：
+- 优化和压缩的JavaScript和CSS
+- 所有必需的静态资源（字典文件、资源目录等）
+- 可直接部署的纯前端网页
+
+### 预览构建
+预览生产构建版本：
+```bash
+npm run preview
+```
 
 ## 部署说明
 
 ### GitHub Pages部署
-1. 将代码推送到GitHub仓库
-2. 在仓库设置中启用GitHub Pages
-3. 选择源分支（通常是main或master）
-4. 访问 `https://yourusername.github.io/repository-name/web/WordDiscover/`
+1. 构建生产版本：`npm run build`
+2. 将 `dist/` 目录的内容推送到 `gh-pages` 分支
+3. 在仓库设置中启用GitHub Pages，选择 `gh-pages` 分支
+4. 访问 `https://yourusername.github.io/repository-name/`
 
-### 本地运行
+### 静态网站托管
+生产构建后的 `dist/` 目录包含完整的静态网站，可以直接部署到：
+- Vercel
+- Netlify
+- GitHub Pages
+- 任何静态网站托管服务
+
+只需上传 `dist/` 目录中的所有文件即可。
+
+### 本地运行（开发环境）
 1. 克隆或下载代码
-2. 使用任何HTTP服务器运行（如Live Server、Python SimpleHTTPServer等）
-3. 访问 `index.html` 文件
+2. 安装依赖：`npm install`
+3. 启动开发服务器：`npm run dev`
+4. 访问 `http://localhost:3000`
 
 ## 浏览器支持
 
@@ -76,6 +121,13 @@
 - Edge 79+
 
 ## 更新日志
+
+### v1.1.0
+- ✨ 添加现代构建工具 Vite
+- ✨ 添加 npm 脚本支持开发、构建、预览
+- 🔧 优化开发流程，支持热更新
+- 📦 优化生产构建，输出纯前端网页
+- 📝 更新文档，添加完整的开发和部署说明
 
 ### v1.0.0
 - 初始版本发布
