@@ -1,0 +1,2 @@
+eng-zho.json filter=lfs diff=lfs merge=lfs -text
+eng_dict.txt filter=lfs diff=lfs merge=lfs -text
