@@ -199,6 +199,100 @@ export class WordLemmatizer {
                 candidates.push(stem.slice(0, -1) + 'y');
             }
         }
+        
+        // Rule 6: -ic adjectives (meteoric -> meteor, volcanic -> volcano, historic -> history)
+        if (lowerWord.endsWith('ic') && lowerWord.length > 4) {
+            const stem = lowerWord.slice(0, -2);
+            candidates.push(stem);
+            // volcanic -> volcano (ic -> o)
+            if (stem.endsWith('an')) {
+                candidates.push(stem + 'o');
+            }
+            // Some words need additional transformation
+            // historic -> history (ic -> y)
+            if (stem.endsWith('or')) {
+                candidates.push(stem.slice(0, -2) + 'y');
+            }
+        }
+        
+        // Rule 7: -ical adjectives (historical -> history, geological -> geology)
+        if (lowerWord.endsWith('ical') && lowerWord.length > 6) {
+            const stem = lowerWord.slice(0, -4);
+            candidates.push(stem);
+            // Try replacing -ical with -y (historical -> history)
+            candidates.push(stem.slice(0, -2) + 'y');
+        }
+        
+        // Rule 8: -al adjectives (coastal -> coast, glacial -> glacier)
+        if (lowerWord.endsWith('al') && lowerWord.length > 4) {
+            const stem = lowerWord.slice(0, -2);
+            candidates.push(stem);
+            // glacial -> glacier (al -> er)
+            if (stem.endsWith('ci')) {
+                candidates.push(stem + 'er');
+            }
+            // trial -> try
+            if (stem.endsWith('i')) {
+                candidates.push(stem.slice(0, -1) + 'y');
+            }
+        }
+        
+        // Rule 9: -ous adjectives (famous -> fame, nervous -> nerve)
+        if (lowerWord.endsWith('ous') && lowerWord.length > 5) {
+            const stem = lowerWord.slice(0, -3);
+            candidates.push(stem);
+            // famous -> fame (ous -> e)
+            candidates.push(stem + 'e');
+            // nervous -> nerve (ous -> e)
+            if (stem.endsWith('v')) {
+                candidates.push(stem + 'e');
+            }
+        }
+        
+        // Rule 10: -ive adjectives (active -> act, creative -> create)
+        if (lowerWord.endsWith('ive') && lowerWord.length > 5) {
+            const stem = lowerWord.slice(0, -3);
+            candidates.push(stem);
+            // creative -> create (drop e before ive)
+            candidates.push(stem + 'e');
+            // active -> act (remove ive)
+            if (stem.endsWith('t')) {
+                candidates.push(stem);
+            }
+        }
+        
+        // Rule 11: -tion/-sion nouns (action -> act, decision -> decide)
+        if (lowerWord.endsWith('tion') && lowerWord.length > 6) {
+            const stem = lowerWord.slice(0, -4);
+            candidates.push(stem);
+            // action -> act (tion -> t)
+            candidates.push(stem + 't');
+            // creation -> create (tion -> te)
+            candidates.push(stem + 'te');
+        } else if (lowerWord.endsWith('sion') && lowerWord.length > 6) {
+            const stem = lowerWord.slice(0, -4);
+            candidates.push(stem);
+            // decision -> decide (sion -> de)
+            candidates.push(stem + 'de');
+            // expansion -> expand (sion -> d)
+            candidates.push(stem + 'd');
+        }
+        
+        // Rule 12: -ness nouns (happiness -> happy, darkness -> dark)
+        if (lowerWord.endsWith('ness') && lowerWord.length > 6) {
+            const stem = lowerWord.slice(0, -4);
+            candidates.push(stem);
+            // happiness -> happy (iness -> y)
+            if (stem.endsWith('i')) {
+                candidates.push(stem.slice(0, -1) + 'y');
+            }
+        }
+        
+        // Rule 13: -ment nouns (development -> develop, enjoyment -> enjoy)
+        if (lowerWord.endsWith('ment') && lowerWord.length > 6) {
+            const stem = lowerWord.slice(0, -4);
+            candidates.push(stem);
+        }
     }
 
     /**
