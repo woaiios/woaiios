@@ -205,6 +205,9 @@ export class TextAnalyzer {
      * @returns {string} Translation
      */
     getTranslation(word) {
+        // Compute lemmas once for efficiency
+        const lemmas = WordLemmatizer.lemmatize(word);
+        
         // First try to find the base form of the word with original casing
         let baseForm = this.wordFormsMap.get(word);
         
@@ -215,7 +218,6 @@ export class TextAnalyzer {
         
         // If we couldn't find a base form in the map, try lemmatization
         if (!baseForm) {
-            const lemmas = WordLemmatizer.lemmatize(word);
             for (const lemma of lemmas) {
                 const foundBase = this.wordFormsMap.get(lemma);
                 if (foundBase) {
@@ -256,7 +258,6 @@ export class TextAnalyzer {
         }
         
         // If still not found, try lemmatized forms directly in dictionary
-        const lemmas = WordLemmatizer.lemmatize(word);
         for (const lemma of lemmas) {
             if (this.dictionary && this.dictionary[lemma]) {
                 let htmlFragment = this.dictionary[lemma];
