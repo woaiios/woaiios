@@ -2,11 +2,11 @@
 
 ## 中文说明
 
-本项目已配置自动部署到 GitHub Pages。当您的 Pull Request 合并到 `develop` 分支后，将会自动触发部署。
+本项目已配置自动部署到 GitHub Pages。当您的 Pull Request 合并到 `master` 分支后，将会自动触发部署。
 
 ### 部署步骤：
 
-1. **合并 Pull Request**: 将此 PR 合并到 `develop` 分支
+1. **合并 Pull Request**: 将此 PR 合并到 `master` 分支
 
 2. **启用 GitHub Pages**:
    - 进入仓库的 Settings（设置）
@@ -30,17 +30,17 @@
 - **工作流文件**: `.github/workflows/deploy.yml`
 - **基础路径**: 已在 `vite.config.js` 中配置为 `/woaiios/`
 - **构建输出**: `dist/` 目录
-- **自动触发**: 推送到 `develop` 分支时自动部署
+- **自动触发**: 推送到 `master` 分支时自动部署
 
 ---
 
 ## English Instructions
 
-This project is configured for automatic deployment to GitHub Pages. When your Pull Request is merged to the `develop` branch, deployment will be triggered automatically.
+This project is configured for automatic deployment to GitHub Pages. When your Pull Request is merged to the `master` branch, deployment will be triggered automatically.
 
 ### Deployment Steps:
 
-1. **Merge Pull Request**: Merge this PR to the `develop` branch
+1. **Merge Pull Request**: Merge this PR to the `master` branch
 
 2. **Enable GitHub Pages**:
    - Go to repository Settings
@@ -65,7 +65,7 @@ This project is configured for automatic deployment to GitHub Pages. When your P
 - **Workflow file**: `.github/workflows/deploy.yml`
 - **Base path**: Configured in `vite.config.js` as `/woaiios/`
 - **Build output**: `dist/` directory
-- **Auto-trigger**: Deploys automatically on push to `develop` branch
+- **Auto-trigger**: Deploys automatically on push to `master` branch
 
 ### Features:
 
