@@ -21,10 +21,10 @@ function preparePublicDirectory() {
   }
 
   // Files and directories to copy to public
+  // Note: We only need stardict.db now, other files are unnecessary
   const assetsToCopy = [
-    { src: 'eng_dict.txt', dest: 'eng_dict.txt', type: 'file' },
-    { src: 'eng-zho.json', dest: 'eng-zho.json', type: 'file' },
-    { src: 'eng-zho.json_res', dest: 'eng-zho.json_res', type: 'dir' }
+    // stardict.db will be compressed during postbuild
+    // eng_dict.txt and eng-zho.json are no longer needed
   ];
 
   console.log('Preparing public directory with static assets...');

@@ -25,6 +25,7 @@
     "puppeteer": "^24.26.1",
     "terser": "^5.44.0",
     "vite": "^7.1.12",
+    "vite-plugin-compression": "^0.5.1",
     "wink-lemmatizer": "^3.0.4"
   }
 }

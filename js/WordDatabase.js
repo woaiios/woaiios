@@ -34,12 +34,12 @@ export class WordDatabase {
                 }
             });
             
-            console.log('Loading ECDICT database (stardict.db)...');
+            console.log('Loading ECDICT database (stardict.db.gz)...');
             
-            // Fetch the database file
+            // Fetch the compressed database file
             const dbPath = import.meta.env.DEV 
                 ? '/stardict.db' 
-                : `${import.meta.env.BASE_URL}stardict.db`;
+                : `${import.meta.env.BASE_URL}stardict.db.gz`;
             
             console.log(`Fetching database from: ${dbPath}`);
             const response = await fetch(dbPath);
@@ -47,11 +47,27 @@ export class WordDatabase {
                 throw new Error(`Failed to load database: ${response.status} ${response.statusText}`);
             }
             
-            // Get the database as an array buffer
-            const buffer = await response.arrayBuffer();
-            const uint8Array = new Uint8Array(buffer);
+            // Get the database and decompress if needed
+            let buffer;
+            if (dbPath.endsWith('.gz')) {
+                console.log('Decompressing gzipped database...');
+                const compressedBuffer = await response.arrayBuffer();
+                console.log(`Compressed size: ${(compressedBuffer.length / 1024 / 1024).toFixed(2)} MB`);
+                
+                // Decompress using browser's native DecompressionStream API
+                const blob = new Blob([compressedBuffer]);
+                const decompressedStream = blob.stream().pipeThrough(
+                    new DecompressionStream('gzip')
+                );
+                const decompressedBlob = await new Response(decompressedStream).blob();
+                buffer = await decompressedBlob.arrayBuffer();
+                console.log(`Decompressed size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+            } else {
+                buffer = await response.arrayBuffer();
+                console.log(`Database file loaded, size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+            }
             
-            console.log(`Database file loaded, size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+            const uint8Array = new Uint8Array(buffer);
             
             // Create the database
             this.db = new this.SQL.Database(uint8Array);

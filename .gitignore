@@ -6,14 +6,22 @@ package-lock.json
 # dist/ - keeping dist for deployment
 # build/
 
-# Public directory (generated from source files)
-# public/ - keeping public for deployment
+# Public directory (keeping for source assets)
+# Only stardict.db is kept in public/, other files removed as unnecessary
+public/eng-zho.json
+public/eng_dict.txt
+public/eng-zho.json_res/
 
-# Large database files (download separately or generate locally)
+# Large uncompressed database files (we use .gz version)
 *.db
 stardict.db
 dist/stardict.db
 public/stardict.db
+
+# Large unnecessary source files
+eng-zho.json
+eng_dict.txt
+eng-zho.json_res/
 
 # Development
 .vite/

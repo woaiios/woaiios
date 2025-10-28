@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
-import { copyFileSync, existsSync, mkdirSync } from 'fs';
+import viteCompression from 'vite-plugin-compression';
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -9,6 +9,17 @@ export default defineConfig({
   
   // Public directory for static assets
   publicDir: 'public',
+  
+  plugins: [
+    // Gzip compression for all assets
+    viteCompression({
+      algorithm: 'gzip',
+      ext: '.gz',
+      threshold: 10240, // Only compress files larger than 10KB
+      deleteOriginFile: false,
+      verbose: true
+    })
+  ],
   
   // Development server configuration
   server: {
