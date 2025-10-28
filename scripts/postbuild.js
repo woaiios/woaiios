@@ -10,19 +10,19 @@ const __dirname = dirname(__filename);
 
 console.log('Running post-build script...');
 
-// Ensure dist/assets directory exists
-const assetsDir = resolve(__dirname, '../dist/assets');
+// Ensure docs/assets directory exists
+const assetsDir = resolve(__dirname, '../docs/assets');
 if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
 }
 
 // Copy sql.js WASM file
 const wasmSource = resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
-const wasmDest = resolve(__dirname, '../dist/assets/sql-wasm.wasm');
+const wasmDest = resolve(__dirname, '../docs/assets/sql-wasm.wasm');
 
 try {
     copyFileSync(wasmSource, wasmDest);
-    console.log('✓ Copied sql-wasm.wasm to dist/assets/');
+    console.log('✓ Copied sql-wasm.wasm to docs/assets/');
 } catch (error) {
     console.error('✗ Failed to copy sql-wasm.wasm:', error.message);
     process.exit(1);
@@ -30,7 +30,7 @@ try {
 
 // Compress database file with gzip
 const dbSource = resolve(__dirname, '../public/stardict.db');
-const dbDest = resolve(__dirname, '../dist/stardict.db.gz');
+const dbDest = resolve(__dirname, '../docs/stardict.db.gz');
 
 if (existsSync(dbSource)) {
     try {
@@ -53,17 +53,17 @@ if (existsSync(dbSource)) {
     console.warn('⚠ Database file not found, skipping compression');
 }
 
-// Remove unnecessary files from dist
+// Remove unnecessary files from docs
 const filesToRemove = [
-    '../dist/eng-zho.json',
-    '../dist/eng-zho.json.gz',
-    '../dist/eng_dict.txt',
-    '../dist/stardict.db', // Remove uncompressed version
-    '../dist/eng-zho.json_res',
-    '../dist/test-cahokia.html',
-    '../dist/test-cahokia.html.gz',
-    '../dist/test-report.html',
-    '../dist/test-report.html.gz'
+    '../docs/eng-zho.json',
+    '../docs/eng-zho.json.gz',
+    '../docs/eng_dict.txt',
+    '../docs/stardict.db', // Remove uncompressed version
+    '../docs/eng-zho.json_res',
+    '../docs/test-cahokia.html',
+    '../docs/test-cahokia.html.gz',
+    '../docs/test-report.html',
+    '../docs/test-report.html.gz'
 ];
 
 console.log('Removing unnecessary files...');
