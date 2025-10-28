@@ -1,3 +1,5 @@
+import { WordLemmatizer } from './WordLemmatizer.js';
+
 /**
  * TextAnalyzer Module
  * Handles text analysis and word processing logic
@@ -203,6 +205,9 @@ export class TextAnalyzer {
      * @returns {string} Translation
      */
     getTranslation(word) {
+        // Compute lemmas once for efficiency
+        const lemmas = WordLemmatizer.lemmatize(word);
+        
         // First try to find the base form of the word with original casing
         let baseForm = this.wordFormsMap.get(word);
         
@@ -211,7 +216,19 @@ export class TextAnalyzer {
             baseForm = this.wordFormsMap.get(word.toLowerCase());
         }
         
-        // If we couldn't find a base form, use the word itself (try original case first)
+        // If we couldn't find a base form in the map, try lemmatization
+        // Skip if no meaningful lemmas found (only contains original word)
+        if (!baseForm && lemmas.length > 1) {
+            for (const lemma of lemmas) {
+                const foundBase = this.wordFormsMap.get(lemma);
+                if (foundBase) {
+                    baseForm = foundBase;
+                    break;
+                }
+            }
+        }
+        
+        // If we still couldn't find a base form, use the word itself
         if (!baseForm) {
             baseForm = word;
         }
@@ -229,7 +246,7 @@ export class TextAnalyzer {
         }
         
         // If not found, try with lowercase
-        const lowerBaseForm = word.toLowerCase();
+        const lowerBaseForm = baseForm.toLowerCase();
         if (this.dictionary && this.dictionary[lowerBaseForm]) {
             // Return the full HTML fragment with corrected paths
             let htmlFragment = this.dictionary[lowerBaseForm];
@@ -239,6 +256,17 @@ export class TextAnalyzer {
             htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
             
             return htmlFragment;
+        }
+        
+        // If still not found, try lemmatized forms directly in dictionary
+        // Start from index 1 to skip the original word (already checked above)
+        for (let i = 1; i < lemmas.length; i++) {
+            const lemma = lemmas[i];
+            if (this.dictionary && this.dictionary[lemma]) {
+                let htmlFragment = this.dictionary[lemma];
+                htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
+                return htmlFragment;
+            }
         }
         
         // Fallback to mock translations if dictionary not available or word not found
