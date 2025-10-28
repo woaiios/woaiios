@@ -11,12 +11,21 @@ This guide explains how to develop locally and contribute to the Word Discover p
 - **Node.js** 18+ ([下载](https://nodejs.org/))
 - **npm** 或 **yarn** (npm 随 Node.js 一起安装)
 - **Git** ([下载](https://git-scm.com/))
+- **Git LFS** ([下载](https://git-lfs.github.com/)) - 用于处理大型字典文件
 
 ### 克隆仓库 / Clone Repository
 
 ```bash
 git clone https://github.com/yourusername/woaiios.git
 cd woaiios
+```
+
+**注意**: 该项目使用 Git LFS 管理大型字典文件。如果您还没有安装 Git LFS，请先[下载并安装](https://git-lfs.github.com/)。克隆后，运行以下命令以确保正确获取大文件：
+
+**Note**: This project uses Git LFS for large dictionary files. If you haven't installed Git LFS yet, please [download and install it](https://git-lfs.github.com/) first. After cloning, run the following command to ensure large files are properly fetched:
+
+```bash
+git lfs pull
 ```
 
 ### 安装依赖 / Install Dependencies

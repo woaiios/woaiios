@@ -61,6 +61,7 @@
 ### 环境要求
 - Node.js 18+ 
 - npm 或 yarn
+- Git LFS (用于大型字典文件)
 
 ### 安装依赖
 ```bash
@@ -109,9 +110,10 @@ npm run preview
 
 ### 本地运行（开发环境）
 1. 克隆或下载代码
-2. 安装依赖：`npm install`
-3. 启动开发服务器：`npm run dev`
-4. 访问 `http://localhost:3000`
+2. 确保已安装 [Git LFS](https://git-lfs.github.com/) 并运行 `git lfs pull` 获取大型字典文件
+3. 安装依赖：`npm install`
+4. 启动开发服务器：`npm run dev`
+5. 访问 `http://localhost:3000`
 
 ## 浏览器支持
 
