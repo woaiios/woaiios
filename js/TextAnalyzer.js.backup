@@ -294,6 +294,178 @@ export class TextAnalyzer {
         div.textContent = text;
         return div.innerHTML;
     }
+            // Return the full HTML fragment with corrected paths
+            let htmlFragment = this.dictionary[lowerBaseForm];
+            
+            // Fix the stylesheet paths by replacing ~/ with the correct relative path
+            // The CSS files are located in eng-zho.json_res/css/ relative to the project root
+            htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
+            
+            return htmlFragment;
+        }
+        
+        // If still not found, try lemmatized forms directly in dictionary
+        // Start from index 1 to skip the original word (already checked above)
+        for (let i = 1; i < lemmas.length; i++) {
+            const lemma = lemmas[i];
+            if (this.dictionary && this.dictionary[lemma]) {
+                let htmlFragment = this.dictionary[lemma];
+                htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
+                return htmlFragment;
+            }
+        }
+        
+        // Try compound word decomposition for words not found in dictionary
+        // This handles words like "groundwater" -> "ground" + "water"
+        const compoundResult = this.tryCompoundWordDecomposition(word.toLowerCase());
+        if (compoundResult) {
+            return compoundResult;
+        }
+        
+        // Fallback to mock translations if dictionary not available or word not found
+        const mockTranslations = {
+            'hello': '你好',
+            'world': '世界',
+            'beautiful': '美丽的',
+            'amazing': '令人惊叹的',
+            'wonderful': '精彩的',
+            'fantastic': '极好的',
+            'excellent': '优秀的',
+            'outstanding': '杰出的',
+            'remarkable': '非凡的',
+            'extraordinary': '非凡的'
+        };
+        
+        // Try original case first
+        let translation = mockTranslations[word];
+        if (!translation) {
+            // Fall back to lowercase
+            translation = mockTranslations[word.toLowerCase()] || 'Translation not available';
+        }
+        
+        // If translation is not available, provide a Google search link
+        if (translation === 'Translation not available') {
+            return `<a href="https://www.google.com/search?q=${encodeURIComponent(word)}+meaning in Chinese" target="_blank" style="color: #1a0dab; text-decoration: underline;">Translation not available - Search on Google</a>`;
+        }
+        
+        return translation;
+    }
+    
+    /**
+     * Try to decompose a compound word and combine translations of its parts
+     * @param {string} word - Lowercase word to decompose
+     * @returns {string|null} Combined translation or null if not successful
+     */
+    tryCompoundWordDecomposition(word) {
+        if (!this.dictionary || word.length < 6) {
+            return null;
+        }
+        
+        // Common prefixes to try
+        const commonPrefixes = [
+            'over', 'under', 'out', 'in', 'up', 'down', 'off', 'on',
+            'fore', 'after', 'back', 'counter', 'inter', 'pre', 'post',
+            'super', 'sub', 'semi', 'anti', 'non', 'un', 're', 'dis'
+        ];
+        
+        // Try each prefix
+        for (const prefix of commonPrefixes) {
+            if (word.startsWith(prefix) && word.length > prefix.length + 2) {
+                const remainder = word.substring(prefix.length);
+                
+                // Try getting translations, including alternate forms if primary fails
+                const prefixChinese = this.getChineseForPart(prefix);
+                const remainderChinese = this.getChineseForPart(remainder);
+                
+                if (prefixChinese && remainderChinese) {
+                    return `<span class="compound-word">${prefixChinese}${remainderChinese}</span>`;
+                }
+            }
+        }
+        
+        // Try splitting at various positions (for words like groundwater -> ground + water)
+        // Limit search to reasonable split positions to avoid unnecessary iterations
+        const maxIterations = Math.min(word.length - 5, 15); // Limit to 15 iterations max
+        for (let i = 3; i <= word.length - 3 && i - 3 <= maxIterations; i++) {
+            const part1 = word.substring(0, i);
+            const part2 = word.substring(i);
+            
+            // Check if both parts exist and have translations
+            if (part2.length > 2) {
+                const part1Chinese = this.getChineseForPart(part1);
+                // Early termination if part1 has no translation
+                if (!part1Chinese) continue;
+                
+                const part2Chinese = this.getChineseForPart(part2);
+                
+                if (part2Chinese) {
+                    return `<span class="compound-word">${part1Chinese}${part2Chinese}</span>`;
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Get Chinese translation for a word part, trying alternate forms if needed
+     * @param {string} part - Word part to get translation for
+     * @returns {string|null} Chinese translation or null
+     */
+    getChineseForPart(part) {
+        // Try the word itself first
+        if (this.dictionary[part]) {
+            const chinese = this.extractChineseText(this.dictionary[part]);
+            if (chinese) return chinese;
+        }
+        
+        // Try with 's' appended (plural forms might have translation when singular doesn't)
+        if (this.dictionary[part + 's']) {
+            const chinese = this.extractChineseText(this.dictionary[part + 's']);
+            if (chinese) return chinese;
+        }
+        
+        // Try removing 's' (if part ends with s, try singular)
+        if (part.endsWith('s') && this.dictionary[part.slice(0, -1)]) {
+            const chinese = this.extractChineseText(this.dictionary[part.slice(0, -1)]);
+            if (chinese) return chinese;
+        }
+        
+        // Try with 'ed' appended
+        if (this.dictionary[part + 'ed']) {
+            const chinese = this.extractChineseText(this.dictionary[part + 'ed']);
+            if (chinese) return chinese;
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Extract Chinese text from HTML translation fragment
+     * @param {string} htmlFragment - HTML fragment containing translation
+     * @returns {string|null} Extracted Chinese text or null
+     */
+    extractChineseText(htmlFragment) {
+        // Try to extract text from .quote element (most common)
+        const quoteMatch = htmlFragment.match(/<li[^>]*class="quote"[^>]*>([^<]+)<\/li>/);
+        if (quoteMatch && quoteMatch[1] && quoteMatch[1].trim()) {
+            return quoteMatch[1].trim();
+        }
+        
+        // Try to extract text from .trans element
+        const transMatch = htmlFragment.match(/<[^>]*class="trans"[^>]*>([^<]+)<\/[^>]+>/);
+        if (transMatch && transMatch[1]) {
+            return transMatch[1].trim();
+        }
+        
+        // Fallback: extract any Chinese characters
+        const chineseMatch = htmlFragment.match(/[\u4e00-\u9fa5]+/);
+        if (chineseMatch && chineseMatch[0]) {
+            return chineseMatch[0];
+        }
+        
+        return null;
+    }
 
     /**
      * Process text for display with highlighted words

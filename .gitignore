@@ -3,11 +3,17 @@ node_modules/
 package-lock.json
 
 # Build output
-dist/
-build/
+# dist/ - keeping dist for deployment
+# build/
 
 # Public directory (generated from source files)
-public/
+# public/ - keeping public for deployment
+
+# Large database files (download separately or generate locally)
+*.db
+stardict.db
+dist/stardict.db
+public/stardict.db
 
 # Development
 .vite/

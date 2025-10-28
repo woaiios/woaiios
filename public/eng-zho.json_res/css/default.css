@@ -1,0 +1,135 @@
+body {
+    background-color: white;
+    font-family: sans-serif;
+    color: black;
+    padding: 0;
+    margin: 1rem;
+}
+
+a {
+    text-decoration: none;
+    color: #002bb8;
+    background: none;
+}
+
+a:visited {
+    color: #5a3696;
+}
+
+a:active {
+    color: #faa700;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+ol.sense {
+    list-style-type: upper-roman;
+}
+
+.single {
+    padding: 0;
+    display: inline-block;
+    padding-right: 0.5rem;
+}
+
+.form {
+    margin-bottom: 0.5rem;
+}
+
+.form:first-child .orth, .orth {
+    font-size: x-large;
+    font-weight: bold;
+    display: inline-block;
+    padding-right: 0.5rem;
+}
+
+.form.infl {
+    font-style: italic;
+    opacity: 0.8;
+}
+
+.form.infl .orth, .form.infl .case {
+    font-size: 90%;
+}
+
+.sing .orth, .plur .orth {
+    font-size: medium;
+    font-weight: normal;
+    font-style: oblique;
+}
+
+.pron {
+    font-weight: bold;
+    color: maroon;
+    padding-bottom: 0.25rem;
+}
+
+.pron:before {
+    content: "[";
+}
+
+.pron:after {
+    content: "]";
+}
+
+.single>li {
+    display: block;
+}
+
+.gen {
+    font-style: italic;
+    color: darkgreen;
+}
+
+.usg {
+    padding-bottom: 0.5rem;
+}
+
+.gramGrp, .gen, .pos, .num, .number, .mood, .tns, .case {
+    display: inline-block;
+    vertical-align: top;
+    padding-right: 0.5rem;
+    font-style: italic;
+}
+
+.gen:before {
+    content: "(";
+    vertical-align: top;
+    font-style: italic;
+}
+
+.gen:after {
+    content: ")";
+    vertical-align: top;
+}
+
+.pos {
+    color: darkgreen;
+    font-weight: bold;
+}
+
+.num, .number {
+    font-style: italic;
+    color: blue;
+}
+
+.hint {
+    font-size: 90%;
+    font-style: italic;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+.hint:before {
+    content: "(";
+}
+
+.hint:after {
+    content: ")";
+}
+
+li.sense {
+    padding-bottom: 0.5rem;
+}

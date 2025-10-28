@@ -45,6 +45,9 @@ export default defineConfig({
             return `assets/fonts/[name]-[hash].${ext}`;
           } else if (/\.css$/i.test(assetInfo.name)) {
             return `assets/css/[name]-[hash].${ext}`;
+          } else if (/\.wasm$/i.test(assetInfo.name)) {
+            // Handle sql.js wasm files
+            return `assets/[name].[hash].${ext}`;
           }
           return `assets/[name]-[hash].${ext}`;
         }
@@ -68,6 +71,9 @@ export default defineConfig({
   
   // Optimization
   optimizeDeps: {
-    include: []
-  }
+    exclude: ['sql.js']
+  },
+  
+  // Handle wasm files for sql.js
+  assetsInclude: ['**/*.wasm']
 });
