@@ -6,17 +6,26 @@
 
 // Dynamic import for wink-lemmatizer
 let winkLemmatizer = null;
+let winkLemmatizerPromise = null;
 
-// Load wink-lemmatizer asynchronously
-(async () => {
-    try {
-        const module = await import('wink-lemmatizer');
-        winkLemmatizer = module.default;
-        console.log('wink-lemmatizer loaded successfully');
-    } catch (error) {
-        console.warn('Failed to load wink-lemmatizer, using fallback rules:', error.message);
+// Initialize wink-lemmatizer asynchronously
+function initWinkLemmatizer() {
+    if (!winkLemmatizerPromise) {
+        winkLemmatizerPromise = (async () => {
+            try {
+                const module = await import('wink-lemmatizer');
+                winkLemmatizer = module.default;
+            } catch (error) {
+                // Silently fall back to custom rules if wink-lemmatizer fails to load
+                winkLemmatizer = null;
+            }
+        })();
     }
-})();
+    return winkLemmatizerPromise;
+}
+
+// Start loading immediately
+initWinkLemmatizer();
 
 export class WordLemmatizer {
     /**
@@ -81,7 +90,7 @@ export class WordLemmatizer {
                 if (verbLemma !== lowerWord) candidates.push(verbLemma);
                 if (adjLemma !== lowerWord) candidates.push(adjLemma);
             } catch (error) {
-                console.warn('Error using wink-lemmatizer:', error);
+                // Fall back to custom rules if wink-lemmatizer encounters an error
             }
         }
         
