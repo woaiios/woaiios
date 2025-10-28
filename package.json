@@ -19,6 +19,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "pako": "^2.1.0",
     "sql.js": "^1.12.0"
   },
   "devDependencies": {

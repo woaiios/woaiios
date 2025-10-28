@@ -3,6 +3,7 @@
  * Implements progressive database loading with caching and offline support
  * Loads database chunks in order of word frequency (high-frequency words first)
  */
+import pako from 'pako';
 
 export class ProgressiveDatabaseLoader {
     constructor(SQL) {
@@ -257,19 +258,32 @@ export class ProgressiveDatabaseLoader {
                     ? `/db-chunks/${chunkInfo.filename}`
                     : `${import.meta.env.BASE_URL}db-chunks/${chunkInfo.filename}`;
                 
+                console.log(`Fetching from: ${chunkPath}`);
                 const response = await fetch(chunkPath);
                 if (!response.ok) {
                     throw new Error(`Failed to load chunk ${chunkNumber}: ${response.status}`);
                 }
                 
                 // Decompress
-                const compressedBuffer = await response.arrayBuffer();
-                const blob = new Blob([compressedBuffer]);
-                const decompressedStream = blob.stream().pipeThrough(
-                    new DecompressionStream('gzip')
-                );
-                const decompressedBlob = await new Response(decompressedStream).blob();
-                buffer = await decompressedBlob.arrayBuffer();
+                console.log(`Decompressing chunk ${chunkNumber}...`);
+                let compressedBuffer = await response.arrayBuffer();
+                console.log(`Received size: ${(compressedBuffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
+                
+                // Check if Vite already decompressed the file (Content-Encoding header)
+                const contentEncoding = response.headers.get('Content-Encoding');
+                console.log(`Content-Encoding: ${contentEncoding}`);
+                
+                if (contentEncoding === 'gzip' || compressedBuffer.byteLength > chunkInfo.sizeBytes * 1.5) {
+                    // File was already decompressed by the browser or is not actually compressed
+                    console.log('File appears to be already decompressed or needs special handling');
+                    buffer = compressedBuffer;
+                } else {
+                    // Use pako for decompression
+                    const compressedArray = new Uint8Array(compressedBuffer);
+                    const decompressedArray = pako.ungzip(compressedArray);
+                    buffer = decompressedArray.buffer;
+                    console.log(`Decompressed size: ${(buffer.byteLength / 1024 / 1024).toFixed(2)}MB`);
+                }
                 
                 // Save to cache
                 await this.saveChunkToCache(chunkNumber, buffer);
@@ -319,6 +333,12 @@ export class ProgressiveDatabaseLoader {
             return true;
         } catch (error) {
             console.error(`Error loading chunk ${chunkNumber}:`, error);
+            console.error('Error stack:', error.stack);
+            console.error('Error details:', {
+                message: error.message,
+                name: error.name,
+                chunkNumber
+            });
             this.emit('error', error);
             return false;
         }

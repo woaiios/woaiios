@@ -40,6 +40,17 @@ if (existsSync(chunksSource)) {
         cpSync(chunksSource, chunksDest, { recursive: true });
         console.log('✓ Copied db-chunks directory to docs/');
         
+        // Remove uncompressed .db files (keep only .gz)
+        const { readdirSync } = await import('fs');
+        const files = readdirSync(chunksDest);
+        for (const file of files) {
+            if (file.endsWith('.db') && !file.endsWith('.db.gz')) {
+                const filePath = resolve(chunksDest, file);
+                unlinkSync(filePath);
+                console.log(`  ✓ Removed uncompressed file: ${file}`);
+            }
+        }
+        
         // Count and log chunk sizes
         const metadataPath = resolve(chunksDest, 'metadata.json');
         if (existsSync(metadataPath)) {

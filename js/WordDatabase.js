@@ -33,7 +33,25 @@ export class WordDatabase {
             console.log('Initializing sql.js...');
             
             // Dynamically import sql.js
-            const initSqlJs = (await import('sql.js/dist/sql-wasm.js')).default;
+            // Use the direct file reference in development
+            let initSqlJs;
+            if (import.meta.env.DEV) {
+                // In development, import from node_modules
+                const sqlWasm = await import('/node_modules/sql.js/dist/sql-wasm.js?url');
+                // Load the module using script tag approach
+                const script = document.createElement('script');
+                script.src = '/node_modules/sql.js/dist/sql-wasm.js';
+                document.head.appendChild(script);
+                await new Promise((resolve) => {
+                    script.onload = resolve;
+                });
+                initSqlJs = window.initSqlJs;
+            } else {
+                const sqlModule = await import('sql.js/dist/sql-wasm.js');
+                initSqlJs = sqlModule.default;
+            }
+            
+            console.log('initSqlJs type:', typeof initSqlJs);
             
             // Initialize sql.js with the wasm file
             this.SQL = await initSqlJs({
