@@ -217,7 +217,8 @@ export class TextAnalyzer {
         }
         
         // If we couldn't find a base form in the map, try lemmatization
-        if (!baseForm) {
+        // Skip if no meaningful lemmas found (only contains original word)
+        if (!baseForm && lemmas.length > 1) {
             for (const lemma of lemmas) {
                 const foundBase = this.wordFormsMap.get(lemma);
                 if (foundBase) {
@@ -258,7 +259,9 @@ export class TextAnalyzer {
         }
         
         // If still not found, try lemmatized forms directly in dictionary
-        for (const lemma of lemmas) {
+        // Start from index 1 to skip the original word (already checked above)
+        for (let i = 1; i < lemmas.length; i++) {
+            const lemma = lemmas[i];
             if (this.dictionary && this.dictionary[lemma]) {
                 let htmlFragment = this.dictionary[lemma];
                 htmlFragment = htmlFragment.replace(/href="~\//g, 'href="./eng-zho.json_res/');
