@@ -5,7 +5,7 @@ import viteCompression from 'vite-plugin-compression';
 // https://vitejs.dev/config/
 export default defineConfig({
   // Base public path when served in production
-  base: '/',
+  base: '/woaiios/',
   
   // Public directory for static assets
   publicDir: 'public',
@@ -30,7 +30,7 @@ export default defineConfig({
   
   // Build configuration
   build: {
-    outDir: 'docs',
+    outDir: 'dist',
     assetsDir: 'assets',
     // Generate sourcemaps for debugging
     sourcemap: false,
