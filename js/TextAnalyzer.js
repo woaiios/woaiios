@@ -10,6 +10,11 @@ export class TextAnalyzer {
         this.tokenizer = null;
         this.translationCache = new Map(); // Cache formatted translations to avoid repeated HTML generation
         this.maxCacheSize = 5000; // Limit cache size as user requested: "别存太多"
+        
+        // Constants for exchange field parsing
+        this.LEMMA_KEY = '0';           // Primary lemma (base form)
+        this.LEMMA_VARIATION_KEY = '1'; // Alternative lemma form
+        
         this.loadTokenizer();
     }
 
@@ -51,8 +56,8 @@ export class TextAnalyzer {
             r: null,      // comparative (-er)
             t: null,      // superlative (-est)
             s: null,      // plural
-            '0': null,    // lemma
-            '1': null     // lemma variation form
+            [this.LEMMA_KEY]: null,           // primary lemma (base form)
+            [this.LEMMA_VARIATION_KEY]: null  // alternative lemma form
         };
 
         if (!exchange) return forms;
@@ -174,7 +179,7 @@ export class TextAnalyzer {
             // If word exists but has no metadata, check if it has a lemma
             if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
                 const forms = this.parseExchange(wordData.exchange);
-                const lemma = forms['0'] || forms['1'];
+                const lemma = forms[this.LEMMA_KEY] || forms[this.LEMMA_VARIATION_KEY];
                 if (lemma && lemma.toLowerCase() !== lowerWord) {
                     lemmasToQuery.add(lemma.toLowerCase());
                 }
@@ -212,7 +217,7 @@ export class TextAnalyzer {
             // If word has no metadata, try to use its lemma's data for difficulty
             if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
                 const forms = this.parseExchange(wordData.exchange);
-                const lemma = forms['0'] || forms['1'];
+                const lemma = forms[this.LEMMA_KEY] || forms[this.LEMMA_VARIATION_KEY];
                 if (lemma && lemma.toLowerCase() !== lowerWord) {
                     const lemmaData = wordDataMap.get(lemma.toLowerCase());
                     // Use lemma data for difficulty calculation only
