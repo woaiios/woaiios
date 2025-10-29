@@ -59,3 +59,4 @@ test-*.html
 !test-settings.html
 !test-gis-integration.html
 !test-google-drive.html
+!test-performance.html
