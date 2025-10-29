@@ -182,29 +182,45 @@ class WordDiscoverer {
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = wordInfo.translation;
             
-            // Extract pronunciation and translation
+            // Extract pronunciation and translation from compact format
             let pronunciation = '';
             let translation = '';
             
-            const pronElement = tempDiv.querySelector('.pron');
-            if (pronElement) {
-                pronunciation = pronElement.textContent.trim();
+            const phoneticElement = tempDiv.querySelector('.phonetic-line');
+            if (phoneticElement) {
+                pronunciation = phoneticElement.textContent.trim();
             }
             
-            const transElement = tempDiv.querySelector('.trans');
-            if (transElement) {
-                translation = transElement.textContent.trim();
+            const translationElement = tempDiv.querySelector('.translation-compact p');
+            if (translationElement) {
+                translation = translationElement.textContent.trim();
             }
             
-            // If we couldn't parse the structured translation, use the raw HTML
-            if (!pronElement && !transElement) {
-                translation = wordInfo.translation;
+            // Fallback to old format for backward compatibility
+            if (!pronunciation && !translation) {
+                const pronElement = tempDiv.querySelector('.pron');
+                if (pronElement) {
+                    pronunciation = pronElement.textContent.trim();
+                }
+                
+                const transElement = tempDiv.querySelector('.trans');
+                if (transElement) {
+                    translation = transElement.textContent.trim();
+                }
+            }
+            
+            // If we still couldn't parse, try to extract from any <p> tag
+            if (!translation) {
+                const firstP = tempDiv.querySelector('p');
+                if (firstP) {
+                    translation = firstP.textContent.trim();
+                }
             }
             
             wordItem.innerHTML = `
                 <div class="word">${wordInfo.word}</div>
-                ${pronunciation ? `<div class="pronunciation">/${pronunciation}/</div>` : ''}
-                <div class="translation">${translation}</div>
+                ${pronunciation ? `<div class="pronunciation">${pronunciation}</div>` : ''}
+                <div class="translation">${translation || '无翻译'}</div>
             `;
             
             container.appendChild(wordItem);
