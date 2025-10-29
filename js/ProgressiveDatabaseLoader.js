@@ -72,7 +72,15 @@ export class ProgressiveDatabaseLoader {
                 const store = transaction.objectStore('chunks');
                 
                 // Convert ArrayBuffer to Uint8Array for better IndexedDB compatibility
-                const uint8Data = data instanceof ArrayBuffer ? new Uint8Array(data) : data;
+                // IndexedDB handles Uint8Array more reliably across different browsers
+                let uint8Data;
+                if (data instanceof ArrayBuffer) {
+                    uint8Data = new Uint8Array(data);
+                } else if (data instanceof Uint8Array) {
+                    uint8Data = data;
+                } else {
+                    throw new TypeError('Data must be ArrayBuffer or Uint8Array');
+                }
                 
                 const request = store.put({
                     chunkNumber: chunkNumber,
@@ -118,8 +126,17 @@ export class ProgressiveDatabaseLoader {
                             return;
                         }
                         console.log(`📦 Loaded chunk ${chunkNumber} from cache`);
-                        // Convert Uint8Array back to ArrayBuffer if needed
-                        const buffer = result.data.buffer || result.data;
+                        // Convert Uint8Array back to ArrayBuffer for sql.js
+                        let buffer;
+                        if (result.data instanceof Uint8Array) {
+                            buffer = result.data.buffer;
+                        } else if (result.data instanceof ArrayBuffer) {
+                            buffer = result.data;
+                        } else {
+                            console.warn(`Unexpected data type in cache for chunk ${chunkNumber}, re-downloading`);
+                            resolve(null);
+                            return;
+                        }
                         resolve(buffer);
                     } else {
                         resolve(null);
@@ -294,11 +311,12 @@ export class ProgressiveDatabaseLoader {
                     fromCache: true
                 });
                 
-                // Add a small delay to make progress visible when loading from cache
-                // This helps users understand that the app is loading cached data
+                // Add a minimal delay to make progress visible when loading from cache
+                // This provides visual feedback that the app is loading (not frozen)
+                // Only delay priority chunks that load very quickly
                 if (chunkNumber <= 3) {
-                    // Only delay for priority chunks so users can see the progress
-                    await new Promise(resolve => setTimeout(resolve, 150));
+                    // Very short delay (100ms) just to ensure progress bar is visible
+                    await new Promise(resolve => setTimeout(resolve, 100));
                 }
             } else {
                 // Download from server
