@@ -213,9 +213,14 @@ export class WordDatabase {
      * @returns {Object} Difficulty information
      */
     getWordDifficulty(word) {
-        const wordInfo = this.queryWord(word);
+        let wordInfo = this.queryWord(word);
         
-        // If word not found in database, treat as common word (don't highlight)
+        // If word not found, try to find by lemma (base form)
+        if (!wordInfo) {
+            wordInfo = this.findByLemma(word);
+        }
+        
+        // If still not found in database, treat as common word (don't highlight)
         if (!wordInfo) {
             return {
                 level: 'common',
@@ -234,46 +239,72 @@ export class WordDatabase {
         let level = 'expert';
         let score = 100;
         const tag = wordInfo.tag || '';
+        let hasMetadata = false;
 
         // Oxford 3000 core vocabulary
         if (wordInfo.oxford === 1) {
             level = 'common';
             score = 0;
+            hasMetadata = true;
         }
         // Collins 5 stars
         else if (wordInfo.collins >= 5) {
             level = 'common';
             score = 10;
+            hasMetadata = true;
         }
         // Collins 4 stars or common exam tags
         else if (wordInfo.collins >= 4 || tag.includes('zk') || tag.includes('gk') || tag.includes('cet4')) {
             level = 'beginner';
             score = 25;
+            hasMetadata = true;
         }
         // Collins 3 stars or CET6
         else if (wordInfo.collins >= 3 || tag.includes('cet6')) {
             level = 'intermediate';
             score = 50;
+            hasMetadata = true;
         }
         // Collins 1-2 stars or IELTS/TOEFL
         else if (wordInfo.collins >= 1 || tag.includes('ielts') || tag.includes('toefl')) {
             level = 'advanced';
             score = 75;
+            hasMetadata = true;
         }
         // High frequency words (BNC < 20000)
         else if (wordInfo.bnc > 0 && wordInfo.bnc < 20000) {
             level = 'common';
             score = 15;
+            hasMetadata = true;
         }
         // Medium frequency (BNC < 50000)
         else if (wordInfo.bnc > 0 && wordInfo.bnc < 50000) {
             level = 'beginner';
             score = 30;
+            hasMetadata = true;
         }
         // Lower frequency
         else if (wordInfo.bnc > 0 && wordInfo.bnc < 100000) {
             level = 'intermediate';
             score = 55;
+            hasMetadata = true;
+        }
+
+        // If no metadata found for this word, try to get difficulty from base form
+        if (!hasMetadata && wordInfo.exchange) {
+            const forms = this.parseExchange(wordInfo.exchange);
+            // Check if this word has a lemma (base form)
+            // forms['0'] is the primary lemma, forms['1'] is alternative lemma
+            const lemma = forms['0'] || forms['1'];
+            if (lemma && lemma.toLowerCase() !== word.toLowerCase()) {
+                // Prevent infinite recursion by checking if lemma is different from current word
+                const lemmaInfo = this.queryWord(lemma);
+                if (lemmaInfo) {
+                    // Recursively get difficulty of base form
+                    const lemmaDifficulty = this.getWordDifficulty(lemma);
+                    return lemmaDifficulty;
+                }
+            }
         }
 
         return {
