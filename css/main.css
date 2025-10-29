@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 1.8;
+    line-height: 2.2; /* Increased to accommodate phonetic annotations */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -309,6 +309,52 @@ body {
 
 .highlighted-word.unknown {
     background: rgba(244, 67, 54, 0.7); /* Red */
+}
+
+/* Ruby annotations for phonetic symbols */
+ruby.word-span {
+    ruby-align: center;
+}
+
+ruby.highlighted-word {
+    /* Ruby element should also have cursor pointer */
+    cursor: pointer;
+}
+
+ruby.highlighted-word rb {
+    /* Base text styling */
+    display: inline;
+}
+
+ruby.highlighted-word rt.phonetic-annotation {
+    /* Ruby text (phonetic annotation) styling */
+    font-size: 0.85em;
+    color: #666;
+    font-weight: normal;
+    line-height: 1.2;
+    text-align: center;
+    /* Ruby text automatically appears above base text */
+}
+
+/* Maintain color differentiation for ruby highlighted words */
+ruby.highlighted-word.beginner rt.phonetic-annotation {
+    color: #9e8a00; /* Darker yellow tone */
+}
+
+ruby.highlighted-word.intermediate rt.phonetic-annotation {
+    color: #9e7500; /* Yellow-orange tone */
+}
+
+ruby.highlighted-word.advanced rt.phonetic-annotation {
+    color: #b35a00; /* Orange tone */
+}
+
+ruby.highlighted-word.expert rt.phonetic-annotation {
+    color: #c62828; /* Red tone */
+}
+
+ruby.highlighted-word.unknown rt.phonetic-annotation {
+    color: #c62828; /* Red tone */
 }
 
 /* Statistics */
