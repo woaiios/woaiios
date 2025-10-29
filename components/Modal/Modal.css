@@ -12,6 +12,8 @@
     overflow-y: auto;
     padding: 20px 0;
     box-sizing: border-box;
+    /* Improve mobile scrolling */
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal.show {
@@ -32,6 +34,8 @@
     margin: auto;
     /* 添加box-sizing以确保padding不会增加宽度 */
     box-sizing: border-box;
+    /* Improve mobile scrolling */
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-header {
@@ -60,11 +64,25 @@
     padding: 0.5rem;
     border-radius: 6px;
     transition: all 0.2s ease;
+    /* Improve touch target on mobile */
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Improve touch feedback */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .close-btn:hover {
     background: #f3f4f6;
     color: #374151;
+}
+
+/* Add active state for mobile */
+.close-btn:active {
+    background: #e5e7eb;
 }
 
 .modal-body {
