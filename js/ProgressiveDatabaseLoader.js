@@ -67,19 +67,40 @@ export class ProgressiveDatabaseLoader {
         if (!this.cacheDB) return;
         
         return new Promise((resolve, reject) => {
-            const transaction = this.cacheDB.transaction(['chunks'], 'readwrite');
-            const store = transaction.objectStore('chunks');
-            const request = store.put({
-                chunkNumber: chunkNumber,
-                data: data,
-                timestamp: Date.now()
-            });
-            
-            request.onsuccess = () => resolve();
-            request.onerror = () => {
-                console.warn(`Failed to cache chunk ${chunkNumber}`);
-                resolve(); // Don't fail if caching fails
-            };
+            try {
+                const transaction = this.cacheDB.transaction(['chunks'], 'readwrite');
+                const store = transaction.objectStore('chunks');
+                
+                // Convert ArrayBuffer to Uint8Array for better IndexedDB compatibility
+                // IndexedDB handles Uint8Array more reliably across different browsers
+                let uint8Data;
+                if (data instanceof ArrayBuffer) {
+                    uint8Data = new Uint8Array(data);
+                } else if (data instanceof Uint8Array) {
+                    uint8Data = data;
+                } else {
+                    throw new TypeError('Data must be ArrayBuffer or Uint8Array');
+                }
+                
+                const request = store.put({
+                    chunkNumber: chunkNumber,
+                    data: uint8Data,
+                    timestamp: Date.now(),
+                    version: this.metadata.version  // Add version for cache invalidation
+                });
+                
+                request.onsuccess = () => {
+                    console.log(`💾 Cached chunk ${chunkNumber}`);
+                    resolve();
+                };
+                request.onerror = (e) => {
+                    console.warn(`Failed to cache chunk ${chunkNumber}:`, e.target.error);
+                    resolve(); // Don't fail if caching fails
+                };
+            } catch (error) {
+                console.warn(`Error caching chunk ${chunkNumber}:`, error);
+                resolve();
+            }
         });
     }
 
@@ -90,20 +111,45 @@ export class ProgressiveDatabaseLoader {
         if (!this.cacheDB) return null;
         
         return new Promise((resolve, reject) => {
-            const transaction = this.cacheDB.transaction(['chunks'], 'readonly');
-            const store = transaction.objectStore('chunks');
-            const request = store.get(chunkNumber);
-            
-            request.onsuccess = (event) => {
-                const result = event.target.result;
-                if (result && result.data) {
-                    console.log(`✅ Loaded chunk ${chunkNumber} from cache`);
-                    resolve(result.data);
-                } else {
+            try {
+                const transaction = this.cacheDB.transaction(['chunks'], 'readonly');
+                const store = transaction.objectStore('chunks');
+                const request = store.get(chunkNumber);
+                
+                request.onsuccess = (event) => {
+                    const result = event.target.result;
+                    if (result && result.data) {
+                        // Check version match for cache invalidation
+                        if (result.version && result.version !== this.metadata.version) {
+                            console.log(`⚠️ Cache version mismatch for chunk ${chunkNumber}, re-downloading`);
+                            resolve(null);
+                            return;
+                        }
+                        console.log(`📦 Loaded chunk ${chunkNumber} from cache`);
+                        // Convert Uint8Array back to ArrayBuffer for sql.js
+                        let buffer;
+                        if (result.data instanceof Uint8Array) {
+                            buffer = result.data.buffer;
+                        } else if (result.data instanceof ArrayBuffer) {
+                            buffer = result.data;
+                        } else {
+                            console.warn(`Unexpected data type in cache for chunk ${chunkNumber}, re-downloading`);
+                            resolve(null);
+                            return;
+                        }
+                        resolve(buffer);
+                    } else {
+                        resolve(null);
+                    }
+                };
+                request.onerror = (e) => {
+                    console.warn(`Error loading chunk ${chunkNumber} from cache:`, e.target.error);
                     resolve(null);
-                }
-            };
-            request.onerror = () => resolve(null);
+                };
+            } catch (error) {
+                console.warn(`Error accessing cache for chunk ${chunkNumber}:`, error);
+                resolve(null);
+            }
         });
     }
 
@@ -247,13 +293,44 @@ export class ProgressiveDatabaseLoader {
                 throw new Error(`Chunk ${chunkNumber} not found in metadata`);
             }
             
-            console.log(`📥 Loading chunk ${chunkNumber}/${this.metadata.totalChunks} (${chunkInfo.wordCount.toLocaleString()} words)...`);
-            
             // Try to load from cache first
             let buffer = await this.loadChunkFromCache(chunkNumber);
+            let fromCache = false;
             
-            if (!buffer) {
-                // Load from server
+            if (buffer) {
+                // Loaded from cache
+                fromCache = true;
+                console.log(`📦 Loading chunk ${chunkNumber}/${this.metadata.totalChunks} from cache (${chunkInfo.wordCount.toLocaleString()} words)...`);
+                
+                // Update progress with cache message
+                this.emit('progress', {
+                    loaded: this.loadedBytes,
+                    total: this.totalBytes,
+                    percentage: this.loadingProgress,
+                    message: `Loading from cache: chunk ${chunkNumber}/${this.metadata.totalChunks}`,
+                    fromCache: true
+                });
+                
+                // Add a minimal delay to make progress visible when loading from cache
+                // This provides visual feedback that the app is loading (not frozen)
+                // Only delay priority chunks that load very quickly
+                if (chunkNumber <= 3) {
+                    // Very short delay (100ms) just to ensure progress bar is visible
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            } else {
+                // Download from server
+                console.log(`📥 Downloading chunk ${chunkNumber}/${this.metadata.totalChunks} (${chunkInfo.wordCount.toLocaleString()} words)...`);
+                
+                // Update progress with download message
+                this.emit('progress', {
+                    loaded: this.loadedBytes,
+                    total: this.totalBytes,
+                    percentage: this.loadingProgress,
+                    message: `Downloading: chunk ${chunkNumber}/${this.metadata.totalChunks}`,
+                    fromCache: false
+                });
+                
                 const chunkPath = import.meta.env.DEV 
                     ? `/db-chunks/${chunkInfo.filename}`
                     : `${import.meta.env.BASE_URL}db-chunks/${chunkInfo.filename}`;
@@ -312,20 +389,24 @@ export class ProgressiveDatabaseLoader {
             this.loadedBytes += chunkInfo.sizeBytes;
             this.loadingProgress = (this.loadedBytes / this.totalBytes) * 100;
             
-            console.log(`✅ Chunk ${chunkNumber} loaded (${this.loadingProgress.toFixed(1)}% complete)`);
+            const statusIcon = fromCache ? '📦' : '✅';
+            const statusText = fromCache ? 'from cache' : 'downloaded';
+            console.log(`${statusIcon} Chunk ${chunkNumber} loaded ${statusText} (${this.loadingProgress.toFixed(1)}% complete)`);
             
             this.emit('chunkLoaded', {
                 chunkNumber,
                 loaded: this.loadedChunks.size,
                 total: this.metadata.totalChunks,
-                percentage: this.loadingProgress
+                percentage: this.loadingProgress,
+                fromCache: fromCache
             });
             
             this.emit('progress', {
                 loaded: this.loadedBytes,
                 total: this.totalBytes,
                 percentage: this.loadingProgress,
-                message: `Loaded chunk ${chunkNumber}/${this.metadata.totalChunks}`
+                message: `Loaded chunk ${chunkNumber}/${this.metadata.totalChunks} ${fromCache ? '(cached)' : ''}`,
+                fromCache: fromCache
             });
             
             return true;
