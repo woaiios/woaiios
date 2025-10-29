@@ -88,14 +88,36 @@ export class TextAnalyzer {
         // Analyze each unique word (using lowercase for comparison)
         const uniqueWords = [...new Set(words.map(word => word.toLowerCase()))];
         
-        // Use batch query for better performance
+        // Use batch query for better performance - query all words at once
         const startTime = performance.now();
         
+        // Batch query all unique words
+        const wordDataMap = new Map();
+        if (this.wordDatabase.useDirectStorage && this.wordDatabase.directStorage && this.wordDatabase.directStorage.isInitialized) {
+            // Use optimized batch query
+            const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(uniqueWords);
+            batchResults.forEach(result => {
+                if (result.data) {
+                    wordDataMap.set(result.word, result.data);
+                }
+            });
+        } else {
+            // Fallback to individual queries
+            for (const word of uniqueWords) {
+                const data = await this.wordDatabase.queryWord(word);
+                if (data) {
+                    wordDataMap.set(word, data);
+                }
+            }
+        }
+        
+        // Process each word with the pre-fetched data
         for (const lowerWord of uniqueWords) {
             // Find the original casing of the word for display
             const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
             
-            const difficulty = await this.wordDatabase.getWordDifficulty(lowerWord);
+            const wordData = wordDataMap.get(lowerWord);
+            const difficulty = this.calculateDifficultyFromData(wordData, lowerWord);
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(lowerWord);
@@ -108,7 +130,7 @@ export class TextAnalyzer {
                     word: originalWord, // Use original casing for display
                     difficulty: difficulty,
                     frequency: analysis.wordFrequency[lowerWord],
-                    translation: await this.getTranslation(originalWord) // Use original casing for lookup
+                    translation: this.formatTranslationFromData(originalWord, wordData)
                 });
                 
                 // A word is new only if it's in neither list.
@@ -126,6 +148,146 @@ export class TextAnalyzer {
         analysis.difficultyScore = uniqueWords.length > 0 ? Math.round(analysis.difficultyScore / uniqueWords.length) : 0;
         
         return analysis;
+    }
+
+    /**
+     * Calculate difficulty from word data (extracted from WordDatabase.getWordDifficulty)
+     * @param {Object} wordInfo - Word information
+     * @param {string} word - Word being analyzed
+     * @returns {Object} Difficulty information
+     */
+    calculateDifficultyFromData(wordInfo, word) {
+        // If still not found in database, treat as common word (don't highlight)
+        if (!wordInfo) {
+            return {
+                level: 'common',
+                score: 0,
+                className: 'common',
+                info: null
+            };
+        }
+
+        let level = 'expert';
+        let score = 100;
+        const tag = wordInfo.tag || '';
+        let hasMetadata = false;
+
+        // Oxford 3000 core vocabulary
+        if (wordInfo.oxford === 1 || wordInfo.oxford === true) {
+            level = 'common';
+            score = 0;
+            hasMetadata = true;
+        }
+        // Collins 5 stars
+        else if (wordInfo.collins >= 5) {
+            level = 'common';
+            score = 10;
+            hasMetadata = true;
+        }
+        // Collins 4 stars or common exam tags
+        else if (wordInfo.collins >= 4 || tag.includes('zk') || tag.includes('gk') || tag.includes('cet4')) {
+            level = 'beginner';
+            score = 25;
+            hasMetadata = true;
+        }
+        // Collins 3 stars or CET6
+        else if (wordInfo.collins >= 3 || tag.includes('cet6')) {
+            level = 'intermediate';
+            score = 50;
+            hasMetadata = true;
+        }
+        // Collins 1-2 stars or IELTS/TOEFL
+        else if (wordInfo.collins >= 1 || tag.includes('ielts') || tag.includes('toefl')) {
+            level = 'advanced';
+            score = 75;
+            hasMetadata = true;
+        }
+        // High frequency words (BNC < 20000)
+        else if (wordInfo.bnc > 0 && wordInfo.bnc < 20000) {
+            level = 'common';
+            score = 15;
+            hasMetadata = true;
+        }
+        // Medium frequency (BNC < 50000)
+        else if (wordInfo.bnc > 0 && wordInfo.bnc < 50000) {
+            level = 'beginner';
+            score = 30;
+            hasMetadata = true;
+        }
+        // Lower frequency
+        else if (wordInfo.bnc > 0 && wordInfo.bnc < 100000) {
+            level = 'intermediate';
+            score = 55;
+            hasMetadata = true;
+        }
+
+        return {
+            level: level,
+            score: score,
+            className: level,
+            info: wordInfo
+        };
+    }
+
+    /**
+     * Format translation from word data (extracted from getTranslation)
+     * @param {string} word - Original word
+     * @param {Object} wordInfo - Word information
+     * @returns {string} Translation HTML
+     */
+    formatTranslationFromData(word, wordInfo) {
+        if (!wordInfo) {
+            return `<div class="word-info">
+                <h3>${word}</h3>
+                <p class="no-translation">未找到释义</p>
+            </div>`;
+        }
+
+        // Build compact HTML from ECDICT data with collapsible details
+        let html = `<div class="word-info ecdict-entry compact">`;
+        
+        // Word title (always visible)
+        html += `<h3 class="word-title">${wordInfo.word}</h3>`;
+        
+        // Phonetic (always visible - first line)
+        if (wordInfo.phonetic) {
+            html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
+        }
+        
+        // Chinese translation (always visible - second line)
+        if (wordInfo.translation) {
+            html += `<div class="translation-compact">`;
+            const lines = wordInfo.translation.split('\\n');
+            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
+            if (firstLine) {
+                html += `<p>${firstLine}</p>`;
+            }
+            html += `</div>`;
+        }
+        
+        // Collapsible details section (simplified for performance)
+        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
+        html += `</div>`;
+        
+        html += `<div class="word-details-content">`;
+        
+        // Collins stars and Oxford badge
+        if (wordInfo.collins > 0 || wordInfo.oxford) {
+            html += `<div class="word-meta">`;
+            if (wordInfo.collins > 0) {
+                html += `<span class="collins-stars">${'★'.repeat(wordInfo.collins)}</span>`;
+            }
+            if (wordInfo.oxford) {
+                html += `<span class="oxford-badge">Oxford 3000</span>`;
+            }
+            html += `</div>`;
+        }
+        
+        html += `</div>`; // Close word-details-content
+        html += `</div>`; // Close word-info
+        
+        return html;
     }
 
     /**
@@ -336,7 +498,32 @@ export class TextAnalyzer {
         // Split the text by word boundaries, keeping the delimiters.
         const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
 
-        const processedParts = await Promise.all(parts.map(async (part) => {
+        // Extract unique words that need translations
+        const uniqueWords = [...new Set(parts.filter(part => /\b[a-zA-Z-]+\b/.test(part)))];
+        
+        // Batch fetch translations for all unique words
+        const translationMap = new Map();
+        
+        // First, add translations from analysis (for highlighted words)
+        for (const item of analysis.highlightedWords) {
+            if (item.translation) {
+                translationMap.set(item.word.toLowerCase(), item.translation);
+            }
+        }
+        
+        // Fetch remaining translations for non-highlighted words
+        const wordsNeedingTranslation = uniqueWords.filter(w => !translationMap.has(w.toLowerCase()));
+        if (wordsNeedingTranslation.length > 0) {
+            const batchTranslations = await Promise.all(
+                wordsNeedingTranslation.map(word => this.getTranslation(word))
+            );
+            wordsNeedingTranslation.forEach((word, index) => {
+                translationMap.set(word.toLowerCase(), batchTranslations[index]);
+            });
+        }
+
+        // Now process all parts with pre-fetched translations
+        const processedParts = parts.map((part) => {
             const lowerCasePart = part.toLowerCase();
             // Check if the part is a word and not just a delimiter.
             if (!/\b[a-zA-Z-]+\b/.test(lowerCasePart)) {
@@ -344,8 +531,7 @@ export class TextAnalyzer {
             }
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
-            // Use the original part for translation to preserve casing
-            const translation = await this.getTranslation(part);
+            const translation = translationMap.get(lowerCasePart) || '';
             let classes = 'word-span';
 
             if (highlightedInfo) {
@@ -361,7 +547,7 @@ export class TextAnalyzer {
                 .replace(/'/g, '&#039;');
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
-        }));
+        });
         
         return processedParts.join('');
     }
