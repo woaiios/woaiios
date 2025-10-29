@@ -303,17 +303,11 @@ class WordDiscoverer {
             }
             
             // 使用 DOM 操作而非 innerHTML 以提高安全性 (Use DOM manipulation instead of innerHTML for security)
+            // 单词和音标显示在同一行 (Word and phonetic on the same line)
             const wordDiv = document.createElement('div');
             wordDiv.className = 'word';
-            wordDiv.textContent = wordInfo.word;
+            wordDiv.textContent = pronunciation ? `${wordInfo.word} ${pronunciation}` : wordInfo.word;
             wordItem.appendChild(wordDiv);
-            
-            if (pronunciation) {
-                const pronDiv = document.createElement('div');
-                pronDiv.className = 'pronunciation';
-                pronDiv.textContent = pronunciation;
-                wordItem.appendChild(pronDiv);
-            }
             
             const transDiv = document.createElement('div');
             transDiv.className = 'translation';

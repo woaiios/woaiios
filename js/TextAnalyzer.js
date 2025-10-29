@@ -38,6 +38,59 @@ export class TextAnalyzer {
     }
 
     /**
+     * Parse exchange field to get word forms
+     * @param {string} exchange - Exchange field from database
+     * @returns {Object} Word forms (past, done, ing, third, plural, comparative, superlative, lemma)
+     */
+    parseExchange(exchange) {
+        const forms = {
+            p: null,      // past tense (did)
+            d: null,      // past participle (done)
+            i: null,      // present participle (doing)
+            '3': null,    // third person singular (does)
+            r: null,      // comparative (-er)
+            t: null,      // superlative (-est)
+            s: null,      // plural
+            '0': null,    // lemma
+            '1': null     // lemma variation form
+        };
+
+        if (!exchange) return forms;
+
+        const pairs = exchange.split('/');
+        for (const pair of pairs) {
+            const [type, value] = pair.split(':');
+            if (type && value) {
+                forms[type] = value;
+            }
+        }
+
+        return forms;
+    }
+
+    /**
+     * Check if word data has difficulty metadata
+     * @param {Object} wordInfo - Word information
+     * @returns {boolean} True if word has metadata
+     */
+    hasMetadata(wordInfo) {
+        if (!wordInfo) return false;
+        
+        const tag = wordInfo.tag || '';
+        
+        // Check for any difficulty indicators
+        return (
+            wordInfo.oxford === 1 || wordInfo.oxford === true ||
+            wordInfo.collins > 0 ||
+            wordInfo.bnc > 0 ||
+            tag.includes('zk') || tag.includes('gk') || 
+            tag.includes('cet4') || tag.includes('cet6') ||
+            tag.includes('ielts') || tag.includes('toefl') ||
+            tag.includes('gre')
+        );
+    }
+
+    /**
      * Extract words from text
      * @param {string} text - Input text
      * @returns {Array<string>} Array of words
@@ -114,12 +167,62 @@ export class TextAnalyzer {
         }
         
         // Process each word with the pre-fetched data
+        // First pass: check for words that need lemma lookup
+        const lemmasToQuery = new Set();
+        for (const lowerWord of uniqueWords) {
+            const wordData = wordDataMap.get(lowerWord);
+            // If word exists but has no metadata, check if it has a lemma
+            if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
+                const forms = this.parseExchange(wordData.exchange);
+                const lemma = forms['0'] || forms['1'];
+                if (lemma && lemma.toLowerCase() !== lowerWord) {
+                    lemmasToQuery.add(lemma.toLowerCase());
+                }
+            }
+        }
+        
+        // Batch query lemmas if needed
+        if (lemmasToQuery.size > 0) {
+            const lemmasArray = Array.from(lemmasToQuery);
+            if (this.wordDatabase.useDirectStorage && this.wordDatabase.directStorage && this.wordDatabase.directStorage.isInitialized) {
+                const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(lemmasArray);
+                batchResults.forEach(result => {
+                    if (result.data) {
+                        wordDataMap.set(result.word, result.data);
+                    }
+                });
+            } else {
+                for (const lemma of lemmasArray) {
+                    const data = await this.wordDatabase.queryWord(lemma);
+                    if (data) {
+                        wordDataMap.set(lemma, data);
+                    }
+                }
+            }
+        }
+        
+        // Second pass: calculate difficulty with lemma fallback
         for (const lowerWord of uniqueWords) {
             // Find the original casing of the word for display
             const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
             
-            const wordData = wordDataMap.get(lowerWord);
-            const difficulty = this.calculateDifficultyFromData(wordData, lowerWord);
+            let wordData = wordDataMap.get(lowerWord);
+            let difficultyData = wordData; // Use separate variable for difficulty calculation
+            
+            // If word has no metadata, try to use its lemma's data for difficulty
+            if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
+                const forms = this.parseExchange(wordData.exchange);
+                const lemma = forms['0'] || forms['1'];
+                if (lemma && lemma.toLowerCase() !== lowerWord) {
+                    const lemmaData = wordDataMap.get(lemma.toLowerCase());
+                    // Use lemma data for difficulty calculation only
+                    if (lemmaData && this.hasMetadata(lemmaData)) {
+                        difficultyData = lemmaData;
+                    }
+                }
+            }
+            
+            const difficulty = this.calculateDifficultyFromData(difficultyData, lowerWord);
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(lowerWord);
