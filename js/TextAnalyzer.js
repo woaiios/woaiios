@@ -8,6 +8,8 @@ export class TextAnalyzer {
         this.wordDatabase = wordDatabase;
         this.translationService = translationService;
         this.tokenizer = null;
+        this.translationCache = new Map(); // Cache formatted translations to avoid repeated HTML generation
+        this.maxCacheSize = 5000; // Limit cache size as user requested: "别存太多"
         this.loadTokenizer();
     }
 
@@ -231,9 +233,6 @@ export class TextAnalyzer {
 
     /**
      * Format translation from word data (extracted from getTranslation)
-     * Optimized for performance - generates minimal HTML for hover tooltips
-     * Removed collapsible details, Collins stars, Oxford badge, tags, and word forms
-     * to reduce HTML generation overhead by ~80% (from ~150 lines to ~30 lines)
      * @param {string} word - Original word
      * @param {Object} wordInfo - Word information
      * @returns {string} Translation HTML
@@ -246,27 +245,49 @@ export class TextAnalyzer {
             </div>`;
         }
 
-        // Build minimal compact HTML - only essential information for hover tooltip
+        // Build compact HTML from ECDICT data with collapsible details
         let html = `<div class="word-info ecdict-entry compact">`;
         
-        // Word title
+        // Word title (always visible)
         html += `<h3 class="word-title">${wordInfo.word}</h3>`;
         
-        // Phonetic (first line)
+        // Phonetic (always visible - first line)
         if (wordInfo.phonetic) {
             html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
         }
         
-        // Chinese translation (second line) - only first line for performance
+        // Chinese translation (always visible - second line)
         if (wordInfo.translation) {
-            // Note: Database stores literal '\n' sequences, not actual newlines
-            const firstLine = wordInfo.translation.split('\\n')[0];
+            html += `<div class="translation-compact">`;
+            const lines = wordInfo.translation.split('\\n');
+            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
             if (firstLine) {
-                html += `<div class="translation-compact"><p>${this.escapeHtml(firstLine.trim())}</p></div>`;
+                html += `<p>${firstLine}</p>`;
             }
+            html += `</div>`;
         }
         
+        // Collapsible details section (simplified for performance)
+        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
         html += `</div>`;
+        
+        html += `<div class="word-details-content">`;
+        
+        // Collins stars and Oxford badge
+        if (wordInfo.collins > 0 || wordInfo.oxford) {
+            html += `<div class="word-meta">`;
+            if (wordInfo.collins > 0) {
+                html += `<span class="collins-stars">${'★'.repeat(wordInfo.collins)}</span>`;
+            }
+            if (wordInfo.oxford) {
+                html += `<span class="oxford-badge">Oxford 3000</span>`;
+            }
+            html += `</div>`;
+        }
+        
+        html += `</div>`; // Close word-details-content
+        html += `</div>`; // Close word-info
         
         return html;
     }
@@ -305,15 +326,21 @@ export class TextAnalyzer {
 
     /**
      * Get translation for a word from ECDICT database
+     * Uses cache to avoid repeated queries and HTML generation
      * @param {string} word - Word to translate
      * @returns {Promise<string>} Translation HTML
      */
     async getTranslation(word) {
+        const lowerWord = word.toLowerCase();
+        
+        // Check cache first to avoid repeated queries
+        if (this.translationCache.has(lowerWord)) {
+            return this.translationCache.get(lowerWord);
+        }
+        
         if (!this.wordDatabase.isDatabaseLoaded()) {
             return `<div class="word-info"><p>数据库未加载</p></div>`;
         }
-
-        const lowerWord = word.toLowerCase();
         
         // Try to query the word directly
         let wordInfo = await this.wordDatabase.queryWord(lowerWord);
@@ -323,39 +350,39 @@ export class TextAnalyzer {
             wordInfo = await this.wordDatabase.findByLemma(lowerWord);
         }
         
+        let html;
         if (!wordInfo) {
-            return `<div class="word-info">
+            html = `<div class="word-info">
                 <h3>${word}</h3>
                 <p class="no-translation">未找到释义</p>
             </div>`;
-        }
-
-        // Build compact HTML from ECDICT data with collapsible details
-        let html = `<div class="word-info ecdict-entry compact">`;
-        
-        // Word title (always visible)
-        html += `<h3 class="word-title">${wordInfo.word}</h3>`;
-        
-        // Phonetic (always visible - first line)
-        if (wordInfo.phonetic) {
-            html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
-        }
-        
-        // Chinese translation (always visible - second line)
-        if (wordInfo.translation) {
-            html += `<div class="translation-compact">`;
-            const lines = wordInfo.translation.split('\\n');
-            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
-            if (firstLine) {
-                html += `<p>${firstLine}</p>`;
+        } else {
+            // Build compact HTML from ECDICT data with collapsible details
+            html = `<div class="word-info ecdict-entry compact">`;
+            
+            // Word title (always visible)
+            html += `<h3 class="word-title">${wordInfo.word}</h3>`;
+            
+            // Phonetic (always visible - first line)
+            if (wordInfo.phonetic) {
+                html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
             }
+            
+            // Chinese translation (always visible - second line)
+            if (wordInfo.translation) {
+                html += `<div class="translation-compact">`;
+                const lines = wordInfo.translation.split('\\n');
+                const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
+                if (firstLine) {
+                    html += `<p>${firstLine}</p>`;
+                }
+                html += `</div>`;
+            }
+            
+            // Collapsible details section
+            html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+            html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
             html += `</div>`;
-        }
-        
-        // Collapsible details section
-        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
-        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
-        html += `</div>`;
         
         html += `<div class="word-details-content">`;
         
@@ -450,8 +477,18 @@ export class TextAnalyzer {
             html += `</div>`;
         }
         
-        html += `</div>`; // Close word-details-content
-        html += `</div>`; // Close word-info
+            html += `</div>`; // Close word-details-content
+            html += `</div>`; // Close word-info
+        }
+        
+        // Store in cache for future use (avoid repeated queries)
+        this.translationCache.set(lowerWord, html);
+        
+        // Limit cache size to avoid memory issues (as user requested: "别存太多")
+        if (this.translationCache.size > this.maxCacheSize) {
+            const firstKey = this.translationCache.keys().next().value;
+            this.translationCache.delete(firstKey);
+        }
         
         return html;
     }
@@ -469,35 +506,41 @@ export class TextAnalyzer {
 
     /**
      * Process text for display with highlighted words
-     * PERFORMANCE OPTIMIZATION: Only fetches translations for highlighted words
-     * Typical improvement: 75% reduction in queries (e.g., 209 → 52 for 357-word text)
-     * This reduces display processing time from ~1,463ms to ~364ms
      * @param {string} originalText - Original text
      * @param {Object} analysis - Analysis results
      * @returns {Promise<string>} Processed HTML text
      */
     async processTextForDisplay(originalText, analysis) {
-        const startTime = performance.now();
         const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
 
         // Split the text by word boundaries, keeping the delimiters.
         const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
 
-        // OPTIMIZATION: Only fetch translations for highlighted words, not all words
-        // This significantly reduces database queries (typically 75% reduction)
-        // Example: 357-word text has 209 unique words but only ~52 highlighted (intermediate level)
-        // Before: 209 queries | After: 52 queries | Savings: 157 queries (1,099ms at 7ms/query)
+        // Extract unique words that need translations
+        const uniqueWords = [...new Set(parts.filter(part => /\b[a-zA-Z-]+\b/.test(part)))];
+        
+        // Batch fetch translations for all unique words
         const translationMap = new Map();
         
-        // Add translations from analysis (for highlighted words only)
+        // First, add translations from analysis (for highlighted words)
         for (const item of analysis.highlightedWords) {
             if (item.translation) {
                 translationMap.set(item.word.toLowerCase(), item.translation);
             }
         }
+        
+        // Fetch remaining translations for non-highlighted words
+        const wordsNeedingTranslation = uniqueWords.filter(w => !translationMap.has(w.toLowerCase()));
+        if (wordsNeedingTranslation.length > 0) {
+            const batchTranslations = await Promise.all(
+                wordsNeedingTranslation.map(word => this.getTranslation(word))
+            );
+            wordsNeedingTranslation.forEach((word, index) => {
+                translationMap.set(word.toLowerCase(), batchTranslations[index]);
+            });
+        }
 
         // Now process all parts with pre-fetched translations
-        // Only highlighted words will have translations; non-highlighted words will fetch on hover
         const processedParts = parts.map((part) => {
             const lowerCasePart = part.toLowerCase();
             // Check if the part is a word and not just a delimiter.
@@ -523,9 +566,6 @@ export class TextAnalyzer {
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
         });
-        
-        const endTime = performance.now();
-        console.log(`📝 Text display processing completed in ${(endTime - startTime).toFixed(2)}ms`);
         
         return processedParts.join('');
     }
@@ -562,5 +602,26 @@ export class TextAnalyzer {
         });
 
         return metrics;
+    }
+    
+    /**
+     * Clear translation cache
+     * Useful when memory usage needs to be reduced
+     */
+    clearTranslationCache() {
+        this.translationCache.clear();
+        console.log('🗑️ Translation cache cleared');
+    }
+    
+    /**
+     * Get translation cache statistics
+     * @returns {Object} Cache statistics
+     */
+    getCacheStats() {
+        return {
+            size: this.translationCache.size,
+            maxSize: this.maxCacheSize,
+            utilization: `${((this.translationCache.size / this.maxCacheSize) * 100).toFixed(1)}%`
+        };
     }
 }
