@@ -686,6 +686,8 @@ export class TextAnalyzer {
             }
 
             // Escape HTML for the data attribute
+            // Note: Translation contains HTML markup, so we manually escape for safe attribute storage
+            // Cannot use escapeHtml() method as it's designed for text content, not HTML attributes
             const escapedTranslation = translation
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
