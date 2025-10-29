@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Optimization Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-left: 4px solid #4CAF50;
+            font-family: monospace;
+        }
+        .error {
+            border-left-color: #f44336;
+            color: #f44336;
+        }
+        .test-text {
+            width: 100%;
+            min-height: 200px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🚀 Query Optimization Performance Test</h1>
+        
+        <div class="test-section">
+            <h2>Test Text (357 words)</h2>
+            <textarea class="test-text" id="testText">In 1970 geologists Kenneth J. Hsu and William B. F. Ryan were collecting research data while aboard the oceanographic research vessel Glomar Challenger. An objective of this particular cruise was to investigate the floor of the Mediterranean and to resolve questions about its geologic history. One question was related to evidence that the invertebrate fauna (animals without spines) of the Mediterranean had changed abruptly about 6 million years ago. Most of the older organisms were nearly wiped out, although a few hardy species survived. A few managed to migrate into the Atlantic. Somewhat later, the migrants returned, bringing new species with them. Why did the near extinction and migrations occur? Another task for the Glomar Challenger's scientists was to try to determine the origin of the domelike masses buried deep beneath the Mediterranean seafloor. These structures had been detected years earlier by echo-sounding instruments, but they had never been penetrated in the course of drilling. Were they salt domes such as are common along the United States Gulf Coast, and if so, why should there have been so much solid crystalline salt beneath the floor of the Mediterranean? With questions such as these clearly before them, the scientists aboard the Glomar Challenger proceeded to the Mediterranean to search for the answers. On August 23, 1970, they recovered a sample. The sample consisted of pebbles of hardened sediment that had once been soft, deep-sea mud, as well as granules of gypsum and fragments of volcanic rock. Not a single pebble was found that might have indicated that the pebbles came from the nearby continent. In the days following, samples of solid gypsum were repeatedly brought on deck as drilling operations penetrated the seafloor. Furthermore, the gypsum was found to possess peculiarities of composition and structure that suggested it had formed on desert flats. Sediment above and below the gypsum layer contained tiny marine fossils, indicating open ocean conditions. As they drilled into the central and deepest part of the Mediterranean basin, the scientists took solid, shiny, crystalline salt from the core barrel. Interbedded with the salt were thin layers of what appeared to be windblown silt.</textarea>
+        </div>
+
+        <div class="test-section">
+            <h2>Run Tests</h2>
+            <button onclick="runPerformanceTest()">▶️ Run Performance Test</button>
+            <button onclick="runMultipleTests()">🔁 Run 5 Times (Average)</button>
+            <div id="testResults"></div>
+        </div>
+
+        <div class="test-section">
+            <h2>Performance Statistics</h2>
+            <div class="stats" id="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalWords">-</div>
+                    <div class="stat-label">Total Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="uniqueWords">-</div>
+                    <div class="stat-label">Unique Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="highlightedWords">-</div>
+                    <div class="stat-label">Highlighted Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="analysisTime">-</div>
+                    <div class="stat-label">Analysis Time (ms)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="displayTime">-</div>
+                    <div class="stat-label">Display Time (ms)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalTime">-</div>
+                    <div class="stat-label">Total Time (ms)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { WordDatabase } from './js/WordDatabase.js';
+        import { TextAnalyzer } from './js/TextAnalyzer.js';
+
+        let wordDatabase, textAnalyzer;
+        let isInitialized = false;
+
+        async function initializeSystem() {
+            if (isInitialized) return;
+            
+            console.log('Initializing WordDatabase and TextAnalyzer...');
+            wordDatabase = new WordDatabase();
+            await wordDatabase.initialize();
+            textAnalyzer = new TextAnalyzer(wordDatabase);
+            isInitialized = true;
+            console.log('System initialized successfully');
+        }
+
+        window.runPerformanceTest = async function() {
+            try {
+                await initializeSystem();
+                
+                const text = document.getElementById('testText').value;
+                const resultsDiv = document.getElementById('testResults');
+                resultsDiv.innerHTML = '<div class="result">🔄 Running test...</div>';
+
+                const startTime = performance.now();
+
+                // Extract words
+                const words = textAnalyzer.extractWords(text);
+                const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))];
+                
+                // Analyze words
+                const analysisStart = performance.now();
+                const analysis = await textAnalyzer.analyzeWords(
+                    words,
+                    'intermediate',
+                    'difficult',
+                    { learning: new Map(), mastered: new Map() }
+                );
+                const analysisTime = performance.now() - analysisStart;
+
+                // Process for display
+                const displayStart = performance.now();
+                const processedText = await textAnalyzer.processTextForDisplay(text, analysis);
+                const displayTime = performance.now() - displayStart;
+
+                const totalTime = performance.now() - startTime;
+
+                // Update UI
+                document.getElementById('totalWords').textContent = words.length;
+                document.getElementById('uniqueWords').textContent = uniqueWords.length;
+                document.getElementById('highlightedWords').textContent = analysis.highlightedWords.length;
+                document.getElementById('analysisTime').textContent = analysisTime.toFixed(2);
+                document.getElementById('displayTime').textContent = displayTime.toFixed(2);
+                document.getElementById('totalTime').textContent = totalTime.toFixed(2);
+
+                resultsDiv.innerHTML = `
+                    <div class="result">
+                        ✅ Test completed successfully!<br>
+                        📊 Total Words: ${words.length}<br>
+                        🔤 Unique Words: ${uniqueWords.length}<br>
+                        ⭐ Highlighted Words: ${analysis.highlightedWords.length}<br>
+                        ⏱️ Analysis Time: ${analysisTime.toFixed(2)}ms<br>
+                        🎨 Display Processing: ${displayTime.toFixed(2)}ms<br>
+                        ⚡ <strong>Total Time: ${totalTime.toFixed(2)}ms</strong><br>
+                        <br>
+                        ${totalTime < 1000 ? '🎉 <strong>Target achieved: < 1 second!</strong>' : '⚠️ Performance can be improved'}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Test error:', error);
+                document.getElementById('testResults').innerHTML = `
+                    <div class="result error">
+                        ❌ Test failed: ${error.message}
+                    </div>
+                `;
+            }
+        };
+
+        window.runMultipleTests = async function() {
+            try {
+                await initializeSystem();
+                
+                const resultsDiv = document.getElementById('testResults');
+                resultsDiv.innerHTML = '<div class="result">🔄 Running 5 tests...</div>';
+
+                const times = [];
+                for (let i = 0; i < 5; i++) {
+                    const text = document.getElementById('testText').value;
+                    const startTime = performance.now();
+
+                    const words = textAnalyzer.extractWords(text);
+                    const analysis = await textAnalyzer.analyzeWords(
+                        words,
+                        'intermediate',
+                        'difficult',
+                        { learning: new Map(), mastered: new Map() }
+                    );
+                    const processedText = await textAnalyzer.processTextForDisplay(text, analysis);
+
+                    const totalTime = performance.now() - startTime;
+                    times.push(totalTime);
+                    
+                    resultsDiv.innerHTML = `<div class="result">🔄 Test ${i + 1}/5 completed: ${totalTime.toFixed(2)}ms</div>`;
+                    
+                    // Small delay between tests
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+
+                const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+                const minTime = Math.min(...times);
+                const maxTime = Math.max(...times);
+
+                resultsDiv.innerHTML = `
+                    <div class="result">
+                        ✅ 5 tests completed!<br>
+                        📊 Times: ${times.map(t => t.toFixed(2) + 'ms').join(', ')}<br>
+                        📈 Average: <strong>${avgTime.toFixed(2)}ms</strong><br>
+                        ⚡ Best: ${minTime.toFixed(2)}ms<br>
+                        🐌 Worst: ${maxTime.toFixed(2)}ms<br>
+                        <br>
+                        ${avgTime < 1000 ? '🎉 <strong>Target achieved: < 1 second!</strong>' : '⚠️ Performance can be improved'}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Test error:', error);
+                document.getElementById('testResults').innerHTML = `
+                    <div class="result error">
+                        ❌ Test failed: ${error.message}
+                    </div>
+                `;
+            }
+        };
+    </script>
+</body>
+</html>

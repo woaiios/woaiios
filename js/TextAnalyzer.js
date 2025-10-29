@@ -8,6 +8,8 @@ export class TextAnalyzer {
         this.wordDatabase = wordDatabase;
         this.translationService = translationService;
         this.tokenizer = null;
+        this.translationCache = new Map(); // Cache formatted translations to avoid repeated HTML generation
+        this.maxCacheSize = 5000; // Limit cache size as user requested: "别存太多"
         this.loadTokenizer();
     }
 
@@ -324,15 +326,21 @@ export class TextAnalyzer {
 
     /**
      * Get translation for a word from ECDICT database
+     * Uses cache to avoid repeated queries and HTML generation
      * @param {string} word - Word to translate
      * @returns {Promise<string>} Translation HTML
      */
     async getTranslation(word) {
+        const lowerWord = word.toLowerCase();
+        
+        // Check cache first to avoid repeated queries
+        if (this.translationCache.has(lowerWord)) {
+            return this.translationCache.get(lowerWord);
+        }
+        
         if (!this.wordDatabase.isDatabaseLoaded()) {
             return `<div class="word-info"><p>数据库未加载</p></div>`;
         }
-
-        const lowerWord = word.toLowerCase();
         
         // Try to query the word directly
         let wordInfo = await this.wordDatabase.queryWord(lowerWord);
@@ -342,39 +350,39 @@ export class TextAnalyzer {
             wordInfo = await this.wordDatabase.findByLemma(lowerWord);
         }
         
+        let html;
         if (!wordInfo) {
-            return `<div class="word-info">
+            html = `<div class="word-info">
                 <h3>${word}</h3>
                 <p class="no-translation">未找到释义</p>
             </div>`;
-        }
-
-        // Build compact HTML from ECDICT data with collapsible details
-        let html = `<div class="word-info ecdict-entry compact">`;
-        
-        // Word title (always visible)
-        html += `<h3 class="word-title">${wordInfo.word}</h3>`;
-        
-        // Phonetic (always visible - first line)
-        if (wordInfo.phonetic) {
-            html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
-        }
-        
-        // Chinese translation (always visible - second line)
-        if (wordInfo.translation) {
-            html += `<div class="translation-compact">`;
-            const lines = wordInfo.translation.split('\\n');
-            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
-            if (firstLine) {
-                html += `<p>${firstLine}</p>`;
+        } else {
+            // Build compact HTML from ECDICT data with collapsible details
+            html = `<div class="word-info ecdict-entry compact">`;
+            
+            // Word title (always visible)
+            html += `<h3 class="word-title">${wordInfo.word}</h3>`;
+            
+            // Phonetic (always visible - first line)
+            if (wordInfo.phonetic) {
+                html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
             }
+            
+            // Chinese translation (always visible - second line)
+            if (wordInfo.translation) {
+                html += `<div class="translation-compact">`;
+                const lines = wordInfo.translation.split('\\n');
+                const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
+                if (firstLine) {
+                    html += `<p>${firstLine}</p>`;
+                }
+                html += `</div>`;
+            }
+            
+            // Collapsible details section
+            html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+            html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
             html += `</div>`;
-        }
-        
-        // Collapsible details section
-        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
-        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
-        html += `</div>`;
         
         html += `<div class="word-details-content">`;
         
@@ -469,8 +477,18 @@ export class TextAnalyzer {
             html += `</div>`;
         }
         
-        html += `</div>`; // Close word-details-content
-        html += `</div>`; // Close word-info
+            html += `</div>`; // Close word-details-content
+            html += `</div>`; // Close word-info
+        }
+        
+        // Store in cache for future use (avoid repeated queries)
+        this.translationCache.set(lowerWord, html);
+        
+        // Limit cache size to avoid memory issues (as user requested: "别存太多")
+        if (this.translationCache.size > this.maxCacheSize) {
+            const firstKey = this.translationCache.keys().next().value;
+            this.translationCache.delete(firstKey);
+        }
         
         return html;
     }
@@ -584,5 +602,26 @@ export class TextAnalyzer {
         });
 
         return metrics;
+    }
+    
+    /**
+     * Clear translation cache
+     * Useful when memory usage needs to be reduced
+     */
+    clearTranslationCache() {
+        this.translationCache.clear();
+        console.log('🗑️ Translation cache cleared');
+    }
+    
+    /**
+     * Get translation cache statistics
+     * @returns {Object} Cache statistics
+     */
+    getCacheStats() {
+        return {
+            size: this.translationCache.size,
+            maxSize: this.maxCacheSize,
+            utilization: `${((this.translationCache.size / this.maxCacheSize) * 100).toFixed(1)}%`
+        };
     }
 }
