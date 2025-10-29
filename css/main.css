@@ -328,7 +328,7 @@ ruby.highlighted-word rb {
 
 ruby.highlighted-word rt.phonetic-annotation {
     /* Ruby text (phonetic annotation) styling */
-    font-size: 0.7em;
+    font-size: 0.85em;
     color: #666;
     font-weight: normal;
     line-height: 1.2;
