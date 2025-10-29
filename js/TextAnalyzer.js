@@ -15,6 +15,13 @@ export class TextAnalyzer {
         this.LEMMA_KEY = '0';           // Primary lemma (base form)
         this.LEMMA_VARIATION_KEY = '1'; // Alternative lemma form
         
+        // Expert difficulty configuration for learning words
+        this.EXPERT_DIFFICULTY = {
+            level: 'expert',
+            score: 100,
+            className: 'expert'
+        };
+        
         this.loadTokenizer();
     }
 
@@ -231,12 +238,21 @@ export class TextAnalyzer {
                 }
             }
             
-            const difficulty = this.calculateDifficultyFromData(difficultyData, lowerWord);
+            let difficulty = this.calculateDifficultyFromData(difficultyData, lowerWord);
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(lowerWord);
             // A word should always be highlighted if it is in the learning list.
             const isLearning = learningWords.has(lowerWord);
+            
+            // Words in learning list should be treated as highest difficulty
+            if (isLearning) {
+                difficulty = {
+                    ...this.EXPERT_DIFFICULTY,
+                    info: difficulty.info
+                };
+            }
+            
             const isHighlighted = !isMastered && (isLearning || this.shouldHighlight(lowerWord, difficulty, highlightMode, learningWords, difficultyLevel));
             
             if (isHighlighted) {
