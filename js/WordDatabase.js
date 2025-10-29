@@ -294,8 +294,10 @@ export class WordDatabase {
         if (!hasMetadata && wordInfo.exchange) {
             const forms = this.parseExchange(wordInfo.exchange);
             // Check if this word has a lemma (base form)
-            if (forms['0'] || forms['1']) {
-                const lemma = forms['0'] || forms['1'];
+            // forms['0'] is the primary lemma, forms['1'] is alternative lemma
+            const lemma = forms['0'] || forms['1'];
+            if (lemma && lemma.toLowerCase() !== word.toLowerCase()) {
+                // Prevent infinite recursion by checking if lemma is different from current word
                 const lemmaInfo = this.queryWord(lemma);
                 if (lemmaInfo) {
                     // Recursively get difficulty of base form
