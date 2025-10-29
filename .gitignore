@@ -60,3 +60,4 @@ test-*.html
 !test-gis-integration.html
 !test-google-drive.html
 !test-performance.html
+!test-user-text.html
