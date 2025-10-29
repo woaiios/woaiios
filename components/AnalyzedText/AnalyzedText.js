@@ -163,13 +163,13 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} word - 单词 (Word)
      * @param {string} translation - 翻译 (Translation)
      */
-    handleWordAddToLearning(word, translation) {
+    async handleWordAddToLearning(word, translation) {
         const result = this.vocabularyManager.addWord(word, translation);
         if (result) {
             this.app.showNotification(`📖 '${word}' added to learning list.`);
         }
         this.app.updateCounts();
-        this.refreshTextAnalysis();
+        await this.refreshTextAnalysis();
     }
 
     /**
@@ -177,40 +177,40 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} word - 单词 (Word)
      * @param {string} translation - 翻译 (Translation)
      */
-    handleWordMaster(word, translation) {
+    async handleWordMaster(word, translation) {
         const result = this.vocabularyManager.masterWord(word, translation);
         if (result === 'added_to_mastered' || result === 'moved_to_mastered') {
             this.app.showNotification(`✅ '${word}' marked as mastered.`);
         }
         this.app.updateCounts();
-        this.refreshTextAnalysis();
+        await this.refreshTextAnalysis();
     }
 
     /**
      * 处理取消掌握单词 - Handle unmarking word as mastered
      * @param {string} word - 单词 (Word)
      */
-    handleWordUnmaster(word) {
+    async handleWordUnmaster(word) {
         const result = this.vocabularyManager.unmasterWord(word);
         if (result === 'moved_to_learning') {
             this.app.showNotification(`📖 '${word}' moved to learning list.`);
             this.app.updateCounts();
         }
-        this.refreshTextAnalysis();
+        await this.refreshTextAnalysis();
     }
     
     /**
      * 重新分析并刷新文本高亮 - Re-analyze and refresh text highlights
      * 当词汇状态改变时更新文本中的高亮显示 (Update highlights in text when vocabulary status changes)
      */
-    refreshTextAnalysis() {
+    async refreshTextAnalysis() {
         // 获取当前显示的文本内容 (Get currently displayed text content)
         const currentText = document.getElementById('textInput').value;
         if (!currentText) return;
         
         // 使用集中的分析方法 (Use centralized analysis method)
-        const analysis = this.app.performTextAnalysis(currentText);
-        const processedText = this.app.textAnalyzer.processTextForDisplay(currentText, analysis);
+        const analysis = await this.app.performTextAnalysis(currentText);
+        const processedText = await this.app.textAnalyzer.processTextForDisplay(currentText, analysis);
         this.render(processedText);
         
         // 更新统计信息（仅在主页面时）(Update statistics - only on main page)
