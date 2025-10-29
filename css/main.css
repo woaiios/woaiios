@@ -5,11 +5,28 @@
     box-sizing: border-box;
 }
 
+html {
+    /* Prevent font size adjustment on mobile browsers */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Enable smooth scrolling */
+    scroll-behavior: smooth;
+    /* Improve font rendering on mobile */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     line-height: 1.6;
     color: #333;
     background-color: #f8fafc;
+    /* Prevent pull-to-refresh on mobile browsers */
+    overscroll-behavior-y: contain;
+    /* Improve touch scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
 }
 
 .container {
@@ -62,6 +79,17 @@ body {
     align-items: center;
     gap: 0.5rem;
     text-decoration: none;
+    /* Improve touch targets on mobile */
+    min-height: 44px;
+    min-width: 44px;
+    /* Prevent text selection on mobile */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    /* Improve touch feedback */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .btn-primary {
@@ -136,6 +164,10 @@ body {
     font-family: inherit;
     resize: vertical;
     transition: border-color 0.2s ease;
+    /* Prevent zoom on iOS when focusing input */
+    font-size: 16px;
+    /* Improve touch interaction */
+    -webkit-tap-highlight-color: transparent;
 }
 
 #textInput:focus {
@@ -181,10 +213,15 @@ body {
     border: 1px solid #d1d5db;
     border-radius: 6px;
     font-size: 0.9rem;
+    /* Prevent zoom on iOS when focusing select */
+    font-size: 16px;
 }
 
 .control-group input[type="checkbox"] {
     margin-right: 0.5rem;
+    /* Make checkbox easier to tap on mobile */
+    min-width: 20px;
+    min-height: 20px;
 }
 
 /* Analyzed Text Section */
@@ -215,6 +252,9 @@ body {
 /* Highlighted Words */
 .word-span {
     cursor: pointer;
+    /* Improve touch interaction */
+    -webkit-tap-highlight-color: rgba(255, 235, 59, 0.3);
+    touch-action: manipulation;
 }
 
 .word-span:not(.highlighted-word):hover {
@@ -233,11 +273,22 @@ body {
     overflow-wrap: break-word;
     word-wrap: break-word;
     word-break: break-word;
+    /* Improve touch interaction */
+    -webkit-tap-highlight-color: rgba(255, 235, 59, 0.5);
+    touch-action: manipulation;
+    /* Add slight padding for easier tapping */
+    padding: 2px 1px;
 }
 
 .highlighted-word:hover {
     background: rgba(255, 235, 59, 0.9);
     transform: scale(1.05);
+}
+
+/* Add active state for mobile touch */
+.highlighted-word:active {
+    background: rgba(255, 235, 59, 1);
+    transform: scale(0.98);
 }
 
 .highlighted-word.beginner {
@@ -381,6 +432,9 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 10000;
+    /* Fix for mobile browsers */
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
 }
 
 .modal.show {
@@ -396,6 +450,8 @@ body {
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     max-height: 90vh;
     overflow-y: auto;
+    /* Improve scrolling on iOS */
+    -webkit-overflow-scrolling: touch;
 }
 
 .modal-header {
@@ -417,6 +473,15 @@ body {
     font-size: 1.5rem;
     cursor: pointer;
     color: #6b7280;
+    /* Improve touch target size */
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Improve touch feedback */
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 
 .modal-body {
@@ -510,6 +575,22 @@ body {
     .analyzed-text {
         font-size: 1rem;
         line-height: 1.6;
+    }
+    
+    /* Improve button spacing on mobile */
+    .btn {
+        padding: 0.625rem 1.25rem;
+    }
+    
+    /* Ensure buttons are easier to tap */
+    .input-controls {
+        gap: 0.75rem;
+    }
+    
+    /* Improve textarea on mobile */
+    #textInput {
+        min-height: 150px;
+        font-size: 16px;
     }
 }
 
