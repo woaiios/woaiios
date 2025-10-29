@@ -49,10 +49,17 @@ export class AnalyzedTextComponent extends Component {
     addEventListeners() {
         // 使用事件委托，监听父元素上的点击事件 (Use event delegation to listen for clicks on parent)
         this.element.addEventListener('click', (e) => {
-            // 检查被点击的元素是否是单词span (Check if clicked element is a word span)
-            if (e.target.classList.contains('word-span')) {
-                const word = e.target.dataset.word;
-                const translation = e.target.dataset.translation;
+            // 检查被点击的元素是否是单词span或ruby元素 (Check if clicked element is a word span or ruby element)
+            let targetElement = e.target;
+            
+            // If clicked on rb or rt element, get the parent ruby element
+            if (targetElement.tagName === 'RB' || targetElement.tagName === 'RT') {
+                targetElement = targetElement.parentElement;
+            }
+            
+            if (targetElement.classList.contains('word-span')) {
+                const word = targetElement.dataset.word;
+                const translation = targetElement.dataset.translation;
                 // 显示单词操作模态框 (Show word action modal)
                 this.showWordModal(word, translation, e);
             }

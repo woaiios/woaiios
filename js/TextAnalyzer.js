@@ -260,7 +260,8 @@ export class TextAnalyzer {
                     word: originalWord, // Use original casing for display
                     difficulty: difficulty,
                     frequency: analysis.wordFrequency[lowerWord],
-                    translation: this.formatTranslationFromData(originalWord, wordData)
+                    translation: this.formatTranslationFromData(originalWord, wordData),
+                    phonetic: wordData?.phonetic || '' // Add phonetic information
                 });
                 
                 // A word is new only if it's in neither list.
@@ -691,6 +692,11 @@ export class TextAnalyzer {
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+
+            // Use ruby tag for highlighted words with phonetics
+            if (highlightedInfo && highlightedInfo.phonetic) {
+                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"><rb>${part}</rb><rt class="phonetic-annotation">/${highlightedInfo.phonetic}/</rt></ruby>`;
+            }
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
         });
