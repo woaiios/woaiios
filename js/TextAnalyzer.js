@@ -181,12 +181,16 @@ export class TextAnalyzer {
                 const forms = this.parseExchange(wordData.exchange);
                 const lemma = forms[this.LEMMA_KEY] || forms[this.LEMMA_VARIATION_KEY];
                 if (lemma && lemma.toLowerCase() !== lowerWord) {
-                    lemmasToQuery.add(lemma.toLowerCase());
+                    const lemmaLower = lemma.toLowerCase();
+                    // Only query if lemma not already in wordDataMap (避免重复查询)
+                    if (!wordDataMap.has(lemmaLower)) {
+                        lemmasToQuery.add(lemmaLower);
+                    }
                 }
             }
         }
         
-        // Batch query lemmas if needed
+        // Batch query lemmas if needed (lemmas use cache, won't query database if already cached)
         if (lemmasToQuery.size > 0) {
             const lemmasArray = Array.from(lemmasToQuery);
             if (this.wordDatabase.useDirectStorage && this.wordDatabase.directStorage && this.wordDatabase.directStorage.isInitialized) {
