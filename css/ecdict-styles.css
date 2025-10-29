@@ -18,6 +18,96 @@
     margin-left: 8px;
 }
 
+/* Compact layout styles */
+.word-info.ecdict-entry.compact {
+    padding: 10px;
+}
+
+.word-info.ecdict-entry.compact .word-title {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    color: #333;
+}
+
+.word-info.ecdict-entry.compact .phonetic-line {
+    color: #666;
+    font-size: 15px;
+    margin-bottom: 8px;
+    font-style: italic;
+}
+
+.word-info.ecdict-entry.compact .translation-compact {
+    margin-bottom: 10px;
+    padding: 8px;
+    background: #f0f7ff;
+    border-left: 3px solid #3498db;
+    border-radius: 3px;
+}
+
+.word-info.ecdict-entry.compact .translation-compact p {
+    margin: 0;
+    color: #333;
+    font-size: 14px;
+}
+
+/* Toggle button for details */
+.word-details-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px;
+    margin: 10px 0;
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #555;
+    transition: all 0.2s ease;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.word-details-toggle:hover {
+    background: #e9ecef;
+    border-color: #d0d0d0;
+}
+
+.word-details-toggle:active {
+    background: #dee2e6;
+}
+
+.word-details-toggle .toggle-icon {
+    transition: transform 0.3s ease;
+    font-size: 12px;
+}
+
+.word-info.ecdict-entry.compact.expanded .toggle-icon {
+    transform: rotate(180deg);
+}
+
+.word-info.ecdict-entry.compact.expanded .toggle-text::after {
+    content: ' 收起';
+}
+
+.word-info.ecdict-entry.compact:not(.expanded) .toggle-text::after {
+    content: ' 展开';
+}
+
+/* Collapsible content */
+.word-details-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.word-info.ecdict-entry.compact.expanded .word-details-content {
+    max-height: 1000px;
+    transition: max-height 0.5s ease;
+}
+
 .word-meta {
     margin: 10px 0;
     display: flex;
@@ -128,4 +218,28 @@
     color: #999;
     font-style: italic;
     padding: 10px;
+}
+
+/* Mobile optimization */
+@media (max-width: 640px) {
+    .word-info.ecdict-entry.compact .word-title {
+        font-size: 18px;
+    }
+    
+    .word-info.ecdict-entry.compact .phonetic-line {
+        font-size: 14px;
+    }
+    
+    .word-info.ecdict-entry.compact .translation-compact {
+        padding: 6px;
+    }
+    
+    .word-info.ecdict-entry.compact .translation-compact p {
+        font-size: 13px;
+    }
+    
+    .word-details-toggle {
+        padding: 6px;
+        font-size: 12px;
+    }
 }

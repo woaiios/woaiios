@@ -180,15 +180,34 @@ export class TextAnalyzer {
             </div>`;
         }
 
-        // Build HTML from ECDICT data
-        let html = `<div class="word-info ecdict-entry">`;
+        // Build compact HTML from ECDICT data with collapsible details
+        let html = `<div class="word-info ecdict-entry compact">`;
         
-        // Word and phonetic
-        html += `<h3>${wordInfo.word}`;
+        // Word title (always visible)
+        html += `<h3 class="word-title">${wordInfo.word}</h3>`;
+        
+        // Phonetic (always visible - first line)
         if (wordInfo.phonetic) {
-            html += ` <span class="phonetic">/${wordInfo.phonetic}/</span>`;
+            html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
         }
-        html += `</h3>`;
+        
+        // Chinese translation (always visible - second line)
+        if (wordInfo.translation) {
+            html += `<div class="translation-compact">`;
+            const lines = wordInfo.translation.split('\\n');
+            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
+            if (firstLine) {
+                html += `<p>${firstLine}</p>`;
+            }
+            html += `</div>`;
+        }
+        
+        // Collapsible details section
+        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
+        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
+        html += `</div>`;
+        
+        html += `<div class="word-details-content">`;
         
         // Collins stars and Oxford badge
         if (wordInfo.collins > 0 || wordInfo.oxford) {
@@ -219,22 +238,24 @@ export class TextAnalyzer {
             }
         }
         
-        // Chinese translation
+        // Full Chinese translation (if multiple lines)
         if (wordInfo.translation) {
-            html += `<div class="translation">`;
             const lines = wordInfo.translation.split('\\n');
-            lines.forEach(line => {
-                if (line.trim()) {
-                    html += `<p>${this.escapeHtml(line)}</p>`;
-                }
-            });
-            html += `</div>`;
+            if (lines.length > 1) {
+                html += `<div class="translation">`;
+                lines.forEach((line, index) => {
+                    if (line.trim() && index > 0) { // Skip first line as it's already shown
+                        html += `<p>${this.escapeHtml(line)}</p>`;
+                    }
+                });
+                html += `</div>`;
+            }
         }
         
         // English definition
         if (wordInfo.definition) {
             html += `<div class="definition">`;
-            html += `<h4>Definition:</h4>`;
+            html += `<h4>English Definition:</h4>`;
             const lines = wordInfo.definition.split('\\n');
             lines.forEach(line => {
                 if (line.trim()) {
@@ -279,7 +300,8 @@ export class TextAnalyzer {
             html += `</div>`;
         }
         
-        html += `</div>`;
+        html += `</div>`; // Close word-details-content
+        html += `</div>`; // Close word-info
         
         return html;
     }
