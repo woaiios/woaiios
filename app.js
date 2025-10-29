@@ -43,13 +43,24 @@ class WordDiscoverer {
         this.wordDatabase.setProgressCallback((data) => {
             dbProgressBar.style.width = `${data.percentage.toFixed(1)}%`;
             dbProgressPercentage.textContent = `${data.percentage.toFixed(1)}%`;
-            dbLoadingMessage.textContent = data.message || 'Loading...';
+            
+            // Show cache status in the message
+            let message = data.message || 'Loading...';
+            if (data.fromCache === true) {
+                message = `📦 ${message}`;
+                dbLoadingMessage.style.color = '#059669'; // Green for cached
+            } else if (data.fromCache === false) {
+                message = `⬇️ ${message}`;
+                dbLoadingMessage.style.color = '#3b82f6'; // Blue for downloading
+            }
+            dbLoadingMessage.textContent = message;
         });
         
         // Set chunk loaded callback
         if (this.wordDatabase.progressiveLoader) {
             this.wordDatabase.progressiveLoader.on('chunkLoaded', (data) => {
-                dbProgressChunks.textContent = `${data.loaded}/${data.total} chunks`;
+                const cacheStatus = data.fromCache ? ' (cached)' : '';
+                dbProgressChunks.textContent = `${data.loaded}/${data.total} chunks${cacheStatus}`;
             });
             
             this.wordDatabase.progressiveLoader.on('complete', () => {
