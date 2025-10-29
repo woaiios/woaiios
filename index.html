@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="css/main.css">
     <link rel="stylesheet" href="css/components.css">
     <link rel="stylesheet" href="css/ecdict-styles.css">
+    <link rel="stylesheet" href="css/pronunciation-checker.css">
 </head>
 <body>
     <!-- Header -->
@@ -23,6 +24,10 @@
                     <span>WordDiscover</span>
                 </div>
                 <div class="header-controls">
+                    <button class="btn btn-outline" id="pronunciationBtn">
+                        <i class="fas fa-microphone"></i>
+                        Pronunciation
+                    </button>
                     <button class="btn btn-outline" id="vocabularyBtn">
                         <i class="fas fa-graduation-cap"></i>
                         Vocabulary
@@ -122,6 +127,9 @@
 
     <!-- Settings Modal Placeholder -->
     <div class="modal" id="settingsModal"></div>
+
+    <!-- Pronunciation Checker Modal Placeholder -->
+    <div class="modal" id="pronunciationModal"></div>
 
     <!-- Word Modal -->
     <div class="modal" id="wordModal">

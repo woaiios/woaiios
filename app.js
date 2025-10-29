@@ -26,6 +26,7 @@ import { SettingsManager } from './js/SettingsManager.js';
 import { VocabularyComponent } from './components/Vocabulary/Vocabulary.js';
 import { SettingsComponent } from './components/Settings/Settings.js';
 import { AnalyzedTextComponent } from './components/AnalyzedText/AnalyzedText.js';
+import { PronunciationCheckerComponent } from './components/PronunciationChecker/PronunciationChecker.js';
 
 /**
  * WordDiscoverer 主类 - Main WordDiscoverer Class
@@ -47,6 +48,7 @@ class WordDiscoverer {
         this.vocabularyComponent = new VocabularyComponent(this.vocabularyManager);
         this.settingsComponent = new SettingsComponent(this.settingsManager, this.vocabularyManager.googleDriveManager);
         this.analyzedTextComponent = new AnalyzedTextComponent('#analyzedText', this.vocabularyManager);
+        this.pronunciationCheckerComponent = new PronunciationCheckerComponent('#pronunciationModal');
         
         // 设置组件与主应用的双向引用 (Set bidirectional references between components and main app)
         this.vocabularyComponent.setApp(this);
@@ -126,6 +128,7 @@ class WordDiscoverer {
         document.getElementById('analyzeBtn').addEventListener('click', () => this.analyzeText());
         document.getElementById('vocabularyBtn').addEventListener('click', () => this.vocabularyComponent.open());
         document.getElementById('settingsBtn').addEventListener('click', () => this.settingsComponent.open());
+        document.getElementById('pronunciationBtn').addEventListener('click', () => this.pronunciationCheckerComponent.open());
         document.getElementById('clearBtn').addEventListener('click', () => this.clearText());
         
         // 单词模态框关闭按钮 (Word modal close button)
