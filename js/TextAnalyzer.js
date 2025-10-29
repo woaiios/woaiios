@@ -15,6 +15,13 @@ export class TextAnalyzer {
         this.LEMMA_KEY = '0';           // Primary lemma (base form)
         this.LEMMA_VARIATION_KEY = '1'; // Alternative lemma form
         
+        // Expert difficulty configuration for learning words
+        this.EXPERT_DIFFICULTY = {
+            level: 'expert',
+            score: 100,
+            className: 'expert'
+        };
+        
         this.loadTokenizer();
     }
 
@@ -241,9 +248,7 @@ export class TextAnalyzer {
             // Words in learning list should be treated as highest difficulty
             if (isLearning) {
                 difficulty = {
-                    level: 'expert',
-                    score: 100,
-                    className: 'expert',
+                    ...this.EXPERT_DIFFICULTY,
                     info: difficulty.info
                 };
             }

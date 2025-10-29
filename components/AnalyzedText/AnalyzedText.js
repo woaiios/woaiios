@@ -219,8 +219,6 @@ export class AnalyzedTextComponent extends Component {
         }
         
         // 更新高亮单词列表 (Update highlighted words list)
-        if (this.app.displayHighlightedWords) {
-            this.app.displayHighlightedWords(analysis.highlightedWords);
-        }
+        this.app.displayHighlightedWords?.(analysis.highlightedWords);
     }
 }
