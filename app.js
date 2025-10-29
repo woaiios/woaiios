@@ -139,18 +139,18 @@ class WordDiscoverer {
         // 同步主页面和设置页面的难度级别选择 (Synchronize difficulty level between main page and settings)
         const mainDifficultyLevel = document.getElementById('mainDifficultyLevel');
         if (mainDifficultyLevel) {
-            mainDifficultyLevel.addEventListener('change', (e) => {
+            mainDifficultyLevel.addEventListener('change', async (e) => {
                 this.settingsManager.setSetting('difficultyLevel', e.target.value);
-                this.refreshTextAnalysis(); // 立即刷新文本分析结果 (Immediately refresh analysis)
+                await this.refreshTextAnalysis(); // 立即刷新文本分析结果 (Immediately refresh analysis)
             });
         }
         
         // 同步主页面和设置页面的高亮模式选择 (Synchronize highlight mode between main page and settings)
         const mainHighlightMode = document.getElementById('mainHighlightMode');
         if (mainHighlightMode) {
-            mainHighlightMode.addEventListener('change', (e) => {
+            mainHighlightMode.addEventListener('change', async (e) => {
                 this.settingsManager.setSetting('highlightMode', e.target.value);
-                this.refreshTextAnalysis(); // 立即刷新文本分析结果 (Immediately refresh analysis)
+                await this.refreshTextAnalysis(); // 立即刷新文本分析结果 (Immediately refresh analysis)
             });
         }
     }
@@ -173,9 +173,9 @@ class WordDiscoverer {
 
         try {
             // 执行文本分析 (Perform text analysis)
-            const analysis = this.performTextAnalysis(text);
+            const analysis = await this.performTextAnalysis(text);
             // 生成带高亮的文本 (Generate text with highlights)
-            const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
+            const processedText = await this.textAnalyzer.processTextForDisplay(text, analysis);
             // 渲染分析结果 (Render analysis results)
             this.analyzedTextComponent.render(processedText);
             
@@ -200,11 +200,11 @@ class WordDiscoverer {
      * 执行文本分析（集中方法）- Perform text analysis (centralized method)
      * 供多个地方调用的统一分析方法 (Unified analysis method called from multiple places)
      * @param {string} text - 要分析的文本 (Text to analyze)
-     * @returns {Object} 分析结果对象 (Analysis result object)
+     * @returns {Promise<Object>} 分析结果对象 (Analysis result object)
      */
-    performTextAnalysis(text) {
+    async performTextAnalysis(text) {
         const words = this.textAnalyzer.extractWords(text);
-        return this.textAnalyzer.analyzeWords(
+        return await this.textAnalyzer.analyzeWords(
             words,
             this.settingsManager.getSetting('difficultyLevel'),
             this.settingsManager.getSetting('highlightMode'),
@@ -216,7 +216,7 @@ class WordDiscoverer {
      * 刷新文本分析 - Refresh text analysis
      * 当设置改变时重新分析已有文本 (Re-analyze existing text when settings change)
      */
-    refreshTextAnalysis() {
+    async refreshTextAnalysis() {
         // 只有在已经有分析过的文本时才刷新 (Only refresh if text has been analyzed)
         if (document.getElementById('analyzedTextSection').style.display !== 'block') return;
         
@@ -224,8 +224,8 @@ class WordDiscoverer {
         if (!text) return;
 
         // 重新分析并更新显示 (Re-analyze and update display)
-        const analysis = this.performTextAnalysis(text);
-        const processedText = this.textAnalyzer.processTextForDisplay(text, analysis);
+        const analysis = await this.performTextAnalysis(text);
+        const processedText = await this.textAnalyzer.processTextForDisplay(text, analysis);
         this.analyzedTextComponent.render(processedText);
         this.updateStatistics(analysis);
         this.displayHighlightedWords(analysis.highlightedWords);

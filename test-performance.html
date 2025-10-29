@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dictionary Performance Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-left: 4px solid #4CAF50;
+        }
+        .result.slow {
+            border-left-color: #ff9800;
+        }
+        .result.fail {
+            border-left-color: #f44336;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .warning {
+            color: #ff9800;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        #progress {
+            margin: 20px 0;
+        }
+        #logs {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 20px;
+        }
+        .log-entry {
+            margin: 2px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Dictionary Performance Test</h1>
+        <p>This test measures the query performance of the dictionary database.</p>
+        
+        <div class="test-section">
+            <h2>Test Configuration</h2>
+            <button id="testBasicQuery">Test: Single Word Query</button>
+            <button id="testBatchQuery">Test: Batch Query (10 words)</button>
+            <button id="testLargeQuery">Test: Large Query (300 words)</button>
+            <button id="testCachePerformance">Test: Cache Performance</button>
+            <button id="runAllTests">Run All Tests</button>
+        </div>
+
+        <div id="progress"></div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-card">
+                <div class="stat-label">Database Status</div>
+                <div class="stat-value" id="dbStatus">Loading...</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Storage Type</div>
+                <div class="stat-value" id="storageType">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cache Size</div>
+                <div class="stat-value" id="cacheSize">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Cache Hit Rate</div>
+                <div class="stat-value" id="hitRate">-</div>
+            </div>
+        </div>
+
+        <div class="test-section">
+            <h2>Test Results</h2>
+            <div id="results"></div>
+        </div>
+
+        <div id="logs">
+            <div class="log-entry">Console output will appear here...</div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { WordDatabase } from './js/WordDatabase.js';
+
+        // Capture console logs
+        const logsDiv = document.getElementById('logs');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function addLog(message, type = 'log') {
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.style.color = type === 'error' ? '#ff5555' : '#0f0';
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logsDiv.appendChild(entry);
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addLog(args.join(' '));
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addLog(args.join(' '), 'error');
+        };
+
+        const resultsDiv = document.getElementById('results');
+        const progressDiv = document.getElementById('progress');
+        const statsDiv = document.getElementById('stats');
+
+        let wordDatabase = null;
+
+        // Sample words for testing
+        const testWords = {
+            single: ['hello'],
+            batch: ['hello', 'world', 'test', 'performance', 'database', 'query', 'speed', 'optimization', 'cache', 'memory'],
+            large: [
+                'the', 'be', 'to', 'of', 'and', 'a', 'in', 'that', 'have', 'I',
+                'it', 'for', 'not', 'on', 'with', 'he', 'as', 'you', 'do', 'at',
+                'this', 'but', 'his', 'by', 'from', 'they', 'we', 'say', 'her', 'she',
+                'or', 'an', 'will', 'my', 'one', 'all', 'would', 'there', 'their', 'what',
+                'so', 'up', 'out', 'if', 'about', 'who', 'get', 'which', 'go', 'me',
+                'when', 'make', 'can', 'like', 'time', 'no', 'just', 'him', 'know', 'take',
+                'people', 'into', 'year', 'your', 'good', 'some', 'could', 'them', 'see', 'other',
+                'than', 'then', 'now', 'look', 'only', 'come', 'its', 'over', 'think', 'also',
+                'back', 'after', 'use', 'two', 'how', 'our', 'work', 'first', 'well', 'way',
+                'even', 'new', 'want', 'because', 'any', 'these', 'give', 'day', 'most', 'us',
+                'is', 'was', 'are', 'been', 'has', 'had', 'were', 'said', 'did', 'having',
+                'may', 'should', 'could', 'would', 'might', 'must', 'can', 'will', 'shall', 'ought',
+                'need', 'dare', 'used', 'going', 'got', 'make', 'take', 'come', 'go', 'see',
+                'know', 'get', 'give', 'find', 'tell', 'ask', 'work', 'seem', 'feel', 'try',
+                'leave', 'call', 'keep', 'let', 'begin', 'help', 'show', 'hear', 'play', 'run',
+                'move', 'live', 'believe', 'bring', 'happen', 'write', 'sit', 'stand', 'lose', 'pay',
+                'meet', 'include', 'continue', 'set', 'learn', 'change', 'lead', 'understand', 'watch', 'follow',
+                'stop', 'create', 'speak', 'read', 'allow', 'add', 'spend', 'grow', 'open', 'walk',
+                'win', 'teach', 'offer', 'remember', 'consider', 'appear', 'buy', 'serve', 'die', 'send',
+                'expect', 'build', 'stay', 'fall', 'cut', 'reach', 'kill', 'remain', 'suggest', 'raise',
+                'pass', 'sell', 'decide', 'return', 'explain', 'hope', 'develop', 'carry', 'break', 'receive',
+                'agree', 'support', 'hit', 'produce', 'eat', 'cover', 'catch', 'draw', 'choose', 'cause',
+                'point', 'pull', 'accept', 'push', 'listen', 'discuss', 'wear', 'wait', 'throw', 'seek',
+                'visit', 'deal', 'vote', 'announce', 'drop', 'finish', 'admit', 'smile', 'laugh', 'cry',
+                'fight', 'warn', 'succeed', 'fail', 'manage', 'care', 'share', 'enjoy', 'hate', 'love',
+                'touch', 'worry', 'prepare', 'present', 'respond', 'drive', 'prepare', 'hang', 'achieve', 'gain',
+                'examine', 'describe', 'depend', 'affect', 'improve', 'claim', 'identify', 'avoid', 'replace', 'reduce',
+                'express', 'encourage', 'arrange', 'attract', 'discover', 'demand', 'communicate', 'explore', 'determine', 'calculate',
+                'investigate', 'experiment', 'analyze', 'evaluate', 'interpret', 'demonstrate', 'illustrate', 'establish', 'maintain', 'operate',
+                'organize', 'guarantee', 'indicate', 'recognize', 'appreciate', 'contribute', 'represent', 'participate', 'negotiate', 'recommend'
+            ]
+        };
+
+        function addResult(message, className = '') {
+            const result = document.createElement('div');
+            result.className = `result ${className}`;
+            result.innerHTML = message;
+            resultsDiv.appendChild(result);
+        }
+
+        function updateStats() {
+            if (!wordDatabase) return;
+            
+            statsDiv.style.display = 'grid';
+            document.getElementById('dbStatus').textContent = wordDatabase.isLoaded ? '✓ Ready' : '✗ Not Ready';
+            document.getElementById('storageType').textContent = wordDatabase.useDirectStorage ? 'Direct' : 'SQL';
+            
+            if (wordDatabase.directStorage && wordDatabase.directStorage.isInitialized) {
+                const stats = wordDatabase.directStorage.getCacheStats();
+                document.getElementById('cacheSize').textContent = stats.cacheSize.toLocaleString();
+                document.getElementById('hitRate').textContent = stats.hitRate;
+            }
+        }
+
+        async function testSingleQuery() {
+            addResult('🧪 <b>Testing single word query...</b>');
+            
+            const word = testWords.single[0];
+            const start = performance.now();
+            const result = await wordDatabase.queryWord(word);
+            const duration = performance.now() - start;
+            
+            if (result) {
+                const className = duration < 5 ? 'success' : duration < 10 ? 'warning' : 'fail';
+                addResult(`✓ Query "${word}": <span class="${className}">${duration.toFixed(2)}ms</span> (Target: &lt;5ms)`, className);
+            } else {
+                addResult(`✗ Word "${word}" not found`, 'fail');
+            }
+            
+            updateStats();
+        }
+
+        async function testBatchQuery() {
+            addResult('🧪 <b>Testing batch query (10 words)...</b>');
+            
+            const words = testWords.batch;
+            const start = performance.now();
+            
+            for (const word of words) {
+                await wordDatabase.queryWord(word);
+            }
+            
+            const duration = performance.now() - start;
+            const avgTime = duration / words.length;
+            const className = duration < 50 ? 'success' : duration < 100 ? 'warning' : 'fail';
+            
+            addResult(`✓ Queried ${words.length} words: <span class="${className}">${duration.toFixed(2)}ms</span> (avg: ${avgTime.toFixed(2)}ms per word)`, className);
+            addResult(`Target: &lt;50ms for 10 words. Result: ${duration < 50 ? '<span class="success">PASS ✓</span>' : '<span class="error">FAIL ✗</span>'}`);
+            
+            updateStats();
+        }
+
+        async function testLargeQuery() {
+            addResult('🧪 <b>Testing large query (300 words)...</b>');
+            
+            const words = testWords.large;
+            const start = performance.now();
+            
+            for (const word of words) {
+                await wordDatabase.queryWord(word);
+            }
+            
+            const duration = performance.now() - start;
+            const avgTime = duration / words.length;
+            const className = duration < 50 ? 'success' : duration < 100 ? 'warning' : 'fail';
+            
+            addResult(`✓ Queried ${words.length} words: <span class="${className}">${duration.toFixed(2)}ms</span> (avg: ${avgTime.toFixed(2)}ms per word)`, className);
+            addResult(`<b>Target: &lt;50ms for 300 words. Result: ${duration < 50 ? '<span class="success">PASS ✓</span>' : '<span class="warning">NEAR ('+duration.toFixed(0)+'ms)</span>'}</b>`);
+            
+            updateStats();
+        }
+
+        async function testCachePerformance() {
+            addResult('🧪 <b>Testing cache performance...</b>');
+            
+            const word = 'hello';
+            
+            // First query (cold)
+            wordDatabase.queryCache.clear();
+            if (wordDatabase.directStorage) {
+                wordDatabase.directStorage.clearCache();
+            }
+            
+            const coldStart = performance.now();
+            await wordDatabase.queryWord(word);
+            const coldDuration = performance.now() - coldStart;
+            
+            // Second query (cached)
+            const warmStart = performance.now();
+            await wordDatabase.queryWord(word);
+            const warmDuration = performance.now() - warmStart;
+            
+            const improvement = ((coldDuration - warmDuration) / coldDuration * 100).toFixed(1);
+            
+            addResult(`Cold query: ${coldDuration.toFixed(2)}ms`);
+            addResult(`Cached query: ${warmDuration.toFixed(2)}ms`);
+            addResult(`Cache improvement: <span class="success">${improvement}%</span>`, 'success');
+            
+            updateStats();
+        }
+
+        async function runAllTests() {
+            resultsDiv.innerHTML = '';
+            addResult('🚀 <b>Running all performance tests...</b>', 'success');
+            
+            await testSingleQuery();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testBatchQuery();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testLargeQuery();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            await testCachePerformance();
+            
+            addResult('✓ <b>All tests completed!</b>', 'success');
+        }
+
+        // Initialize
+        async function init() {
+            progressDiv.innerHTML = '<p class="loading">Initializing database...</p>';
+            
+            wordDatabase = new WordDatabase();
+            wordDatabase.setProgressCallback((data) => {
+                progressDiv.innerHTML = `<p class="loading">Loading: ${data.percentage.toFixed(1)}% - ${data.message || ''}</p>`;
+            });
+            
+            const success = await wordDatabase.initialize();
+            
+            if (success) {
+                progressDiv.innerHTML = '<p class="success">✓ Database initialized successfully!</p>';
+                updateStats();
+            } else {
+                progressDiv.innerHTML = '<p class="error">✗ Failed to initialize database</p>';
+            }
+        }
+
+        // Event listeners
+        document.getElementById('testBasicQuery').addEventListener('click', testSingleQuery);
+        document.getElementById('testBatchQuery').addEventListener('click', testBatchQuery);
+        document.getElementById('testLargeQuery').addEventListener('click', testLargeQuery);
+        document.getElementById('testCachePerformance').addEventListener('click', testCachePerformance);
+        document.getElementById('runAllTests').addEventListener('click', runAllTests);
+
+        // Start initialization
+        init();
+    </script>
+</body>
+</html>
