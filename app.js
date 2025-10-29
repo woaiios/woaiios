@@ -171,13 +171,23 @@ class WordDiscoverer {
         const loadingOverlay = document.getElementById('loadingOverlay');
         loadingOverlay.classList.add('show');
 
+        const overallStartTime = performance.now();
+
         try {
             // 执行文本分析 (Perform text analysis)
             const analysis = await this.performTextAnalysis(text);
+            const analysisTime = performance.now();
+            console.log(`⏱️ Analysis completed in ${(analysisTime - overallStartTime).toFixed(2)}ms`);
+            
             // 生成带高亮的文本 (Generate text with highlights)
             const processedText = await this.textAnalyzer.processTextForDisplay(text, analysis);
+            const displayTime = performance.now();
+            console.log(`⏱️ Display processing completed in ${(displayTime - analysisTime).toFixed(2)}ms`);
+            
             // 渲染分析结果 (Render analysis results)
             this.analyzedTextComponent.render(processedText);
+            const renderTime = performance.now();
+            console.log(`⏱️ Rendering completed in ${(renderTime - displayTime).toFixed(2)}ms`);
             
             // 显示结果区域 (Show result sections)
             document.getElementById('analyzedTextSection').style.display = 'block';
@@ -187,6 +197,9 @@ class WordDiscoverer {
             // 更新统计信息和高亮词列表 (Update statistics and highlighted words list)
             this.updateStatistics(analysis);
             this.displayHighlightedWords(analysis.highlightedWords);
+
+            const totalTime = performance.now() - overallStartTime;
+            console.log(`✅ Total analysis time: ${totalTime.toFixed(2)}ms`);
 
         } catch (error) {
             console.error('Analysis error:', error);

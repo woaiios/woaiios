@@ -231,6 +231,7 @@ export class TextAnalyzer {
 
     /**
      * Format translation from word data (extracted from getTranslation)
+     * Optimized for performance - generates minimal HTML for hover tooltips
      * @param {string} word - Original word
      * @param {Object} wordInfo - Word information
      * @returns {string} Translation HTML
@@ -243,49 +244,26 @@ export class TextAnalyzer {
             </div>`;
         }
 
-        // Build compact HTML from ECDICT data with collapsible details
+        // Build minimal compact HTML - only essential information for hover tooltip
         let html = `<div class="word-info ecdict-entry compact">`;
         
-        // Word title (always visible)
+        // Word title
         html += `<h3 class="word-title">${wordInfo.word}</h3>`;
         
-        // Phonetic (always visible - first line)
+        // Phonetic (first line)
         if (wordInfo.phonetic) {
             html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
         }
         
-        // Chinese translation (always visible - second line)
+        // Chinese translation (second line) - only first line for performance
         if (wordInfo.translation) {
-            html += `<div class="translation-compact">`;
-            const lines = wordInfo.translation.split('\\n');
-            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
+            const firstLine = wordInfo.translation.split('\\n')[0];
             if (firstLine) {
-                html += `<p>${firstLine}</p>`;
+                html += `<div class="translation-compact"><p>${this.escapeHtml(firstLine.trim())}</p></div>`;
             }
-            html += `</div>`;
         }
         
-        // Collapsible details section (simplified for performance)
-        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
-        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
         html += `</div>`;
-        
-        html += `<div class="word-details-content">`;
-        
-        // Collins stars and Oxford badge
-        if (wordInfo.collins > 0 || wordInfo.oxford) {
-            html += `<div class="word-meta">`;
-            if (wordInfo.collins > 0) {
-                html += `<span class="collins-stars">${'★'.repeat(wordInfo.collins)}</span>`;
-            }
-            if (wordInfo.oxford) {
-                html += `<span class="oxford-badge">Oxford 3000</span>`;
-            }
-            html += `</div>`;
-        }
-        
-        html += `</div>`; // Close word-details-content
-        html += `</div>`; // Close word-info
         
         return html;
     }
@@ -493,36 +471,25 @@ export class TextAnalyzer {
      * @returns {Promise<string>} Processed HTML text
      */
     async processTextForDisplay(originalText, analysis) {
+        const startTime = performance.now();
         const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
 
         // Split the text by word boundaries, keeping the delimiters.
         const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
 
-        // Extract unique words that need translations
-        const uniqueWords = [...new Set(parts.filter(part => /\b[a-zA-Z-]+\b/.test(part)))];
-        
-        // Batch fetch translations for all unique words
+        // OPTIMIZATION: Only fetch translations for highlighted words, not all words
+        // This significantly reduces database queries and improves performance
         const translationMap = new Map();
         
-        // First, add translations from analysis (for highlighted words)
+        // Add translations from analysis (for highlighted words only)
         for (const item of analysis.highlightedWords) {
             if (item.translation) {
                 translationMap.set(item.word.toLowerCase(), item.translation);
             }
         }
-        
-        // Fetch remaining translations for non-highlighted words
-        const wordsNeedingTranslation = uniqueWords.filter(w => !translationMap.has(w.toLowerCase()));
-        if (wordsNeedingTranslation.length > 0) {
-            const batchTranslations = await Promise.all(
-                wordsNeedingTranslation.map(word => this.getTranslation(word))
-            );
-            wordsNeedingTranslation.forEach((word, index) => {
-                translationMap.set(word.toLowerCase(), batchTranslations[index]);
-            });
-        }
 
         // Now process all parts with pre-fetched translations
+        // Only highlighted words will have translations; non-highlighted words will fetch on hover
         const processedParts = parts.map((part) => {
             const lowerCasePart = part.toLowerCase();
             // Check if the part is a word and not just a delimiter.
@@ -548,6 +515,9 @@ export class TextAnalyzer {
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
         });
+        
+        const endTime = performance.now();
+        console.log(`📝 Text display processing completed in ${(endTime - startTime).toFixed(2)}ms`);
         
         return processedParts.join('');
     }
