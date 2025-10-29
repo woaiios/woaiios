@@ -4,6 +4,12 @@
 
 本项目已配置自动部署到 GitHub Pages。当您的 Pull Request 合并到 `develop` 分支后，将会自动触发部署。
 
+### 重要配置：
+
+- **基础路径**: 已在 `vite.config.js` 中配置为 `/woaiios/`（与仓库名称匹配）
+- **构建输出**: `dist/` 目录
+- **部署源**: GitHub Actions 从 `dist/` 目录部署
+
 ### 部署步骤：
 
 1. **合并 Pull Request**: 将此 PR 合并到 `develop` 分支
@@ -28,8 +34,8 @@
 ### 配置说明：
 
 - **工作流文件**: `.github/workflows/deploy.yml`
-- **基础路径**: 已在 `vite.config.js` 中配置为 `/woaiios/`
-- **构建输出**: `dist/` 目录
+- **基础路径**: 已在 `vite.config.js` 中配置为 `/woaiios/`（确保资源路径正确）
+- **构建输出**: `dist/` 目录（不再使用 `docs/` 目录）
 - **自动触发**: 推送到 `develop` 分支时自动部署
 
 ---
@@ -37,6 +43,12 @@
 ## English Instructions
 
 This project is configured for automatic deployment to GitHub Pages. When your Pull Request is merged to the `develop` branch, deployment will be triggered automatically.
+
+### Important Configuration:
+
+- **Base path**: Configured in `vite.config.js` as `/woaiios/` (matches repository name)
+- **Build output**: `dist/` directory
+- **Deployment source**: GitHub Actions deploys from `dist/` directory
 
 ### Deployment Steps:
 
@@ -63,8 +75,8 @@ This project is configured for automatic deployment to GitHub Pages. When your P
 ### Configuration Details:
 
 - **Workflow file**: `.github/workflows/deploy.yml`
-- **Base path**: Configured in `vite.config.js` as `/woaiios/`
-- **Build output**: `dist/` directory
+- **Base path**: Configured in `vite.config.js` as `/woaiios/` (ensures correct asset paths)
+- **Build output**: `dist/` directory (no longer using `docs/` directory)
 - **Auto-trigger**: Deploys automatically on push to `develop` branch
 
 ### Features:

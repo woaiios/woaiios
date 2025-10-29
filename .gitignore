@@ -3,8 +3,9 @@ node_modules/
 package-lock.json
 
 # Build output
-# dist/ - keeping dist for deployment
-# build/
+dist/
+# docs/ - Old build output directory, now using dist/ for deployment via GitHub Actions
+docs/
 
 # Public directory (keeping for source assets)
 # Only stardict.db is kept in public/, other files removed as unnecessary
