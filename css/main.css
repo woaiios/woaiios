@@ -331,11 +331,9 @@ ruby.highlighted-word rt.phonetic-annotation {
     font-size: 0.5em;
     color: #666;
     font-weight: normal;
-    line-height: 1;
+    line-height: 1.2;
     text-align: center;
-    /* Ensure phonetics appear above the word */
-    display: block;
-    margin-bottom: 2px;
+    /* Ruby text automatically appears above base text */
 }
 
 /* Maintain color differentiation for ruby highlighted words */
