@@ -174,6 +174,8 @@ class WordDiscoverer {
             return;
         }
 
+        const NO_TRANSLATION_TEXT = '无翻译'; // Localization constant
+
         highlightedWords.forEach(wordInfo => {
             const wordItem = document.createElement('div');
             wordItem.className = 'highlighted-word-item';
@@ -217,11 +219,23 @@ class WordDiscoverer {
                 }
             }
             
-            wordItem.innerHTML = `
-                <div class="word">${wordInfo.word}</div>
-                ${pronunciation ? `<div class="pronunciation">${pronunciation}</div>` : ''}
-                <div class="translation">${translation || '无翻译'}</div>
-            `;
+            // Use DOM manipulation instead of innerHTML for security
+            const wordDiv = document.createElement('div');
+            wordDiv.className = 'word';
+            wordDiv.textContent = wordInfo.word;
+            wordItem.appendChild(wordDiv);
+            
+            if (pronunciation) {
+                const pronDiv = document.createElement('div');
+                pronDiv.className = 'pronunciation';
+                pronDiv.textContent = pronunciation;
+                wordItem.appendChild(pronDiv);
+            }
+            
+            const transDiv = document.createElement('div');
+            transDiv.className = 'translation';
+            transDiv.textContent = translation || NO_TRANSLATION_TEXT;
+            wordItem.appendChild(transDiv);
             
             container.appendChild(wordItem);
         });
