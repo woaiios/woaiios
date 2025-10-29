@@ -3,8 +3,10 @@
  * Handles ECDICT SQLite database loading and word analysis
  * Using ECDICT database with 760,000+ words
  * Implements progressive loading for faster initial load times
+ * Now with DirectDataStorage for optimized lookups
  */
 import { ProgressiveDatabaseLoader } from './ProgressiveDatabaseLoader.js';
+import { DirectDataStorage } from './DirectDataStorage.js';
 
 export class WordDatabase {
     constructor() {
@@ -14,6 +16,8 @@ export class WordDatabase {
         this.SQL = null;
         this.progressiveLoader = null;
         this.progressCallback = null;
+        this.directStorage = null;
+        this.useDirectStorage = true; // Use optimized direct storage by default
     }
 
     /**
@@ -25,11 +29,31 @@ export class WordDatabase {
     }
 
     /**
-     * Initialize SQLite database with ECDICT data using progressive loading
+     * Initialize database with ECDICT data
+     * Uses DirectDataStorage for optimized lookups if available
+     * Falls back to progressive loading with SQL if needed
      * @returns {Promise<boolean>} Loading status
      */
     async initialize() {
         try {
+            // Try to use DirectDataStorage first (faster)
+            if (this.useDirectStorage) {
+                console.log('🚀 Initializing DirectDataStorage for optimized lookups...');
+                this.directStorage = new DirectDataStorage();
+                await this.directStorage.initialize();
+                
+                const isImported = await this.directStorage.isDataImported();
+                
+                if (isImported) {
+                    console.log('✅ DirectDataStorage ready with pre-imported data');
+                    this.isLoaded = true;
+                    return true;
+                } else {
+                    console.log('⚠️ Data not yet imported to DirectDataStorage, will import after loading SQL database');
+                }
+            }
+            
+            // Load SQL database (needed for first-time import or fallback)
             console.log('Initializing sql.js...');
             
             // Dynamically import sql.js
@@ -79,8 +103,24 @@ export class WordDatabase {
                 console.log(`✅ Chunk ${data.chunkNumber} loaded (${data.percentage.toFixed(1)}% complete)`);
             });
             
-            this.progressiveLoader.on('complete', (data) => {
+            this.progressiveLoader.on('complete', async (data) => {
                 console.log(`✨ All database chunks loaded! Total: ${data.totalWords.toLocaleString()} words`);
+                
+                // Import to DirectDataStorage if not already done
+                if (this.useDirectStorage && this.directStorage) {
+                    const isImported = await this.directStorage.isDataImported();
+                    if (!isImported) {
+                        console.log('🔄 Starting one-time import to DirectDataStorage for future performance...');
+                        try {
+                            await this.directStorage.importFromDatabase(this.db, (progress) => {
+                                console.log(`📥 Import progress: ${progress.percentage.toFixed(1)}%`);
+                            });
+                            console.log('✅ Import to DirectDataStorage completed!');
+                        } catch (error) {
+                            console.warn('⚠️ Failed to import to DirectDataStorage, will continue with SQL:', error);
+                        }
+                    }
+                }
             });
             
             this.progressiveLoader.on('error', (error) => {
@@ -116,10 +156,18 @@ export class WordDatabase {
 
     /**
      * Query word information from database
+     * Uses DirectDataStorage if available, falls back to SQL
      * @param {string} word - Word to query
-     * @returns {Object|null} Word information or null
+     * @returns {Promise<Object|null>|Object|null} Word information or null
      */
     queryWord(word) {
+        // If using DirectDataStorage and it's ready, use async query
+        if (this.useDirectStorage && this.directStorage && this.directStorage.isInitialized) {
+            // Return a promise for async operation
+            return this.directStorage.queryWord(word);
+        }
+        
+        // Fallback to SQL query (synchronous)
         if (!this.isLoaded || !this.db) {
             return null;
         }
@@ -135,7 +183,7 @@ export class WordDatabase {
             const result = this.db.exec(
                 `SELECT word, phonetic, definition, translation, pos, collins, oxford, tag, bnc, frq, exchange, detail 
                  FROM words 
-                 WHERE LOWER(word) = ? 
+                 WHERE LOWER(word) = ?
                  LIMIT 1`,
                 [lowerWord]
             );
@@ -177,6 +225,41 @@ export class WordDatabase {
     }
 
     /**
+     * Query multiple words in batch for better performance
+     * @param {Array<string>} words - Array of words to query
+     * @returns {Promise<Array<Object>>} Array of word information objects
+     */
+    async queryWordsBatch(words) {
+        // If using DirectDataStorage, use its optimized batch query
+        if (this.useDirectStorage && this.directStorage && this.directStorage.isInitialized) {
+            const results = await this.directStorage.queryWordsBatch(words);
+            return results.map(r => r.data);
+        }
+        
+        // Fallback to SQL batch query
+        if (!this.isLoaded || !this.db) {
+            return [];
+        }
+        
+        const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))];
+        const results = [];
+        
+        for (const word of uniqueWords) {
+            const wordInfo = this.queryWord(word);
+            if (wordInfo) {
+                // Handle both sync and async results
+                if (wordInfo instanceof Promise) {
+                    results.push(await wordInfo);
+                } else {
+                    results.push(wordInfo);
+                }
+            }
+        }
+        
+        return results;
+    }
+
+    /**
      * Parse exchange field to get word forms
      * @param {string} exchange - Exchange field from database
      * @returns {Object} Word forms (past, done, ing, third, plural, comparative, superlative, lemma)
@@ -210,14 +293,14 @@ export class WordDatabase {
     /**
      * Get word difficulty level based on ECDICT metadata
      * @param {string} word - Word to analyze
-     * @returns {Object} Difficulty information
+     * @returns {Promise<Object>} Difficulty information
      */
-    getWordDifficulty(word) {
-        let wordInfo = this.queryWord(word);
+    async getWordDifficulty(word) {
+        let wordInfo = await this.queryWord(word);
         
         // If word not found, try to find by lemma (base form)
         if (!wordInfo) {
-            wordInfo = this.findByLemma(word);
+            wordInfo = await this.findByLemma(word);
         }
         
         // If still not found in database, treat as common word (don't highlight)
@@ -298,10 +381,10 @@ export class WordDatabase {
             const lemma = forms['0'] || forms['1'];
             if (lemma && lemma.toLowerCase() !== word.toLowerCase()) {
                 // Prevent infinite recursion by checking if lemma is different from current word
-                const lemmaInfo = this.queryWord(lemma);
+                const lemmaInfo = await this.queryWord(lemma);
                 if (lemmaInfo) {
                     // Recursively get difficulty of base form
-                    const lemmaDifficulty = this.getWordDifficulty(lemma);
+                    const lemmaDifficulty = await this.getWordDifficulty(lemma);
                     return lemmaDifficulty;
                 }
             }
@@ -318,9 +401,12 @@ export class WordDatabase {
     /**
      * Find word by lemma (base form)
      * @param {string} word - Inflected word form
-     * @returns {Object|null} Base word information
+     * @returns {Promise<Object|null>} Base word information
      */
-    findByLemma(word) {
+    async findByLemma(word) {
+        // Use DirectDataStorage if available (not yet implemented for lemma search)
+        // For now, fallback to SQL for this complex query
+        
         if (!this.isLoaded || !this.db) {
             return null;
         }
@@ -345,7 +431,7 @@ export class WordDatabase {
                     // Check if any form matches our word
                     for (const formValue of Object.values(forms)) {
                         if (formValue && formValue.toLowerCase() === word.toLowerCase()) {
-                            return this.queryWord(baseWord);
+                            return await this.queryWord(baseWord);
                         }
                     }
                 }

@@ -61,14 +61,14 @@ export class TextAnalyzer {
     }
 
     /**
- * Analyze words for difficulty and highlighting.
+     * Analyze words for difficulty and highlighting.
      * @param {Array<string>} words - Array of words to analyze.
      * @param {string} difficultyLevel - Current difficulty level setting.
      * @param {string} highlightMode - Highlight mode setting.
      * @param {Object} vocabulary - User's vocabulary, containing 'learning' and 'mastered' maps.
-     * @returns {Object} Analysis results.
+     * @returns {Promise<Object>} Analysis results.
      */
-    analyzeWords(words, difficultyLevel, highlightMode, vocabulary) {
+    async analyzeWords(words, difficultyLevel, highlightMode, vocabulary) {
         const analysis = {
             totalWords: words.length,
             highlightedWords: [],
@@ -87,11 +87,15 @@ export class TextAnalyzer {
 
         // Analyze each unique word (using lowercase for comparison)
         const uniqueWords = [...new Set(words.map(word => word.toLowerCase()))];
-        uniqueWords.forEach(lowerWord => {
+        
+        // Use batch query for better performance
+        const startTime = performance.now();
+        
+        for (const lowerWord of uniqueWords) {
             // Find the original casing of the word for display
             const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
             
-            const difficulty = this.wordDatabase.getWordDifficulty(lowerWord);
+            const difficulty = await this.wordDatabase.getWordDifficulty(lowerWord);
             
             // A word is never highlighted if it is in the mastered list.
             const isMastered = masteredWords.has(lowerWord);
@@ -104,7 +108,7 @@ export class TextAnalyzer {
                     word: originalWord, // Use original casing for display
                     difficulty: difficulty,
                     frequency: analysis.wordFrequency[lowerWord],
-                    translation: this.getTranslation(originalWord) // Use original casing for lookup
+                    translation: await this.getTranslation(originalWord) // Use original casing for lookup
                 });
                 
                 // A word is new only if it's in neither list.
@@ -114,7 +118,10 @@ export class TextAnalyzer {
             }
             
             analysis.difficultyScore += difficulty.score;
-        });
+        }
+
+        const endTime = performance.now();
+        console.log(`📊 Analyzed ${uniqueWords.length} unique words in ${(endTime - startTime).toFixed(2)}ms`);
 
         analysis.difficultyScore = uniqueWords.length > 0 ? Math.round(analysis.difficultyScore / uniqueWords.length) : 0;
         
@@ -156,9 +163,9 @@ export class TextAnalyzer {
     /**
      * Get translation for a word from ECDICT database
      * @param {string} word - Word to translate
-     * @returns {string} Translation HTML
+     * @returns {Promise<string>} Translation HTML
      */
-    getTranslation(word) {
+    async getTranslation(word) {
         if (!this.wordDatabase.isDatabaseLoaded()) {
             return `<div class="word-info"><p>数据库未加载</p></div>`;
         }
@@ -166,11 +173,11 @@ export class TextAnalyzer {
         const lowerWord = word.toLowerCase();
         
         // Try to query the word directly
-        let wordInfo = this.wordDatabase.queryWord(lowerWord);
+        let wordInfo = await this.wordDatabase.queryWord(lowerWord);
         
         // If not found, try to find by lemma
         if (!wordInfo) {
-            wordInfo = this.wordDatabase.findByLemma(lowerWord);
+            wordInfo = await this.wordDatabase.findByLemma(lowerWord);
         }
         
         if (!wordInfo) {
@@ -321,15 +328,15 @@ export class TextAnalyzer {
      * Process text for display with highlighted words
      * @param {string} originalText - Original text
      * @param {Object} analysis - Analysis results
-     * @returns {string} Processed HTML text
+     * @returns {Promise<string>} Processed HTML text
      */
-    processTextForDisplay(originalText, analysis) {
+    async processTextForDisplay(originalText, analysis) {
         const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
 
         // Split the text by word boundaries, keeping the delimiters.
         const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
 
-        return parts.map(part => {
+        const processedParts = await Promise.all(parts.map(async (part) => {
             const lowerCasePart = part.toLowerCase();
             // Check if the part is a word and not just a delimiter.
             if (!/\b[a-zA-Z-]+\b/.test(lowerCasePart)) {
@@ -338,7 +345,7 @@ export class TextAnalyzer {
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
             // Use the original part for translation to preserve casing
-            const translation = this.getTranslation(part);
+            const translation = await this.getTranslation(part);
             let classes = 'word-span';
 
             if (highlightedInfo) {
@@ -354,7 +361,9 @@ export class TextAnalyzer {
                 .replace(/'/g, '&#039;');
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
-        }).join('');
+        }));
+        
+        return processedParts.join('');
     }
 
     /**
