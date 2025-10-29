@@ -695,13 +695,8 @@ export class TextAnalyzer {
 
             // Use ruby tag for highlighted words with phonetics
             if (highlightedInfo && highlightedInfo.phonetic) {
-                // Escape phonetic data to prevent XSS vulnerabilities
-                const escapedPhonetic = highlightedInfo.phonetic
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
+                // Escape phonetic data to prevent XSS vulnerabilities using existing escapeHtml method
+                const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
                 return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
             }
 
