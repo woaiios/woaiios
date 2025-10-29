@@ -61,3 +61,4 @@ test-*.html
 !test-google-drive.html
 !test-performance.html
 !test-user-text.html
+!test-query-optimization.html
