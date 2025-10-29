@@ -53,7 +53,8 @@ export class AnalyzedTextComponent extends Component {
             let targetElement = e.target;
             
             // If clicked on rb or rt element, get the parent ruby element
-            if (targetElement.tagName === 'RB' || targetElement.tagName === 'RT') {
+            // Use toUpperCase() for consistent comparison across browsers
+            if (targetElement.tagName.toUpperCase() === 'RB' || targetElement.tagName.toUpperCase() === 'RT') {
                 targetElement = targetElement.parentElement;
             }
             
