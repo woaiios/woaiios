@@ -55,8 +55,11 @@ export function cancelAnimationTask(handle) {
 /**
  * Break a large task into smaller chunks to avoid blocking main thread
  * @param {Array} items - Items to process
- * @param {Function} processor - Function to process each item
+ * @param {Function} processor - Function to process each item (can be sync or async)
  * @param {Object} options - Options for chunking
+ * @param {number} options.chunkSize - Number of items to process per chunk (default: 100)
+ * @param {number} options.delay - Delay between chunks in ms (default: 0, uses idle callback)
+ * @param {Function} options.onProgress - Progress callback receiving {processed, total, percentage}
  * @returns {Promise} Promise that resolves when all items are processed
  */
 export async function processInChunks(items, processor, options = {}) {
@@ -183,9 +186,10 @@ export async function measure(name, fn) {
  */
 export function debounce(fn, delay = 300) {
     let timeoutId;
-    return function(...args) {
+    return function debounced(...args) {
+        const context = this;
         clearTimeout(timeoutId);
-        timeoutId = setTimeout(() => fn.apply(this, args), delay);
+        timeoutId = setTimeout(() => fn.apply(context, args), delay);
     };
 }
 
@@ -197,9 +201,10 @@ export function debounce(fn, delay = 300) {
  */
 export function throttle(fn, limit = 300) {
     let inThrottle;
-    return function(...args) {
+    return function throttled(...args) {
+        const context = this;
         if (!inThrottle) {
-            fn.apply(this, args);
+            fn.apply(context, args);
             inThrottle = true;
             setTimeout(() => inThrottle = false, limit);
         }
