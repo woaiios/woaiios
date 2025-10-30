@@ -2,7 +2,7 @@
   "name": "WordDiscover - English Vocabulary Learning Tool",
   "short_name": "WordDiscover",
   "description": "一个基于网页的英语词汇学习工具，集成 ECDICT 76万+ 词条数据库",
-  "start_url": "./",
+  "start_url": "/woaiios/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4A90E2",
