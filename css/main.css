@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 2.9; /* Balanced to accommodate phonetic annotations above and Chinese annotations below, preventing overlap while keeping spacing tight */
+    line-height: 1.2; /* Reduced base line height - similar to height of lowercase 'z' */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -433,13 +433,19 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     display: inline-flex;
     flex-direction: column;
     align-items: center;
-    margin: 0 0.3em;
+    margin: 0 0.05em; /* Reduced from 0.3em - approximately half a letter's width for non-highlighted words */
     font-size: 1.8em;
     line-height: 1;
     vertical-align: middle;
     cursor: pointer;
     -webkit-tap-highlight-color: rgba(255, 235, 59, 0.3);
     touch-action: manipulation;
+}
+
+/* Add extra vertical spacing for highlighted words to accommodate annotations */
+.double-ruby.highlight {
+    margin-top: 0.8em; /* Space for phonetic annotation above */
+    margin-bottom: 0.5em; /* Space for Chinese annotation below */
 }
 
 /* Highlight the base word with annotation */
@@ -802,7 +808,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 确保在移动设备上文本不会溢出 */
     .analyzed-text {
         font-size: 1rem;
-        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 1.2; /* Keep same as desktop - reduced for tighter spacing */
     }
     
     /* Improve button spacing on mobile */
@@ -853,7 +859,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
-        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 1.2; /* Keep same as desktop - reduced for tighter spacing */
     }
 }
 
