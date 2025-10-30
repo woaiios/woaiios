@@ -3,26 +3,71 @@
  * Handles vocabulary management and persistence with separate lists for learning and mastered words.
  */
 import { GoogleDriveManager } from './GoogleDriveManager.js';
+import { storageHelper } from './StorageHelper.js';
 
 export class VocabularyManager {
     constructor() {
-        const { learningWords, masteredWords } = this.loadVocabulary();
-        this.learningWords = learningWords;
-        this.masteredWords = masteredWords;
+        this.learningWords = new Map();
+        this.masteredWords = new Map();
+        this.isLoading = false;
+        this.isLoaded = false;
         
         this.googleDriveManager = new GoogleDriveManager();
         this.syncEnabled = false;
         this.lastSyncTime = null;
         this.isSyncing = false;
+        
+        // Initialize async - load vocabulary in background
+        this.initialize();
+    }
+    
+    /**
+     * Initialize the vocabulary manager asynchronously
+     */
+    async initialize() {
+        this.isLoading = true;
+        try {
+            const { learningWords, masteredWords } = await this.loadVocabulary();
+            this.learningWords = learningWords;
+            this.masteredWords = masteredWords;
+            this.isLoaded = true;
+            console.log('✅ VocabularyManager initialized with', this.learningWords.size, 'learning words and', this.masteredWords.size, 'mastered words');
+        } catch (error) {
+            console.error('Error initializing VocabularyManager:', error);
+            this.isLoaded = true; // Continue with empty vocabulary
+        } finally {
+            this.isLoading = false;
+        }
+    }
+    
+    /**
+     * Wait for initialization to complete
+     */
+    async waitForInit() {
+        if (this.isLoaded) return;
+        
+        // Poll until loaded
+        await new Promise(resolve => {
+            const check = () => {
+                if (this.isLoaded) {
+                    resolve();
+                } else {
+                    setTimeout(check, 50);
+                }
+            };
+            check();
+        });
     }
 
     /**
      * Add a new word to the learning list.
      * @param {string} word - Word to add.
      * @param {string} translation - Translation of the word.
-     * @returns {boolean} True if the word was added, false if it already exists.
+     * @returns {Promise<boolean>} True if the word was added, false if it already exists.
      */
-    addWord(word, translation) {
+    async addWord(word, translation) {
+        await this.waitForInit();
+        
         if (this.isKnownWord(word)) {
             return false;
         }
@@ -34,16 +79,18 @@ export class VocabularyManager {
             lastReviewed: null
         });
         
-        this.saveVocabulary();
+        await this.saveVocabulary();
         return true;
     }
 
     /**
      * Move a word from the learning list to the mastered list.
      * @param {string} word - The word to master.
-     * @returns {boolean} True if the word was moved, false otherwise.
+     * @returns {Promise<string>} Status of the operation.
      */
-    masterWord(word, translation) {
+    async masterWord(word, translation) {
+        await this.waitForInit();
+        
         const lowerCaseWord = word.toLowerCase();
         if (this.masteredWords.has(lowerCaseWord)) {
             return 'already_mastered';
@@ -54,7 +101,7 @@ export class VocabularyManager {
             wordData = this.learningWords.get(lowerCaseWord);
             this.learningWords.delete(lowerCaseWord);
             this.masteredWords.set(lowerCaseWord, wordData);
-            this.saveVocabulary();
+            await this.saveVocabulary();
             return 'moved_to_mastered';
         }
 
@@ -66,22 +113,24 @@ export class VocabularyManager {
             lastReviewed: null
         };
         this.masteredWords.set(lowerCaseWord, wordData);
-        this.saveVocabulary();
+        await this.saveVocabulary();
         return 'added_to_mastered';
     }
 
     /**
      * Move a word from the mastered list back to the learning list.
      * @param {string} word - The word to un-master.
-     * @returns {string|boolean} 'moved_to_learning' on success, false otherwise.
+     * @returns {Promise<string|boolean>} 'moved_to_learning' on success, false otherwise.
      */
-    unmasterWord(word) {
+    async unmasterWord(word) {
+        await this.waitForInit();
+        
         const lowerCaseWord = word.toLowerCase();
         if (this.masteredWords.has(lowerCaseWord)) {
             const wordData = this.masteredWords.get(lowerCaseWord);
             this.masteredWords.delete(lowerCaseWord);
             this.learningWords.set(lowerCaseWord, wordData);
-            this.saveVocabulary();
+            await this.saveVocabulary();
             return 'moved_to_learning';
         }
         return false;
@@ -90,17 +139,19 @@ export class VocabularyManager {
     /**
      * Remove a word from all vocabulary lists.
      * @param {string} word - Word to remove.
-     * @returns {boolean} True if the word was removed, false if not found.
+     * @returns {Promise<boolean>} True if the word was removed, false if not found.
      */
-    removeWord(word) {
+    async removeWord(word) {
+        await this.waitForInit();
+        
         if (this.learningWords.has(word)) {
             this.learningWords.delete(word);
-            this.saveVocabulary();
+            await this.saveVocabulary();
             return true;
         }
         if (this.masteredWords.has(word)) {
             this.masteredWords.delete(word);
-            this.saveVocabulary();
+            await this.saveVocabulary();
             return true;
         }
         return false;
@@ -168,10 +219,12 @@ export class VocabularyManager {
     /**
      * Clear all words from all vocabulary lists.
      */
-    clearVocabulary() {
+    async clearVocabulary() {
+        await this.waitForInit();
+        
         this.learningWords.clear();
         this.masteredWords.clear();
-        this.saveVocabulary();
+        await this.saveVocabulary();
         return true;
     }
 
@@ -189,14 +242,16 @@ export class VocabularyManager {
     /**
      * Update the review count for a word in the learning list.
      * @param {string} word - Word to update.
-     * @returns {boolean} True if updated, false otherwise.
+     * @returns {Promise<boolean>} True if updated, false otherwise.
      */
-    updateReviewCount(word) {
+    async updateReviewCount(word) {
+        await this.waitForInit();
+        
         const wordData = this.learningWords.get(word);
         if (wordData) {
             wordData.reviewCount++;
             wordData.lastReviewed = new Date().toISOString();
-            this.saveVocabulary();
+            await this.saveVocabulary();
             return true;
         }
         return false;
@@ -265,30 +320,28 @@ export class VocabularyManager {
 
     /**
      * Load vocabulary from localStorage. Handles migration from old format.
-     * @returns {{learningWords: Map, masteredWords: Map}}
+     * @returns {Promise<{learningWords: Map, masteredWords: Map}>}
      */
-    loadVocabulary() {
-        const saved = localStorage.getItem('wordDiscovererVocabulary');
+    async loadVocabulary() {
+        const saved = await storageHelper.getItem('wordDiscovererVocabulary');
         if (!saved) {
             return { learningWords: new Map(), masteredWords: new Map() };
         }
 
         try {
-            const data = JSON.parse(saved);
-            
             // Check for new format (v2.0)
-            if (data.version === '2.0') {
+            if (saved.version === '2.0') {
                 return {
-                    learningWords: new Map(data.learningWords || []),
-                    masteredWords: new Map(data.masteredWords || [])
+                    learningWords: new Map(saved.learningWords || []),
+                    masteredWords: new Map(saved.masteredWords || [])
                 };
             }
             
             // Check for old format (Array of entries) and migrate
-            if (Array.isArray(data)) {
+            if (Array.isArray(saved)) {
                 console.log('Migrating old vocabulary format to new v2.0 format.');
                 return {
-                    learningWords: new Map(data),
+                    learningWords: new Map(saved),
                     masteredWords: new Map()
                 };
             }
@@ -303,13 +356,14 @@ export class VocabularyManager {
     /**
      * Save both vocabulary lists to localStorage.
      */
-    saveVocabulary() {
+    async saveVocabulary() {
         const dataToSave = {
             version: '2.0',
             learningWords: Array.from(this.learningWords.entries()),
             masteredWords: Array.from(this.masteredWords.entries())
         };
-        localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(dataToSave));
+        
+        await storageHelper.setItem('wordDiscovererVocabulary', dataToSave);
         
         if (this.syncEnabled && !this.isSyncing) {
             this.syncToGoogleDrive();
