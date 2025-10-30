@@ -61,6 +61,7 @@ export class DirectDataStorage {
     /**
      * Import data from SQL database into IndexedDB
      * This is a one-time migration process
+     * Uses idle callbacks to avoid blocking main thread
      */
     async importFromDatabase(sqlDB, progressCallback = null) {
         if (!this.isInitialized) {
@@ -142,6 +143,11 @@ export class DirectDataStorage {
                 // Log progress every 10k words
                 if (importedCount % 10000 === 0 || importedCount === totalRows) {
                     console.log(`📥 Imported ${importedCount.toLocaleString()}/${totalRows.toLocaleString()} words (${((importedCount/totalRows)*100).toFixed(1)}%)`);
+                }
+                
+                // Yield to main thread every few batches to keep UI responsive
+                if (i % (batchSize * 3) === 0 && i + batchSize < rows.length) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
 

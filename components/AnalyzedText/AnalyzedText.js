@@ -172,7 +172,7 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} translation - 翻译 (Translation)
      */
     async handleWordAddToLearning(word, translation) {
-        const result = this.vocabularyManager.addWord(word, translation);
+        const result = await this.vocabularyManager.addWord(word, translation);
         if (result) {
             this.app.showNotification(`📖 '${word}' added to learning list.`);
         }
@@ -186,7 +186,7 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} translation - 翻译 (Translation)
      */
     async handleWordMaster(word, translation) {
-        const result = this.vocabularyManager.masterWord(word, translation);
+        const result = await this.vocabularyManager.masterWord(word, translation);
         if (result === 'added_to_mastered' || result === 'moved_to_mastered') {
             this.app.showNotification(`✅ '${word}' marked as mastered.`);
         }
@@ -199,7 +199,7 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} word - 单词 (Word)
      */
     async handleWordUnmaster(word) {
-        const result = this.vocabularyManager.unmasterWord(word);
+        const result = await this.vocabularyManager.unmasterWord(word);
         if (result === 'moved_to_learning') {
             this.app.showNotification(`📖 '${word}' moved to learning list.`);
             this.app.updateCounts();

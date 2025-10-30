@@ -12,13 +12,57 @@
  * 
  * @class SettingsManager
  */
+import { storageHelper } from './StorageHelper.js';
+
 export class SettingsManager {
     /**
      * 构造函数 - Constructor
      * 从本地存储加载设置或使用默认值 (Load settings from local storage or use defaults)
      */
     constructor() {
-        this.settings = this.loadSettings();
+        this.settings = this.getDefaultSettings();
+        this.isLoading = false;
+        this.isLoaded = false;
+        
+        // Initialize async - load settings in background
+        this.initialize();
+    }
+    
+    /**
+     * Initialize the settings manager asynchronously
+     */
+    async initialize() {
+        this.isLoading = true;
+        try {
+            this.settings = await this.loadSettings();
+            this.isLoaded = true;
+            console.log('✅ SettingsManager initialized');
+        } catch (error) {
+            console.error('Error initializing SettingsManager:', error);
+            this.settings = this.getDefaultSettings();
+            this.isLoaded = true; // Continue with default settings
+        } finally {
+            this.isLoading = false;
+        }
+    }
+    
+    /**
+     * Wait for initialization to complete
+     */
+    async waitForInit() {
+        if (this.isLoaded) return;
+        
+        // Poll until loaded
+        await new Promise(resolve => {
+            const check = () => {
+                if (this.isLoaded) {
+                    resolve();
+                } else {
+                    setTimeout(check, 50);
+                }
+            };
+            check();
+        });
     }
 
     /**
@@ -27,6 +71,7 @@ export class SettingsManager {
      * @returns {*} 设置值 (Setting value)
      */
     getSetting(key) {
+        // Return immediately with current value (may be default if not loaded yet)
         return this.settings[key];
     }
 
@@ -35,9 +80,11 @@ export class SettingsManager {
      * @param {string} key - 设置键名 (Setting key)
      * @param {*} value - 设置值 (Setting value)
      */
-    setSetting(key, value) {
+    async setSetting(key, value) {
+        await this.waitForInit();
+        
         this.settings[key] = value;
-        this.saveSettings();
+        await this.saveSettings();
     }
 
     /**
@@ -53,18 +100,22 @@ export class SettingsManager {
      * 批量更新设置 - Update multiple settings
      * @param {Object} newSettings - 要更新的设置对象 (Settings object to update)
      */
-    updateSettings(newSettings) {
+    async updateSettings(newSettings) {
+        await this.waitForInit();
+        
         this.settings = { ...this.settings, ...newSettings };
-        this.saveSettings();
+        await this.saveSettings();
     }
 
     /**
      * 重置为默认设置 - Reset settings to default
      * 恢复所有设置为出厂默认值 (Restore all settings to factory defaults)
      */
-    resetToDefault() {
+    async resetToDefault() {
+        await this.waitForInit();
+        
         this.settings = this.getDefaultSettings();
-        this.saveSettings();
+        await this.saveSettings();
     }
 
     /**
@@ -240,17 +291,16 @@ export class SettingsManager {
     /**
      * 从本地存储加载设置 - Load settings from localStorage
      * 如果没有保存的设置，返回默认设置 (Return defaults if no saved settings)
-     * @returns {Object} 设置对象 (Settings object)
+     * @returns {Promise<Object>} 设置对象 (Settings object)
      */
-    loadSettings() {
+    async loadSettings() {
         const defaultSettings = this.getDefaultSettings();
-        const saved = localStorage.getItem('wordDiscovererSettings');
+        const saved = await storageHelper.getItem('wordDiscovererSettings');
         
         if (saved) {
             try {
-                const parsedSettings = JSON.parse(saved);
                 // 与默认设置合并以确保所有键都存在 (Merge with defaults to ensure all keys exist)
-                return { ...defaultSettings, ...parsedSettings };
+                return { ...defaultSettings, ...saved };
             } catch (error) {
                 console.error('Error loading settings:', error);
             }
@@ -263,7 +313,7 @@ export class SettingsManager {
      * 保存设置到本地存储 - Save settings to localStorage
      * 将当前设置序列化并存储 (Serialize and store current settings)
      */
-    saveSettings() {
-        localStorage.setItem('wordDiscovererSettings', JSON.stringify(this.settings));
+    async saveSettings() {
+        await storageHelper.setItem('wordDiscovererSettings', this.settings);
     }
 }

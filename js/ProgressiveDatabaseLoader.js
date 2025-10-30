@@ -4,6 +4,7 @@
  * Loads database chunks in order of word frequency (high-frequency words first)
  */
 import pako from 'pako';
+import { scheduleIdleTask, processInChunks } from './PerformanceUtils.js';
 
 export class ProgressiveDatabaseLoader {
     constructor(SQL) {

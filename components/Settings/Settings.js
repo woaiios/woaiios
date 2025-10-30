@@ -35,8 +35,8 @@ export class SettingsComponent {
         
         const difficultyLevel = document.getElementById('difficultyLevel');
         if (difficultyLevel) {
-            difficultyLevel.addEventListener('change', (e) => {
-                this.settingsManager.setSetting('difficultyLevel', e.target.value);
+            difficultyLevel.addEventListener('change', async (e) => {
+                await this.settingsManager.setSetting('difficultyLevel', e.target.value);
                 // Also update the main page difficulty level selector
                 const mainDifficultyLevel = document.getElementById('mainDifficultyLevel');
                 if (mainDifficultyLevel && mainDifficultyLevel.value !== e.target.value) {
@@ -47,8 +47,8 @@ export class SettingsComponent {
         
         const highlightMode = document.getElementById('highlightMode');
         if (highlightMode) {
-            highlightMode.addEventListener('change', (e) => {
-                this.settingsManager.setSetting('highlightMode', e.target.value);
+            highlightMode.addEventListener('change', async (e) => {
+                await this.settingsManager.setSetting('highlightMode', e.target.value);
                 // Also update the main page highlight mode selector
                 const mainHighlightMode = document.getElementById('mainHighlightMode');
                 if (mainHighlightMode && mainHighlightMode.value !== e.target.value) {
@@ -267,11 +267,11 @@ export class SettingsComponent {
         if (opacityValue) {
             opacityValue.textContent = Math.round(value * 100) + '%';
         }
-        this.settingsManager.setSetting('highlightOpacity', value);
+        await this.settingsManager.setSetting('highlightOpacity', value);
     }
 
-    onColorChange(event) {
-        this.settingsManager.setSetting('highlightColor', event.target.value);
+    async onColorChange(event) {
+        await this.settingsManager.setSetting('highlightColor', event.target.value);
     }
 
     onExportSettings() {

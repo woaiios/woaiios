@@ -194,8 +194,9 @@ export class VocabularyComponent {
      * 将单词从学习列表移动到已掌握列表 (Move word from learning to mastered list)
      * @param {string} word - 单词 (Word)
      */
-    masterWord(word) {
-        if (this.vocabularyManager.masterWord(word)) {
+    async masterWord(word) {
+        const result = await this.vocabularyManager.masterWord(word);
+        if (result) {
             this.updateAndRenderLists();
             this.app.showNotification(`'${word}' moved to mastered list.`);
             this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
@@ -207,8 +208,9 @@ export class VocabularyComponent {
      * 将单词从已掌握列表移回学习列表 (Move word from mastered back to learning list)
      * @param {string} word - 单词 (Word)
      */
-    unmasterWord(word) {
-        if (this.vocabularyManager.unmasterWord(word)) {
+    async unmasterWord(word) {
+        const result = await this.vocabularyManager.unmasterWord(word);
+        if (result) {
             this.updateAndRenderLists();
             this.app.showNotification(`'${word}' moved back to learning list.`);
             this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
@@ -220,9 +222,10 @@ export class VocabularyComponent {
      * 永久删除单词（需要确认）(Permanently delete word - requires confirmation)
      * @param {string} word - 单词 (Word)
      */
-    removeFromVocabulary(word) {
+    async removeFromVocabulary(word) {
         if (confirm(`Are you sure you want to permanently delete "${word}"?`)) {
-            if (this.vocabularyManager.removeWord(word)) {
+            const result = await this.vocabularyManager.removeWord(word);
+            if (result) {
                 this.updateAndRenderLists();
                 this.app.showNotification(`'${word}' has been deleted.`, 'info');
                 this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
@@ -270,9 +273,9 @@ export class VocabularyComponent {
      * 清空所有词汇 - Clear all vocabulary
      * 删除所有学习和已掌握的单词（需要确认）(Delete all learning and mastered words - requires confirmation)
      */
-    onClearVocabulary() {
+    async onClearVocabulary() {
         if (confirm('Clear all vocabulary (both learning and mastered)? This action cannot be undone.')) {
-            this.vocabularyManager.clearVocabulary();
+            await this.vocabularyManager.clearVocabulary();
             this.updateAndRenderLists();
             this.app.showNotification('All vocabulary has been cleared.');
             this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
