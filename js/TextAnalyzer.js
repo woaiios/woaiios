@@ -728,9 +728,9 @@ export class TextAnalyzer {
     }
 
     /**
-     * Extract first Chinese translation line from translation HTML
+     * Extract first word of Chinese translation from translation HTML
      * @param {string} translationHtml - Full translation HTML
-     * @returns {string} First Chinese translation line (plain text)
+     * @returns {string} First word of Chinese translation (plain text)
      */
     extractFirstChineseTranslation(translationHtml) {
         if (!translationHtml) return '';
@@ -741,14 +741,21 @@ export class TextAnalyzer {
         
         // Try to find the translation in the compact format
         const translationCompact = doc.querySelector('.translation-compact p');
+        let fullText = '';
         if (translationCompact) {
-            return translationCompact.textContent.trim();
+            fullText = translationCompact.textContent.trim();
+        } else {
+            // Fallback: try to find any paragraph in the translation
+            const firstP = doc.querySelector('p');
+            if (firstP && !firstP.classList.contains('no-translation')) {
+                fullText = firstP.textContent.trim();
+            }
         }
         
-        // Fallback: try to find any paragraph in the translation
-        const firstP = doc.querySelector('p');
-        if (firstP && !firstP.classList.contains('no-translation')) {
-            return firstP.textContent.trim();
+        // Extract only the first word (split by space, comma, or semicolon)
+        if (fullText) {
+            const firstWord = fullText.split(/[\s,;，；]+/)[0];
+            return firstWord || '';
         }
         
         return '';
