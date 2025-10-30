@@ -355,7 +355,7 @@ ruby.highlighted-word rt.phonetic-annotation {
     font-size: 0.85em;
     color: #666;
     font-weight: normal;
-    line-height: 1;
+    line-height: 0.9;
     /* Use ruby-position to control placement - phonetic appears above word */
     ruby-position: over;
     /* Center the text content within the rt element */
@@ -363,8 +363,7 @@ ruby.highlighted-word rt.phonetic-annotation {
     /* Ensure rt element spans full width of ruby container for proper centering */
     display: block;
     width: 100%;
-    /* Reduce vertical spacing between phonetic and word */
-    margin-bottom: -10px;
+    /* Reduce vertical spacing between phonetic and word - no margin needed, using line-height control */
     /* Ruby text automatically appears above base text */
 }
 
@@ -396,11 +395,11 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.75em;
+    font-size: 0.7em;
     color: #555;
     text-align: center;
-    margin-top: 2px;
-    line-height: 1.2;
+    margin-top: -2px;
+    line-height: 1;
     font-weight: normal;
     white-space: nowrap;
     /* Ensure annotation appears above surrounding content */
