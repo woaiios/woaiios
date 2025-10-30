@@ -391,8 +391,8 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     line-height: 1.2;
     font-weight: normal;
     white-space: nowrap;
-    /* Prevent annotation from being cut off */
-    z-index: 1;
+    /* Ensure annotation appears above surrounding content */
+    z-index: 10;
 }
 
 /* Chinese annotation colors for different difficulty levels */
