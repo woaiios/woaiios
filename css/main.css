@@ -314,16 +314,24 @@ body {
 /* Ruby annotations for phonetic symbols */
 ruby.word-span {
     ruby-align: center;
+    /* Ensure ruby elements align with baseline of surrounding text */
+    vertical-align: baseline;
+    display: inline-ruby;
 }
 
 ruby.highlighted-word {
     /* Ruby element should also have cursor pointer */
     cursor: pointer;
+    /* Ensure proper baseline alignment */
+    vertical-align: baseline;
+    display: inline-ruby;
 }
 
 ruby.highlighted-word rb {
     /* Base text styling */
     display: inline;
+    /* Ensure base text aligns with surrounding text */
+    vertical-align: baseline;
 }
 
 ruby.highlighted-word rt.phonetic-annotation {
@@ -641,25 +649,6 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     #textInput {
         min-height: 150px;
         font-size: 16px;
-    }
-    
-    /* Fix ruby phonetic alignment on mobile Chrome */
-    ruby.highlighted-word {
-        display: inline-flex;
-        flex-direction: column-reverse;
-        align-items: center;
-        vertical-align: baseline;
-    }
-    
-    ruby.highlighted-word rb {
-        display: inline;
-    }
-    
-    ruby.highlighted-word rt.phonetic-annotation {
-        display: block;
-        text-align: center;
-        line-height: 1.2;
-        margin-bottom: 0.1em;
     }
 }
 
