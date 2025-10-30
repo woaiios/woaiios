@@ -314,7 +314,6 @@ body {
 /* Ruby annotations for phonetic symbols */
 ruby.word-span {
     ruby-align: center;
-    -webkit-ruby-align: center;
     /* Ensure ruby elements align with baseline of surrounding text */
     vertical-align: baseline;
     display: inline-ruby;
@@ -330,9 +329,6 @@ ruby.highlighted-word {
     /* Prevent the .highlighted-word display: inline-block from overriding this */
     /* Position relative to contain absolutely positioned Chinese annotation */
     position: relative;
-    /* Center ruby text over base text - use webkit prefix for better mobile Chrome support */
-    ruby-align: center;
-    -webkit-ruby-align: center;
 }
 
 ruby.highlighted-word rb {
@@ -356,13 +352,7 @@ ruby.highlighted-word rt.phonetic-annotation {
     color: #666;
     font-weight: normal;
     line-height: 1.2;
-    /* Center the text content within the rt element */
     text-align: center;
-    /* Use ruby-position to control placement */
-    ruby-position: over;
-    /* Ensure rt element spans full width of ruby container for proper centering */
-    display: block;
-    width: 100%;
     /* Ruby text automatically appears above base text */
 }
 
