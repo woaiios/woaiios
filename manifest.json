@@ -6,5 +6,19 @@
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#4A90E2",
-  "orientation": "any"
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect fill='%234A90E2' width='192' height='192'/%3E%3Cpath fill='%23fff' d='M48 59h96v14H48zm0 28h96v14H48zm0 28h64v14H48z'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect fill='%234A90E2' width='512' height='512'/%3E%3Cpath fill='%23fff' d='M128 157h256v37H128zm0 75h256v37H128zm0 75h171v37H128z'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
 }
