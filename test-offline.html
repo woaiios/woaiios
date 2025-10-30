@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline Capability Test - WordDiscover</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .status-box {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            border: 2px solid #ddd;
+        }
+        .online {
+            background: #d4edda;
+            border-color: #28a745;
+        }
+        .offline {
+            background: #f8d7da;
+            border-color: #dc3545;
+        }
+        .info {
+            background: #d1ecf1;
+            border-color: #17a2b8;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 4px solid #007bff;
+        }
+        .success { border-left-color: #28a745; }
+        .error { border-left-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>WordDiscover 离线功能测试 / Offline Capability Test</h1>
+    
+    <div class="status-box info">
+        <h3>测试说明 / Test Instructions</h3>
+        <ol>
+            <li>首次访问时，Service Worker 会自动注册并缓存资源</li>
+            <li>点击"运行测试"按钮检查离线功能</li>
+            <li>断开网络连接后，刷新页面验证离线可用性</li>
+            <li>重新连接网络，应用会自动检测并更新</li>
+        </ol>
+    </div>
+
+    <div id="networkStatus" class="status-box">
+        <h3>网络状态 / Network Status</h3>
+        <p id="statusText">检测中... / Checking...</p>
+    </div>
+
+    <div class="status-box info">
+        <h3>Service Worker 状态 / Service Worker Status</h3>
+        <p id="swStatus">检测中... / Checking...</p>
+        <button onclick="testServiceWorker()">检查 Service Worker / Check Service Worker</button>
+        <button onclick="testCache()">检查缓存 / Check Cache</button>
+        <button onclick="runAllTests()">运行所有测试 / Run All Tests</button>
+    </div>
+
+    <div id="testResults" style="margin-top: 20px;"></div>
+
+    <script>
+        // 检查网络状态
+        function updateNetworkStatus() {
+            const statusDiv = document.getElementById('networkStatus');
+            const statusText = document.getElementById('statusText');
+            
+            if (navigator.onLine) {
+                statusDiv.className = 'status-box online';
+                statusText.textContent = '✅ 在线 / Online';
+            } else {
+                statusDiv.className = 'status-box offline';
+                statusText.textContent = '⚠️ 离线 / Offline';
+            }
+        }
+
+        // 检查 Service Worker
+        async function testServiceWorker() {
+            const results = document.getElementById('testResults');
+            let resultHTML = '<h3>Service Worker 测试结果 / Test Results</h3>';
+
+            try {
+                if ('serviceWorker' in navigator) {
+                    resultHTML += '<div class="test-result success">✅ Service Worker API 可用 / API Available</div>';
+                    
+                    const registration = await navigator.serviceWorker.getRegistration('/woaiios/');
+                    if (registration) {
+                        resultHTML += '<div class="test-result success">✅ Service Worker 已注册 / Registered</div>';
+                        resultHTML += `<div class="test-result info">Scope: ${registration.scope}</div>`;
+                        
+                        if (registration.active) {
+                            resultHTML += '<div class="test-result success">✅ Service Worker 已激活 / Active</div>';
+                        } else if (registration.installing) {
+                            resultHTML += '<div class="test-result info">⏳ Service Worker 正在安装 / Installing</div>';
+                        } else if (registration.waiting) {
+                            resultHTML += '<div class="test-result info">⏳ Service Worker 等待激活 / Waiting</div>';
+                        }
+                    } else {
+                        resultHTML += '<div class="test-result error">❌ Service Worker 未注册 / Not Registered</div>';
+                        resultHTML += '<div class="test-result info">💡 请访问主页 index.html 来注册 Service Worker</div>';
+                    }
+                } else {
+                    resultHTML += '<div class="test-result error">❌ 浏览器不支持 Service Worker / Browser Not Supported</div>';
+                }
+            } catch (error) {
+                resultHTML += `<div class="test-result error">❌ 错误 / Error: ${error.message}</div>`;
+            }
+
+            results.innerHTML = resultHTML;
+            document.getElementById('swStatus').textContent = '已完成测试 / Test Completed';
+        }
+
+        // 检查缓存
+        async function testCache() {
+            const results = document.getElementById('testResults');
+            let resultHTML = '<h3>缓存测试结果 / Cache Test Results</h3>';
+
+            try {
+                if ('caches' in window) {
+                    resultHTML += '<div class="test-result success">✅ Cache API 可用 / API Available</div>';
+                    
+                    const cacheNames = await caches.keys();
+                    resultHTML += `<div class="test-result info">缓存数量 / Cache Count: ${cacheNames.length}</div>`;
+                    
+                    for (const cacheName of cacheNames) {
+                        const cache = await caches.open(cacheName);
+                        const requests = await cache.keys();
+                        resultHTML += `<div class="test-result success">✅ ${cacheName}: ${requests.length} 个资源已缓存 / cached items</div>`;
+                    }
+
+                    if (cacheNames.length === 0) {
+                        resultHTML += '<div class="test-result info">💡 暂无缓存，请先访问主页 / No cache yet, please visit the main page first</div>';
+                    }
+                } else {
+                    resultHTML += '<div class="test-result error">❌ 浏览器不支持 Cache API / Browser Not Supported</div>';
+                }
+            } catch (error) {
+                resultHTML += `<div class="test-result error">❌ 错误 / Error: ${error.message}</div>`;
+            }
+
+            results.innerHTML = resultHTML;
+        }
+
+        // 运行所有测试
+        async function runAllTests() {
+            await testServiceWorker();
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await testCache();
+        }
+
+        // 监听网络状态变化
+        window.addEventListener('online', updateNetworkStatus);
+        window.addEventListener('offline', updateNetworkStatus);
+
+        // 初始化
+        updateNetworkStatus();
+        
+        // 页面加载完成后自动检查 Service Worker
+        window.addEventListener('load', () => {
+            setTimeout(testServiceWorker, 1000);
+        });
+    </script>
+</body>
+</html>

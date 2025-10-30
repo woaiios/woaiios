@@ -16,6 +16,28 @@ if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
 }
 
+// Copy service worker and manifest files
+const swSource = resolve(__dirname, '../sw.js');
+const swDest = resolve(__dirname, '../dist/sw.js');
+const manifestSource = resolve(__dirname, '../manifest.json');
+const manifestDest = resolve(__dirname, '../dist/manifest.json');
+
+try {
+    copyFileSync(swSource, swDest);
+    console.log('✓ Copied sw.js to dist/');
+} catch (error) {
+    console.error('✗ Failed to copy sw.js:', error.message);
+    process.exit(1);
+}
+
+try {
+    copyFileSync(manifestSource, manifestDest);
+    console.log('✓ Copied manifest.json to dist/');
+} catch (error) {
+    console.error('✗ Failed to copy manifest.json:', error.message);
+    process.exit(1);
+}
+
 // Copy sql.js WASM file
 const wasmSource = resolve(__dirname, '../node_modules/sql.js/dist/sql-wasm.wasm');
 const wasmDest = resolve(__dirname, '../dist/assets/sql-wasm.wasm');
