@@ -813,34 +813,39 @@ export class TextAnalyzer {
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
             const translation = translationMap.get(lowerCasePart) || '';
-            let classes = 'word-span';
-
-            if (highlightedInfo) {
-                classes += ` highlighted-word ${highlightedInfo.difficulty.className}`;
-            }
 
             // Escape HTML for the data attribute using the dedicated method
             const escapedTranslation = this.escapeHtmlAttribute(translation);
 
-            // Extract first Chinese translation for display below word (only for highlighted words)
+            // Extract first Chinese translation for display below word
             let chineseAnnotation = '';
             if (highlightedInfo) {
                 chineseAnnotation = this.extractFirstChineseTranslation(translation);
             }
-            const escapedChinese = this.escapeHtmlAttribute(chineseAnnotation);
+            const escapedChinese = this.escapeHtml(chineseAnnotation);
 
-            // Build data-chinese attribute only if there's a value to reduce DOM bloat
-            const chineseAttr = escapedChinese ? ` data-chinese="${escapedChinese}"` : '';
-
-            // Use ruby tag for highlighted words with phonetics
-            if (highlightedInfo && highlightedInfo.phonetic) {
-                // Escape phonetic data to prevent XSS vulnerabilities using existing escapeHtml method
-                const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
-                // Place rt before rb to position phonetic above word
-                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}><rt class="phonetic-annotation">/${escapedPhonetic}/</rt><rb>${part}</rb></ruby>`;
+            // Build double-ruby structure
+            let containerClasses = 'double-ruby word-span';
+            if (highlightedInfo) {
+                containerClasses += ` highlight ${highlightedInfo.difficulty.className}`;
             }
 
-            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}>${part}</span>`;
+            // Get phonetic annotation
+            let phoneticAnnotation = '&nbsp;';
+            if (highlightedInfo && highlightedInfo.phonetic) {
+                const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
+                phoneticAnnotation = escapedPhonetic;
+            }
+
+            // Get Chinese annotation
+            let chineseRt = escapedChinese || '&nbsp;';
+
+            // Build the double-ruby HTML structure
+            return `<span class="${containerClasses}" data-word="${part}" data-translation="${escapedTranslation}">` +
+                   `<ruby class="over"><rt>${phoneticAnnotation}</rt></ruby>` +
+                   `<span class="base">${part}</span>` +
+                   `<ruby class="under"><rt>${chineseRt}</rt></ruby>` +
+                   `</span>`;
         });
         
         return processedParts.join('');
