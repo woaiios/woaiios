@@ -135,10 +135,10 @@ WordDiscover now supports complete offline usage! This means you can continue us
 - ✅ Safari 11.1+
 - ✅ Edge 17+
 
-### 推荐浏览器 / Recommended Browsers
-- Chrome 60+ (最佳体验)
-- Edge 79+
-- Safari 14.1+
+### 推荐浏览器 / Recommended Browsers (for optimal experience)
+- Chrome 60+ (最佳体验 / best experience)
+- Edge 79+ (最佳体验 / best experience)
+- Safari 14.1+ (最佳体验，支持所有功能 / best experience with all features)
 
 ## 常见问题 / FAQ
 
@@ -146,7 +146,7 @@ WordDiscover now supports complete offline usage! This means you can continue us
 A: 不可以。首次访问需要网络连接来下载和缓存资源。之后的访问才能离线使用。
 
 ### Q: 缓存会占用多少空间？
-A: 大约 40-50 MB，主要是数据库文件。静态资源只占用约 1-2 MB。
+A: 大约 40-50 MB，主要是词典数据库文件（约 39 MB 的分块数据）。静态资源（HTML、CSS、JavaScript）只占用约 1-2 MB。
 
 ### Q: 如何知道缓存是否成功？
 A: 可以使用 `test-offline.html` 页面检查缓存状态，或者尝试断网后刷新页面。
@@ -155,7 +155,7 @@ A: 可以使用 `test-offline.html` 页面检查缓存状态，或者尝试断�
 A: 缓存不会自动过期。只有在应用有新版本时，旧缓存才会被新版本替换。
 
 ### Q: 可以在手机上离线使用吗？
-A: 可以！只要浏览器支持 Service Worker（iOS Safari 11.1+, Android Chrome 45+）。
+A: 可以！只要浏览器支持 Service Worker。现代移动浏览器都支持（iOS Safari 11.1+, Android Chrome 45+）。建议使用最新版本浏览器以获得最佳体验。
 
 ### Q: 离线时修改的数据会丢失吗？
 A: 不会。所有数据保存在浏览器的 localStorage 中，与网络状态无关。
