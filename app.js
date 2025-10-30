@@ -7,6 +7,8 @@
  * - 使用 ECDICT 76万+ 词条数据库 (Using ECDICT database with 760,000+ entries)
  * - 渐进式加载数据库，优化首次加载速度 (Progressive database loading for faster initial load)
  * - 支持 Google Drive 云端同步 (Google Drive cloud synchronization support)
+ * - 使用 Web Workers 处理耗时操作 (Uses Web Workers for intensive operations)
+ * - 使用 requestIdleCallback 优化主线程性能 (Uses requestIdleCallback for better main thread performance)
  * 
  * 核心模块 (Core Modules):
  * - WordDatabase: 词典数据库管理 (Dictionary database management)
@@ -27,6 +29,7 @@ import { VocabularyComponent } from './components/Vocabulary/Vocabulary.js';
 import { SettingsComponent } from './components/Settings/Settings.js';
 import { AnalyzedTextComponent } from './components/AnalyzedText/AnalyzedText.js';
 import { PronunciationCheckerComponent } from './components/PronunciationChecker/PronunciationChecker.js';
+import { batchDOMUpdate, scheduleIdleTask } from './js/PerformanceUtils.js';
 
 /**
  * WordDiscoverer 主类 - Main WordDiscoverer Class
@@ -324,9 +327,12 @@ class WordDiscoverer {
     /**
      * 更新词汇数量显示 - Update vocabulary counts
      * 刷新词汇组件中的学习和已掌握单词数量 (Refresh learning and mastered word counts in vocabulary component)
+     * Uses batchDOMUpdate to avoid layout thrashing
      */
     updateCounts() {
-        this.vocabularyComponent.updateCounts();
+        batchDOMUpdate(() => {
+            this.vocabularyComponent.updateCounts();
+        });
     }
 
     /**
@@ -336,17 +342,19 @@ class WordDiscoverer {
      * @param {string} type - 消息类型：'success', 'error', 'info' (Message type: 'success', 'error', 'info')
      */
     showNotification(message, type = 'success') {
-        const notification = document.createElement('div');
-        const colors = { success: '#10b981', error: '#ef4444', info: '#3b82f6' };
-        notification.style.cssText = `
-            position: fixed; top: 20px; right: 20px; background: ${colors[type] || colors.success}; color: white;
-            padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            z-index: 3000; animation: slideIn 0.3s ease; max-width: 300px; word-wrap: break-word;
-        `;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        // 3秒后自动移除 (Auto-remove after 3 seconds)
-        setTimeout(() => notification.remove(), 3000);
+        batchDOMUpdate(() => {
+            const notification = document.createElement('div');
+            const colors = { success: '#10b981', error: '#ef4444', info: '#3b82f6' };
+            notification.style.cssText = `
+                position: fixed; top: 20px; right: 20px; background: ${colors[type] || colors.success}; color: white;
+                padding: 1rem 1.5rem; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                z-index: 3000; animation: slideIn 0.3s ease; max-width: 300px; word-wrap: break-word;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            // 3秒后自动移除 (Auto-remove after 3 seconds)
+            setTimeout(() => notification.remove(), 3000);
+        });
     }
 
     /**
