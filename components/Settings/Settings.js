@@ -261,7 +261,7 @@ export class SettingsComponent {
         }
     }
 
-    onOpacityChange(event) {
+    async onOpacityChange(event) {
         const value = parseFloat(event.target.value);
         const opacityValue = document.getElementById('opacityValue');
         if (opacityValue) {
