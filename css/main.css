@@ -442,7 +442,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     touch-action: manipulation;
 }
 
-/* High light带注音的单词 */
+/* Highlight the base word with annotation */
 .double-ruby.highlight .base {
     background-color: #ffff99;
     border-radius: 3px;
