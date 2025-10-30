@@ -728,9 +728,9 @@ export class TextAnalyzer {
     }
 
     /**
-     * Extract first word of Chinese translation from translation HTML
+     * Extract first Chinese word from translation HTML
      * @param {string} translationHtml - Full translation HTML
-     * @returns {string} First word of Chinese translation (plain text)
+     * @returns {string} First Chinese word (plain text)
      */
     extractFirstChineseTranslation(translationHtml) {
         if (!translationHtml) return '';
@@ -752,9 +752,15 @@ export class TextAnalyzer {
             }
         }
         
-        // Extract only the first word (split by space, comma, or semicolon)
+        // Extract the first Chinese word (skip English parts like "adj.", "n.", "v.", etc.)
         if (fullText) {
-            const firstWord = fullText.split(/[\s,;，；]+/)[0];
+            // Remove English parts like "n.", "v.", "adj.", "adv.", "prep.", "conj.", etc.
+            // Also remove punctuation at the beginning
+            let cleanText = fullText.replace(/^[a-zA-Z]+\.\s*/, '');
+            
+            // Extract the first Chinese word (split by common separators)
+            // Split by semicolon, comma, or space, but keep Chinese characters together
+            const firstWord = cleanText.split(/[;；,，\s]+/)[0];
             return firstWord || '';
         }
         
