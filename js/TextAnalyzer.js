@@ -415,6 +415,85 @@ export class TextAnalyzer {
             html += `</div>`;
         }
         
+        // Tags (exam levels)
+        if (wordInfo.tag) {
+            const tags = wordInfo.tag.split(' ').filter(t => t);
+            if (tags.length > 0) {
+                html += `<div class="word-tags">`;
+                const tagNames = {
+                    'zk': '中考', 'gk': '高考', 'cet4': 'CET-4', 'cet6': 'CET-6',
+                    'ielts': 'IELTS', 'toefl': 'TOEFL', 'gre': 'GRE', 'tem4': 'TEM-4', 'tem8': 'TEM-8'
+                };
+                tags.forEach(tag => {
+                    const tagName = tagNames[tag] || tag;
+                    html += `<span class="tag">${tagName}</span>`;
+                });
+                html += `</div>`;
+            }
+        }
+        
+        // Full Chinese translation (if multiple lines)
+        if (wordInfo.translation) {
+            const lines = wordInfo.translation.split('\\n');
+            if (lines.length > 1) {
+                html += `<div class="translation">`;
+                lines.forEach((line, index) => {
+                    if (line.trim() && index > 0) { // Skip first line as it's already shown
+                        html += `<p>${this.escapeHtml(line)}</p>`;
+                    }
+                });
+                html += `</div>`;
+            }
+        }
+        
+        // English definition
+        if (wordInfo.definition) {
+            html += `<div class="definition">`;
+            html += `<h4>English Definition:</h4>`;
+            const lines = wordInfo.definition.split('\\n');
+            lines.forEach(line => {
+                if (line.trim()) {
+                    html += `<p>${this.escapeHtml(line)}</p>`;
+                }
+            });
+            html += `</div>`;
+        }
+        
+        // Word forms (exchange)
+        if (wordInfo.exchange) {
+            const forms = this.wordDatabase.parseExchange(wordInfo.exchange);
+            const formLabels = {
+                'p': '过去式', 'd': '过去分词', 'i': '现在分词', '3': '第三人称单数',
+                'r': '比较级', 't': '最高级', 's': '复数', '0': '原形'
+            };
+            
+            const validForms = [];
+            for (const [key, value] of Object.entries(forms)) {
+                if (value && formLabels[key]) {
+                    validForms.push(`${formLabels[key]}: ${value}`);
+                }
+            }
+            
+            if (validForms.length > 0) {
+                html += `<div class="word-forms">`;
+                html += `<h4>词形变化:</h4>`;
+                html += `<p>${validForms.join(' | ')}</p>`;
+                html += `</div>`;
+            }
+        }
+        
+        // Frequency information
+        if (wordInfo.bnc > 0 || wordInfo.frq > 0) {
+            html += `<div class="word-frequency">`;
+            if (wordInfo.bnc > 0) {
+                html += `<span>BNC词频: ${wordInfo.bnc.toLocaleString()}</span>`;
+            }
+            if (wordInfo.frq > 0) {
+                html += `<span>当代词频: ${wordInfo.frq.toLocaleString()}</span>`;
+            }
+            html += `</div>`;
+        }
+        
         html += `</div>`; // Close word-details-content
         html += `</div>`; // Close word-info
         
