@@ -713,6 +713,21 @@ export class TextAnalyzer {
     }
 
     /**
+     * Escape HTML for safe attribute usage
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text safe for HTML attributes
+     */
+    escapeHtmlAttribute(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    /**
      * Extract first Chinese translation line from translation HTML
      * @param {string} translationHtml - Full translation HTML
      * @returns {string} First Chinese translation line (plain text)
@@ -720,18 +735,18 @@ export class TextAnalyzer {
     extractFirstChineseTranslation(translationHtml) {
         if (!translationHtml) return '';
         
-        // Create a temporary div to parse the HTML
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = translationHtml;
+        // Use DOMParser for safer HTML parsing
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(translationHtml, 'text/html');
         
         // Try to find the translation in the compact format
-        const translationCompact = tempDiv.querySelector('.translation-compact p');
+        const translationCompact = doc.querySelector('.translation-compact p');
         if (translationCompact) {
             return translationCompact.textContent.trim();
         }
         
         // Fallback: try to find any paragraph in the translation
-        const firstP = tempDiv.querySelector('p');
+        const firstP = doc.querySelector('p');
         if (firstP && !firstP.classList.contains('no-translation')) {
             return firstP.textContent.trim();
         }
@@ -791,36 +806,27 @@ export class TextAnalyzer {
                 classes += ` highlighted-word ${highlightedInfo.difficulty.className}`;
             }
 
-            // Escape HTML for the data attribute
-            // Note: Translation contains HTML markup, so we manually escape for safe attribute storage
-            // Cannot use escapeHtml() method as it's designed for text content, not HTML attributes
-            const escapedTranslation = translation
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+            // Escape HTML for the data attribute using the dedicated method
+            const escapedTranslation = this.escapeHtmlAttribute(translation);
 
             // Extract first Chinese translation for display below word (only for highlighted words)
             let chineseAnnotation = '';
             if (highlightedInfo) {
                 chineseAnnotation = this.extractFirstChineseTranslation(translation);
             }
-            const escapedChinese = chineseAnnotation
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#039;');
+            const escapedChinese = this.escapeHtmlAttribute(chineseAnnotation);
+
+            // Build data-chinese attribute only if there's a value to reduce DOM bloat
+            const chineseAttr = escapedChinese ? ` data-chinese="${escapedChinese}"` : '';
 
             // Use ruby tag for highlighted words with phonetics
             if (highlightedInfo && highlightedInfo.phonetic) {
                 // Escape phonetic data to prevent XSS vulnerabilities using existing escapeHtml method
                 const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
-                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}" data-chinese="${escapedChinese}"><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
+                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
             }
 
-            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}" data-chinese="${escapedChinese}">${part}</span>`;
+            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}>${part}</span>`;
         });
         
         return processedParts.join('');
