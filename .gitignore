@@ -63,3 +63,4 @@ test-*.html
 !test-user-text.html
 !test-query-optimization.html
 !test-offline.html
+!test-baseline-alignment.html

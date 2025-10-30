@@ -327,6 +327,8 @@ ruby.highlighted-word {
     /* IMPORTANT: Must use inline-ruby for ruby tags, not inline-block */
     display: inline-ruby !important;
     /* Prevent the .highlighted-word display: inline-block from overriding this */
+    /* Position relative to contain absolutely positioned Chinese annotation */
+    position: relative;
 }
 
 ruby.highlighted-word rb {
@@ -340,6 +342,8 @@ ruby.highlighted-word rb {
 span.highlighted-word {
     display: inline;
     /* Inline display maintains baseline alignment with surrounding text */
+    /* Position relative to contain absolutely positioned Chinese annotation */
+    position: relative;
 }
 
 ruby.highlighted-word rt.phonetic-annotation {
@@ -376,7 +380,10 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 /* Chinese annotation below highlighted words */
 .highlighted-word[data-chinese]:not([data-chinese=""])::after {
     content: attr(data-chinese);
-    display: block;
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
     font-size: 0.75em;
     color: #555;
     text-align: center;
@@ -384,9 +391,8 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     line-height: 1.2;
     font-weight: normal;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
+    /* Ensure annotation appears above surrounding content */
+    z-index: 10;
 }
 
 /* Chinese annotation colors for different difficulty levels */

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseline Alignment Test</title>
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            background: #f8f9fa;
+            padding: 30px;
+            margin: 30px 0;
+            border-radius: 8px;
+            font-size: 20px;
+            line-height: 3;
+            border: 2px solid #dee2e6;
+        }
+        
+        .baseline-guide {
+            position: relative;
+        }
+        
+        .baseline-guide::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 8px;
+            border-bottom: 2px dashed #dc3545;
+            pointer-events: none;
+        }
+        
+        h2 {
+            color: #495057;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .highlight-info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .highlight-info h3 {
+            margin-top: 0;
+            color: #0c5460;
+        }
+        
+        .highlight-info ul {
+            margin-bottom: 0;
+        }
+        
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 30px;
+        }
+        
+        .before, .after {
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .before {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+        }
+        
+        .after {
+            background: #d4edda;
+            border: 2px solid #28a745;
+        }
+        
+        .before h3, .after h3 {
+            margin-top: 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎯 English Word Baseline Alignment Test</h1>
+    
+    <div class="highlight-info">
+        <h3>✅ Fix Applied: English Words Now Align at Baseline</h3>
+        <ul>
+            <li><strong>Problem Solved:</strong> Chinese annotations no longer affect the baseline alignment of English words</li>
+            <li><strong>Method:</strong> Using absolute positioning for Chinese annotations instead of display:block</li>
+            <li><strong>Visual Guide:</strong> Red dashed line shows the baseline - all English words should align to it</li>
+            <li><strong>Trade-off:</strong> Chinese annotations may overlap with content below (acceptable for proper baseline alignment)</li>
+        </ul>
+    </div>
+    
+    <h2>Test 1: Mixed Highlighted and Normal Text</h2>
+    <div class="test-section baseline-guide">
+        This is a 
+        <ruby class="highlighted-word word-span beginner" data-word="simple" data-translation="简单的；朴素的" data-chinese="简单的">
+            <rb>simple</rb>
+            <rt class="phonetic-annotation">/ˈsɪmpl/</rt>
+        </ruby>
+        test with 
+        <span class="highlighted-word intermediate" data-word="normal" data-translation="正常的；普通的" data-chinese="正常的">normal</span>
+        text that should align perfectly on the baseline.
+    </div>
+    
+    <h2>Test 2: Multiple Highlighted Words in Sequence</h2>
+    <div class="test-section baseline-guide">
+        The 
+        <ruby class="highlighted-word word-span beginner" data-word="quick" data-translation="快速的；敏捷的" data-chinese="快速的">
+            <rb>quick</rb>
+            <rt class="phonetic-annotation">/kwɪk/</rt>
+        </ruby>
+        <ruby class="highlighted-word word-span intermediate" data-word="brown" data-translation="棕色的；褐色的" data-chinese="棕色的">
+            <rb>brown</rb>
+            <rt class="phonetic-annotation">/braʊn/</rt>
+        </ruby>
+        fox jumps over the 
+        <span class="highlighted-word beginner" data-word="lazy" data-translation="懒惰的" data-chinese="懒惰的">lazy</span>
+        dog.
+    </div>
+    
+    <h2>Test 3: Long Sentence with Many Annotations</h2>
+    <div class="test-section baseline-guide">
+        Learning 
+        <ruby class="highlighted-word word-span beginner" data-word="English" data-translation="英语；英国的" data-chinese="英语">
+            <rb>English</rb>
+            <rt class="phonetic-annotation">/ˈɪŋɡlɪʃ/</rt>
+        </ruby>
+        is a 
+        <ruby class="highlighted-word word-span advanced" data-word="challenging" data-translation="具有挑战性的" data-chinese="挑战性的">
+            <rb>challenging</rb>
+            <rt class="phonetic-annotation">/ˈtʃælɪndʒɪŋ/</rt>
+        </ruby>
+        but 
+        <span class="highlighted-word intermediate" data-word="rewarding" data-translation="值得的；有益的" data-chinese="值得的">rewarding</span>
+        experience that 
+        <ruby class="highlighted-word word-span beginner" data-word="requires" data-translation="需要；要求" data-chinese="需要">
+            <rb>requires</rb>
+            <rt class="phonetic-annotation">/rɪˈkwaɪəz/</rt>
+        </ruby>
+        consistent practice every day.
+    </div>
+    
+    <h2>Test 4: Different Difficulty Levels</h2>
+    <div class="test-section baseline-guide">
+        <span class="highlighted-word beginner" data-word="Beginner" data-translation="初学者" data-chinese="初学者">Beginner</span>
+        level words and 
+        <span class="highlighted-word intermediate" data-word="intermediate" data-translation="中级的" data-chinese="中级的">intermediate</span>
+        level words and 
+        <span class="highlighted-word advanced" data-word="advanced" data-translation="高级的" data-chinese="高级的">advanced</span>
+        level words and 
+        <span class="highlighted-word expert" data-word="expert" data-translation="专家的" data-chinese="专家的">expert</span>
+        level words all align perfectly.
+    </div>
+    
+    <div class="comparison">
+        <div class="before">
+            <h3>❌ Before (Problem)</h3>
+            <p style="line-height: 2.5; font-size: 16px;">
+                Chinese annotations used <code>display: block</code>, which pushed down subsequent lines and caused misalignment between highlighted and non-highlighted words.
+            </p>
+        </div>
+        <div class="after">
+            <h3>✅ After (Fixed)</h3>
+            <p style="line-height: 2.5; font-size: 16px;">
+                Chinese annotations now use <code>position: absolute</code>, so they don't affect the document flow. All English words align at the same baseline.
+            </p>
+        </div>
+    </div>
+    
+    <div style="margin-top: 40px; padding: 20px; background: #e9ecef; border-radius: 8px;">
+        <h3>🔍 Technical Implementation</h3>
+        <ul>
+            <li><code>.highlighted-word { position: relative; }</code> - Creates positioning context</li>
+            <li><code>.highlighted-word::after { position: absolute; top: 100%; left: 50%; transform: translateX(-50%); }</code> - Positions annotation below word without affecting layout</li>
+            <li>Ruby elements (<code>&lt;ruby&gt;</code>) and span elements (<code>&lt;span&gt;</code>) maintain inline/inline-ruby display for proper baseline alignment</li>
+            <li>Phonetic annotations (<code>&lt;rt&gt;</code>) remain unchanged and continue to appear above words</li>
+        </ul>
+    </div>
+</body>
+</html>
