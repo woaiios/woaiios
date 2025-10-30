@@ -683,7 +683,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 确保在移动设备上文本不会溢出 */
     .analyzed-text {
         font-size: 1rem;
-        line-height: 1.6;
+        line-height: 2.8; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
     
     /* Improve button spacing on mobile */
@@ -734,7 +734,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
-        line-height: 1.5;
+        line-height: 2.8; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
 }
 
