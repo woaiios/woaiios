@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 2.8; /* Increased to accommodate phonetic annotations above and Chinese annotations below */
+    line-height: 2.9; /* Balanced to accommodate phonetic annotations above and Chinese annotations below, preventing overlap while keeping spacing tight */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -363,8 +363,8 @@ ruby.highlighted-word rt.phonetic-annotation {
     /* Ensure rt element spans full width of ruby container for proper centering */
     display: block;
     width: 100%;
-    /* Reduce vertical spacing between phonetic and word */
-    margin-bottom: -10px;
+    /* Reduce vertical spacing between phonetic and word - smaller negative margin brings them closer */
+    margin-bottom: -6px;
     /* Ruby text automatically appears above base text */
 }
 
@@ -396,11 +396,11 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     top: 100%;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 0.75em;
+    font-size: 0.7em;
     color: #555;
     text-align: center;
-    margin-top: 2px;
-    line-height: 1.2;
+    margin-top: -1px;
+    line-height: 1;
     font-weight: normal;
     white-space: nowrap;
     /* Ensure annotation appears above surrounding content */
@@ -695,7 +695,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 确保在移动设备上文本不会溢出 */
     .analyzed-text {
         font-size: 1rem;
-        line-height: 2.8; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
     
     /* Improve button spacing on mobile */
@@ -746,7 +746,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
-        line-height: 2.8; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
 }
 
