@@ -836,7 +836,8 @@ export class TextAnalyzer {
             if (highlightedInfo && highlightedInfo.phonetic) {
                 // Escape phonetic data to prevent XSS vulnerabilities using existing escapeHtml method
                 const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
-                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
+                // Place rt before rb to position phonetic above word
+                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}><rt class="phonetic-annotation">/${escapedPhonetic}/</rt><rb>${part}</rb></ruby>`;
             }
 
             return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"${chineseAttr}>${part}</span>`;
