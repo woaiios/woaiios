@@ -113,7 +113,9 @@ self.addEventListener('fetch', (event) => {
   }
 
   // 跳过 Google Identity Services 请求 (Skip Google Identity Services)
-  if (url.hostname === 'accounts.google.com' || url.hostname.includes('googleapis.com')) {
+  if (url.hostname === 'accounts.google.com' || 
+      url.hostname.endsWith('.googleapis.com') || 
+      url.hostname === 'googleapis.com') {
     return;
   }
 
@@ -252,10 +254,15 @@ function isStaticAsset(url) {
  * @returns {boolean}
  */
 function isExternalResource(url) {
+  // 只信任特定的外部CDN域名 (Only trust specific external CDN domains)
+  const trustedDomains = [
+    'cdnjs.cloudflare.com',
+    'fonts.googleapis.com',
+    'fonts.gstatic.com'
+  ];
+  
   return url.hostname !== self.location.hostname && 
-         (url.hostname.includes('cdnjs.cloudflare.com') || 
-          url.hostname.includes('fonts.googleapis.com') ||
-          url.hostname.includes('fonts.gstatic.com'));
+         trustedDomains.includes(url.hostname);
 }
 
 /**
