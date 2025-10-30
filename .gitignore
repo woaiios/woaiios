@@ -62,3 +62,4 @@ test-*.html
 !test-performance.html
 !test-user-text.html
 !test-query-optimization.html
+!test-offline.html

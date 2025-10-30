@@ -53,7 +53,7 @@ self.addEventListener('install', (event) => {
       .then((cache) => {
         console.log('[Service Worker] Caching static assets');
         // 缓存静态资源 (Cache static assets)
-        return cache.addAll(STATIC_ASSETS.concat(EXTERNAL_RESOURCES));
+        return cache.addAll([...STATIC_ASSETS, ...EXTERNAL_RESOURCES]);
       })
       .then(() => {
         console.log('[Service Worker] Static assets cached successfully');
@@ -140,7 +140,8 @@ async function handleFetchRequest(request, url) {
   }
 
   // 对于 HTML 页面，使用 Network First 策略 (Network First for HTML pages)
-  if (request.headers.get('accept').includes('text/html')) {
+  const acceptHeader = request.headers.get('accept');
+  if (acceptHeader && acceptHeader.includes('text/html')) {
     return networkFirst(request);
   }
 
@@ -205,7 +206,8 @@ async function networkFirst(request) {
     }
 
     // 如果是 HTML 页面请求，返回缓存的 index.html
-    if (request.headers.get('accept').includes('text/html')) {
+    const acceptHeader = request.headers.get('accept');
+    if (acceptHeader && acceptHeader.includes('text/html')) {
       const indexCache = await caches.match('./index.html');
       if (indexCache) {
         return indexCache;
