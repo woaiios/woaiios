@@ -356,10 +356,13 @@ ruby.highlighted-word rt.phonetic-annotation {
     color: #666;
     font-weight: normal;
     line-height: 1.2;
-    /* Center the text content within the rt element */
-    text-align: center;
     /* Use ruby-position to control placement - phonetic appears above word */
     ruby-position: over;
+    /* Center the text content within the rt element */
+    text-align: center;
+    /* Ensure rt element spans full width of ruby container for proper centering */
+    display: block;
+    width: 100%;
     /* Ruby text automatically appears above base text */
 }
 
