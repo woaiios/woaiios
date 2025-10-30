@@ -713,6 +713,33 @@ export class TextAnalyzer {
     }
 
     /**
+     * Extract first Chinese translation line from translation HTML
+     * @param {string} translationHtml - Full translation HTML
+     * @returns {string} First Chinese translation line (plain text)
+     */
+    extractFirstChineseTranslation(translationHtml) {
+        if (!translationHtml) return '';
+        
+        // Create a temporary div to parse the HTML
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = translationHtml;
+        
+        // Try to find the translation in the compact format
+        const translationCompact = tempDiv.querySelector('.translation-compact p');
+        if (translationCompact) {
+            return translationCompact.textContent.trim();
+        }
+        
+        // Fallback: try to find any paragraph in the translation
+        const firstP = tempDiv.querySelector('p');
+        if (firstP && !firstP.classList.contains('no-translation')) {
+            return firstP.textContent.trim();
+        }
+        
+        return '';
+    }
+
+    /**
      * Process text for display with highlighted words
      * @param {string} originalText - Original text
      * @param {Object} analysis - Analysis results
@@ -774,14 +801,26 @@ export class TextAnalyzer {
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
 
+            // Extract first Chinese translation for display below word (only for highlighted words)
+            let chineseAnnotation = '';
+            if (highlightedInfo) {
+                chineseAnnotation = this.extractFirstChineseTranslation(translation);
+            }
+            const escapedChinese = chineseAnnotation
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+
             // Use ruby tag for highlighted words with phonetics
             if (highlightedInfo && highlightedInfo.phonetic) {
                 // Escape phonetic data to prevent XSS vulnerabilities using existing escapeHtml method
                 const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
-                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}"><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
+                return `<ruby class="${classes}" data-word="${part}" data-translation="${escapedTranslation}" data-chinese="${escapedChinese}"><rb>${part}</rb><rt class="phonetic-annotation">/${escapedPhonetic}/</rt></ruby>`;
             }
 
-            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
+            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}" data-chinese="${escapedChinese}">${part}</span>`;
         });
         
         return processedParts.join('');

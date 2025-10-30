@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 2.2; /* Increased to accommodate phonetic annotations */
+    line-height: 2.8; /* Increased to accommodate phonetic annotations above and Chinese annotations below */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -362,6 +362,43 @@ ruby.highlighted-word.expert rt.phonetic-annotation {
 }
 
 ruby.highlighted-word.unknown rt.phonetic-annotation {
+    color: #c62828; /* Red tone */
+}
+
+/* Chinese annotation below highlighted words */
+.highlighted-word[data-chinese]:not([data-chinese=""])::after {
+    content: attr(data-chinese);
+    display: block;
+    font-size: 0.75em;
+    color: #555;
+    text-align: center;
+    margin-top: 2px;
+    line-height: 1.2;
+    font-weight: normal;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+/* Chinese annotation colors for different difficulty levels */
+.highlighted-word.beginner[data-chinese]:not([data-chinese=""])::after {
+    color: #9e8a00; /* Darker yellow tone */
+}
+
+.highlighted-word.intermediate[data-chinese]:not([data-chinese=""])::after {
+    color: #9e7500; /* Yellow-orange tone */
+}
+
+.highlighted-word.advanced[data-chinese]:not([data-chinese=""])::after {
+    color: #b35a00; /* Orange tone */
+}
+
+.highlighted-word.expert[data-chinese]:not([data-chinese=""])::after {
+    color: #c62828; /* Red tone */
+}
+
+.highlighted-word.unknown[data-chinese]:not([data-chinese=""])::after {
     color: #c62828; /* Red tone */
 }
 
