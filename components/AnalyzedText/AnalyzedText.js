@@ -58,6 +58,11 @@ export class AnalyzedTextComponent extends Component {
                 targetElement = targetElement.parentElement;
             }
             
+            // If clicked on ruby or base span inside double-ruby, get the parent double-ruby container
+            if (targetElement.tagName.toUpperCase() === 'RUBY' || targetElement.classList.contains('base')) {
+                targetElement = targetElement.parentElement;
+            }
+            
             if (targetElement.classList.contains('word-span')) {
                 const word = targetElement.dataset.word;
                 const translation = targetElement.dataset.translation;
