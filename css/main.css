@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 3.0; /* Increased to accommodate phonetic annotations above and Chinese annotations below, with extra space to prevent overlapping when words are vertically aligned */
+    line-height: 2.9; /* Balanced to accommodate phonetic annotations above and Chinese annotations below, preventing overlap while keeping spacing tight */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -355,7 +355,7 @@ ruby.highlighted-word rt.phonetic-annotation {
     font-size: 0.85em;
     color: #666;
     font-weight: normal;
-    line-height: 0.9;
+    line-height: 1;
     /* Use ruby-position to control placement - phonetic appears above word */
     ruby-position: over;
     /* Center the text content within the rt element */
@@ -363,7 +363,8 @@ ruby.highlighted-word rt.phonetic-annotation {
     /* Ensure rt element spans full width of ruby container for proper centering */
     display: block;
     width: 100%;
-    /* Reduce vertical spacing between phonetic and word - no margin needed, using line-height control */
+    /* Reduce vertical spacing between phonetic and word - smaller negative margin brings them closer */
+    margin-bottom: -6px;
     /* Ruby text automatically appears above base text */
 }
 
@@ -398,7 +399,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     font-size: 0.7em;
     color: #555;
     text-align: center;
-    margin-top: 1px;
+    margin-top: -1px;
     line-height: 1;
     font-weight: normal;
     white-space: nowrap;
@@ -694,7 +695,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 确保在移动设备上文本不会溢出 */
     .analyzed-text {
         font-size: 1rem;
-        line-height: 3.0; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
     
     /* Improve button spacing on mobile */
@@ -745,7 +746,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
-        line-height: 3.0; /* Keep same as desktop to prevent Chinese annotation overlap */
+        line-height: 2.9; /* Keep same as desktop to prevent Chinese annotation overlap */
     }
 }
 
