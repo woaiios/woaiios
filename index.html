@@ -6,8 +6,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#4A90E2">
+    <meta name="description" content="一个基于网页的英语词汇学习工具，集成 ECDICT 76万+ 词条数据库，支持离线使用">
     <title>WordDiscover - Expand Your English Vocabulary</title>
     <link rel="icon" href="data:,">
+    <link rel="manifest" href="/woaiios/assets/manifest-C1aG21H0.json">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
   <script type="module" crossorigin src="/woaiios/assets/js/main-BLhRkmzg.js"></script>
   <link rel="stylesheet" crossorigin href="/woaiios/assets/css/main-BP3zF-7O.css">
@@ -180,6 +183,111 @@
     </footer>
 
     <!-- Google Identity Services -->
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        // 注册 Service Worker (Register Service Worker)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/woaiios/sw.js', { scope: '/woaiios/' })
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                        
+                        // 检查更新 (Check for updates)
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('New Service Worker found, installing...');
+                            
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
+                                    console.log('New content available, please refresh!');
+                                    if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+                
+                // 监听控制器变化 (Listen for controller change)
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('Service Worker controller changed, reloading page...');
+                    window.location.reload();
+                });
+            });
+        }
+        
+        // 监听在线/离线状态 (Monitor online/offline status)
+        window.addEventListener('online', () => {
+            console.log('Network: Online');
+            document.body.classList.remove('offline');
+            showNetworkNotification('您已重新连接到网络 / Back online', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('Network: Offline');
+            document.body.classList.add('offline');
+            showNetworkNotification('您已离线，应用将使用缓存数据 / Offline mode - using cached data', 'warning');
+        });
+        
+        // 显示网络状态通知 (Show network status notification)
+        function showNetworkNotification(message, type) {
+            // 简单的通知实现 (Simple notification implementation)
+            const notification = document.createElement('div');
+            notification.className = `network-notification ${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'success' ? '#4caf50' : '#ff9800'};
+                color: white;
+                border-radius: 4px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // 添加动画样式 (Add animation styles)
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+            body.offline::before {
+                content: '⚠️ 离线模式 / Offline Mode';
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #ff9800;
+                color: white;
+                text-align: center;
+                padding: 8px;
+                font-size: 14px;
+                z-index: 9999;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+    
 </body>
 </html>
