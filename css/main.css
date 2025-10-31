@@ -436,7 +436,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     margin: 0 0.05em; /* Reduced from 0.3em - approximately half a letter's width for non-highlighted words */
     font-size: 1.8em;
     line-height: 1;
-    vertical-align: middle;
+    vertical-align: baseline;
     cursor: pointer;
     -webkit-tap-highlight-color: rgba(255, 235, 59, 0.3);
     touch-action: manipulation;
@@ -444,12 +444,8 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 
 /* Add extra vertical spacing for highlighted words to accommodate annotations */
 .double-ruby.highlight {
-    /* Use padding instead of margin to maintain baseline alignment */
-    padding-top: 0.8em; /* Space for phonetic annotation above */
-    padding-bottom: 0.5em; /* Space for Chinese annotation below */
-    /* Reset margin to ensure baseline stays aligned with non-highlighted words */
-    margin-top: 0;
-    margin-bottom: 0;
+    /* Remove padding to maintain consistent baseline position */
+    /* Space will be created by positioning the over/under elements */
 }
 
 /* Highlight the base word with annotation */
@@ -480,6 +476,15 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     display: block;
     line-height: 1;
     margin-top: -0.1em;
+}
+
+/* Extra spacing for highlighted words' annotations to prevent overlap */
+.double-ruby.highlight .over rt {
+    margin-bottom: 0.65em; /* Increased from -0.15em to create space above */
+}
+
+.double-ruby.highlight .under rt {
+    margin-top: 0.4em; /* Increased from -0.1em to create space below */
 }
 
 /* Difficulty-based background colors for double-ruby highlights */
