@@ -430,16 +430,16 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 
 /* Double-ruby annotation container */
 .double-ruby {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: center;
+    display: inline-block; /* Changed from inline-flex to inline-block for proper baseline */
+    position: relative; /* For absolute positioning of annotations */
     margin: 0 0.05em; /* Reduced from 0.3em - approximately half a letter's width for non-highlighted words */
     font-size: 1.8em;
     line-height: 1;
-    vertical-align: baseline;
+    vertical-align: baseline; /* Aligns the .base text to baseline */
     cursor: pointer;
     -webkit-tap-highlight-color: rgba(255, 235, 59, 0.3);
     touch-action: manipulation;
+    text-align: center; /* Center the content horizontally */
 }
 
 /* Add extra vertical spacing for highlighted words to accommodate annotations */
@@ -456,6 +456,14 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 }
 
 /* 上方拼音/读音 */
+.double-ruby .over {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(-100%);
+    white-space: nowrap;
+}
+
 .double-ruby .over rt {
     font-size: 0.55em;
     color: #d33;
@@ -470,6 +478,14 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 }
 
 /* 下方释义/备注 */
+.double-ruby .under {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%) translateY(100%);
+    white-space: nowrap;
+}
+
 .double-ruby .under rt {
     font-size: 0.55em;
     color: #33d;
@@ -479,13 +495,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
 }
 
 /* Extra spacing for highlighted words' annotations to prevent overlap */
-.double-ruby.highlight .over rt {
-    margin-bottom: 0.65em; /* Increased from -0.15em to create space above */
-}
-
-.double-ruby.highlight .under rt {
-    margin-top: 0.4em; /* Increased from -0.1em to create space below */
-}
+/* No longer needed with absolute positioning - annotations position themselves */
 
 /* Difficulty-based background colors for double-ruby highlights */
 .double-ruby.highlight.beginner .base {
