@@ -241,7 +241,7 @@ body {
 
 .analyzed-text {
     font-size: 1.1rem;
-    line-height: 0.5; /* Reduced by additional 60% from 1.2 (1.2 - 0.72 = 0.48, rounded to 0.5 for safety) */
+    line-height: 2.5; /* Increased from 0.5 to 2.5 to prevent annotation overlap on adjacent lines */
     color: #374151;
     /* 防止文本溢出 */
     overflow-wrap: break-word;
@@ -469,7 +469,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     color: #d33;
     display: block;
     line-height: 1;
-    margin-bottom: -0.15em;
+    margin-bottom: 0.3em; /* Increased from -0.15em to prevent overlap with text below */
 }
 
 /* 中间英文单词 */
@@ -491,7 +491,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     color: #33d;
     display: block;
     line-height: 1;
-    margin-top: -0.1em;
+    margin-top: 0.3em; /* Increased from -0.1em to prevent overlap with text above */
 }
 
 /* Extra spacing for highlighted words' annotations to prevent overlap */
@@ -827,7 +827,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 确保在移动设备上文本不会溢出 */
     .analyzed-text {
         font-size: 1rem;
-        line-height: 0.5; /* Keep same as desktop - further reduced for tighter spacing */
+        line-height: 2.5; /* Keep same as desktop - increased to prevent annotation overlap */
     }
     
     /* Improve button spacing on mobile */
@@ -878,7 +878,7 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
-        line-height: 0.5; /* Keep same as desktop - further reduced for tighter spacing */
+        line-height: 2.5; /* Keep same as desktop - increased to prevent annotation overlap */
     }
 }
 
