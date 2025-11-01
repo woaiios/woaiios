@@ -15,10 +15,12 @@ interface AppState {
 
   // Vocabulary
   vocabulary: VocabularyItem[];
-  addWord: (word: string, difficulty: DifficultyLevel) => void;
+  addWord: (word: string, difficulty: DifficultyLevel, phonetic?: string, translation?: string) => void;
   removeWord: (word: string) => void;
+  toggleWordStatus: (word: string) => void; // Toggle between learning and mastered
   clearVocabulary: () => void;
   isWordInVocabulary: (word: string) => boolean;
+  getWordStatus: (word: string) => 'learning' | 'mastered' | null;
 
   // Text Analysis
   currentText: string;
@@ -52,7 +54,7 @@ export const useAppStore = create<AppState>()(
 
       // Vocabulary management
       vocabulary: [],
-      addWord: (word, difficulty) =>
+      addWord: (word, difficulty, phonetic, translation) =>
         set((state) => {
           const exists = state.vocabulary.some((item) => item.word.toLowerCase() === word.toLowerCase());
           if (exists) return state;
@@ -60,7 +62,14 @@ export const useAppStore = create<AppState>()(
           return {
             vocabulary: [
               ...state.vocabulary,
-              { word, difficulty, addedAt: Date.now() },
+              { 
+                word, 
+                difficulty, 
+                addedAt: Date.now(),
+                status: 'learning', // Default to learning
+                phonetic,
+                translation,
+              },
             ],
           };
         }),
@@ -70,10 +79,23 @@ export const useAppStore = create<AppState>()(
             (item) => item.word.toLowerCase() !== word.toLowerCase()
           ),
         })),
+      toggleWordStatus: (word) =>
+        set((state) => ({
+          vocabulary: state.vocabulary.map((item) =>
+            item.word.toLowerCase() === word.toLowerCase()
+              ? { ...item, status: item.status === 'learning' ? 'mastered' as const : 'learning' as const }
+              : item
+          ),
+        })),
       clearVocabulary: () => set({ vocabulary: [] }),
       isWordInVocabulary: (word) => {
         const { vocabulary } = get();
         return vocabulary.some((item) => item.word.toLowerCase() === word.toLowerCase());
+      },
+      getWordStatus: (word) => {
+        const { vocabulary } = get();
+        const item = vocabulary.find((item) => item.word.toLowerCase() === word.toLowerCase());
+        return item ? item.status : null;
       },
 
       // Text analysis

@@ -30,7 +30,10 @@ export interface VocabularyItem {
   word: string;
   addedAt: number;
   difficulty: DifficultyLevel;
+  status: 'learning' | 'mastered'; // Learning or mastered status
   notes?: string;
+  phonetic?: string; // Phonetic transcription
+  translation?: string; // Chinese translation
 }
 
 // Settings

@@ -16,8 +16,10 @@ function App() {
     vocabulary,
     addWord,
     removeWord,
+    toggleWordStatus,
     clearVocabulary,
     isWordInVocabulary,
+    getWordStatus,
     currentText,
     setCurrentText,
     analysisResult,
@@ -32,6 +34,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [showPronunciation, setShowPronunciation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [vocabTab, setVocabTab] = useState<'learning' | 'mastered'>('learning');
 
   // Re-analyze when settings change
   useEffect(() => {
@@ -83,13 +86,17 @@ function App() {
   };
 
   const handleAddToVocabulary = (word: string, difficulty: DifficultyLevel) => {
-    addWord(word, difficulty);
+    // Get phonetic and translation from selectedWord
+    const phonetic = selectedWord?.phonetic;
+    const translation = selectedWord?.translation;
+    addWord(word, difficulty, phonetic, translation);
     setSelectedWord(null);
   };
 
-  const filteredVocabulary = vocabulary.filter(item =>
-    item.word.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter vocabulary by search and tab
+  const filteredVocabulary = vocabulary
+    .filter(item => item.status === vocabTab)
+    .filter(item => item.word.toLowerCase().includes(searchQuery.toLowerCase()));
 
   const difficultyOptions = [
     { value: 'beginner', label: 'Beginner' },
@@ -314,28 +321,45 @@ function App() {
               {isAnalyzing && <span className="text-sm text-gray-500 ml-2">(Analyzing...)</span>}
             </h2>
             
-            {/* Word Cloud */}
+            {/* Word Cloud - Only show highlighted/difficult words */}
             <div className="space-y-4">
               <div className="flex flex-wrap gap-2">
-                {analysisResult.words.map((word, index) => {
+                {highlightedWords.map((word, index) => {
                   const color = textAnalyzer.getDifficultyColor(word.difficulty);
                   const isInVocab = isWordInVocabulary(word.word);
+                  const vocabItem = vocabulary.find(v => v.word.toLowerCase() === word.word.toLowerCase());
                   
                   return (
-                    <button
-                      key={`${word.word}-${index}`}
-                      onClick={() => handleWordClick(word)}
-                      className="px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-110 hover:shadow-md relative group"
-                      style={{
-                        backgroundColor: `${color}20`,
-                        color: color,
-                        border: `2px solid ${color}`,
-                      }}
-                      title={settings.showTranslation ? `Click to see details for "${word.word}"` : word.word}
-                    >
-                      {word.original}
-                      {isInVocab && ' ⭐'}
-                    </button>
+                    <div key={`${word.word}-${index}`} className="relative group">
+                      <button
+                        onClick={() => handleWordClick(word)}
+                        className="px-3 py-2 rounded-lg font-medium transition-all hover:scale-110 hover:shadow-lg relative"
+                        style={{
+                          backgroundColor: `${color}20`,
+                          color: color,
+                          border: `2px solid ${color}`,
+                        }}
+                      >
+                        <div className="flex flex-col items-start">
+                          <span className="font-bold">{word.original}</span>
+                          {vocabItem?.phonetic && (
+                            <span className="text-xs opacity-75">{vocabItem.phonetic}</span>
+                          )}
+                        </div>
+                        {isInVocab && <span className="ml-1">⭐</span>}
+                      </button>
+                      
+                      {/* Hover tooltip showing phonetic and translation */}
+                      {settings.showTranslation && vocabItem && (
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
+                          <div className="text-center">
+                            {vocabItem.phonetic && <div className="font-mono">{vocabItem.phonetic}</div>}
+                            {vocabItem.translation && <div className="mt-1">{vocabItem.translation}</div>}
+                          </div>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               </div>
@@ -521,6 +545,30 @@ function App() {
         }
       >
         <div className="space-y-4">
+          {/* Tabs for Learning/Mastered */}
+          <div className="flex border-b border-gray-200">
+            <button
+              className={`flex-1 py-2 text-center font-medium transition-colors ${
+                vocabTab === 'learning'
+                  ? 'text-purple-600 border-b-2 border-purple-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setVocabTab('learning')}
+            >
+              Learning ({vocabulary.filter(v => v.status === 'learning').length})
+            </button>
+            <button
+              className={`flex-1 py-2 text-center font-medium transition-colors ${
+                vocabTab === 'mastered'
+                  ? 'text-green-600 border-b-2 border-green-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+              onClick={() => setVocabTab('mastered')}
+            >
+              Mastered ({vocabulary.filter(v => v.status === 'mastered').length})
+            </button>
+          </div>
+
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
@@ -529,8 +577,8 @@ function App() {
 
           {filteredVocabulary.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              {vocabulary.length === 0 ? (
-                <p>No words in vocabulary yet. Click on analyzed words to add them!</p>
+              {vocabulary.filter(v => v.status === vocabTab).length === 0 ? (
+                <p>No words in {vocabTab} list yet.</p>
               ) : (
                 <p>No words found matching "{searchQuery}"</p>
               )}
@@ -542,19 +590,37 @@ function App() {
                   key={item.word}
                   className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium text-gray-900">{item.word}</span>
-                    <Badge variant="primary" size="sm">
-                      {item.difficulty}
-                    </Badge>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-gray-900">{item.word}</span>
+                      <Badge variant="primary" size="sm">
+                        {item.difficulty}
+                      </Badge>
+                    </div>
+                    {item.phonetic && (
+                      <div className="text-sm text-gray-600 font-mono">{item.phonetic}</div>
+                    )}
+                    {item.translation && (
+                      <div className="text-sm text-gray-600 mt-0.5">{item.translation}</div>
+                    )}
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeWord(item.word)}
-                  >
-                    <Trash2 size={16} />
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleWordStatus(item.word)}
+                      title={item.status === 'learning' ? 'Mark as mastered' : 'Move to learning'}
+                    >
+                      {item.status === 'learning' ? '✓' : '↺'}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeWord(item.word)}
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
