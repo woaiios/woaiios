@@ -44,8 +44,24 @@ export class WordDatabase {
         this.loader = new ProgressiveDatabaseLoader({
           ...finalConfig,
           dbName: 'word-dictionary',
-          onComplete: (db) => {
+          onComplete: async (db) => {
             this.database = db;
+            
+            // Import SQL database into IndexedDB for offline access
+            if (this.directStorage && db) {
+              console.log('🔄 Importing dictionary data into IndexedDB for offline use...');
+              try {
+                await this.directStorage.importFromDatabase(db, (progress) => {
+                  if (progress.percentage % 10 === 0) {
+                    console.log(`📥 Import progress: ${progress.percentage.toFixed(1)}%`);
+                  }
+                });
+                console.log('✅ Dictionary data imported to IndexedDB - app is now offline-ready!');
+              } catch (error) {
+                console.warn('Failed to import to IndexedDB, will use SQL fallback:', error);
+              }
+            }
+            
             this.initialized = true;
           },
           onError: (error) => {
@@ -79,7 +95,7 @@ export class WordDatabase {
     try {
       // Try direct storage first (fastest)
       if (this.directStorage) {
-        const result = await this.directStorage.getWord(normalized);
+        const result = await this.directStorage.queryWord(normalized);
         if (result) {
           return this.formatWordData(result);
         }
@@ -115,10 +131,10 @@ export class WordDatabase {
     // Try direct storage batch query first
     if (this.directStorage && words.length > 10) {
       try {
-        const storageResults = await this.directStorage.batchGetWords(words);
-        for (const [word, data] of storageResults.entries()) {
-          if (data) {
-            results.set(word, this.formatWordData(data));
+        const storageResults = await this.directStorage.queryWordsBatch(words);
+        for (const result of storageResults) {
+          if (result.data) {
+            results.set(result.word, this.formatWordData(result.data));
           }
         }
       } catch (error) {
@@ -181,9 +197,8 @@ export class WordDatabase {
       phonetic: String(data.phonetic || data.phonetics || ''),
       definition: String(data.definition || data.meanings || ''),
       translation: String(data.translation || data.translations || ''),
-      pos: String(data.pos || ''),
       collins: Number(data.collins || 0),
-      oxford: Boolean(data.oxford),
+      oxford: Number(data.oxford || 0),
       tag: String(data.tag || ''),
       bnc: Number(data.bnc || 0),
       frq: Number(data.frq || 0)
@@ -198,7 +213,7 @@ export class WordDatabase {
       await this.loader.clearCache();
     }
     if (this.directStorage) {
-      await this.directStorage.clear();
+      await this.directStorage.clearData();
     }
   }
 

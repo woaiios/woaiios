@@ -48,6 +48,12 @@ export class DirectDataStorage {
     totalQueries: 0
   };
 
+  constructor(dbName?: string) {
+    if (dbName) {
+      this.dbName = dbName;
+    }
+  }
+
   /**
    * Initialize IndexedDB for direct data storage
    */

@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react';
 import { Button } from './components/atoms';
 import { SearchBar } from './components/molecules';
 import { Modal } from './components/organisms';
@@ -8,14 +7,14 @@ import {
   StatisticsPanel,
   AnalyzedTextSection,
   HighlightedWordsList,
+  GoogleDrivePanel,
 } from './components/organisms';
 import { MainTemplate } from './components/templates';
 import { useAppStore } from './store';
-import { TextAnalyzerService } from './services/TextAnalyzerService';
+import { useModalStates, useTextAnalysis, useVocabularyActions } from './hooks';
+import { exportVocabulary, importVocabulary } from './utils/vocabularyImportExport';
 import { Trash2, Download, Upload } from 'lucide-react';
 import type { DifficultyLevel, AnalyzedWord } from './types';
-
-const textAnalyzer = new TextAnalyzerService();
 
 function App() {
   const {
@@ -30,105 +29,33 @@ function App() {
     currentText,
     setCurrentText,
     analysisResult,
-    setAnalysisResult,
     selectedWord,
     setSelectedWord,
-    setIsAnalyzing,
   } = useAppStore();
 
-  const [showVocabulary, setShowVocabulary] = useState<boolean>(false);
-  const [showSettings, setShowSettings] = useState<boolean>(false);
-  const [showPronunciation, setShowPronunciation] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [vocabTab, setVocabTab] = useState<'learning' | 'mastered'>('learning');
+  // Custom hooks for separated concerns
+  const {
+    showVocabulary,
+    setShowVocabulary,
+    showSettings,
+    setShowSettings,
+    showPronunciation,
+    setShowPronunciation,
+    searchQuery,
+    setSearchQuery,
+    vocabTab,
+    setVocabTab,
+  } = useModalStates();
 
-  // Analyze text function
-  const analyzeText = async (): Promise<void> => {
-    if (!currentText.trim()) {
-      setAnalysisResult(null);
-      return;
-    }
+  useTextAnalysis();
 
-    setIsAnalyzing(true);
-    try {
-      const vocabSet = new Set<string>(vocabulary.map(v => v.word.toLowerCase()));
-      const result = await textAnalyzer.analyzeText(currentText, vocabSet);
-      setAnalysisResult(result);
-    } catch (error) {
-      console.error('Error analyzing text:', error);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
+  const { handleWordClick, handleAddToVocabulary } = useVocabularyActions();
 
-  // Re-analyze when settings change
-  useEffect(() => {
-    if (currentText.trim()) {
-      analyzeText();
-    }
-  }, [settings.difficultyLevel, settings.highlightMode]);
-
-  // Debounced analysis on text change
-  useEffect(() => {
-    if (!currentText.trim()) {
-      setAnalysisResult(null);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      analyzeText();
-    }, 500);
-
-    return () => clearTimeout(timer);
-  }, [currentText, vocabulary]);
-
-  const handleWordClick = (word: AnalyzedWord) => {
-    setSelectedWord({
-      word: word.word,
-      definition: `Definition for "${word.word}"`,
-      phonetic: `/${word.word}/`,
-      translation: `${word.word} 的中文翻译`,
-    });
-  };
-
-  const handleAddToVocabulary = (word: string, difficulty: DifficultyLevel) => {
-    const phonetic = selectedWord?.phonetic;
-    const translation = selectedWord?.translation;
-    addWord(word, difficulty, phonetic, translation);
-    setSelectedWord(null);
-  };
-
-  const exportVocabulary = (): void => {
-    const data = JSON.stringify(vocabulary, null, 2);
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `vocabulary-${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importVocabulary = (e: React.ChangeEvent<HTMLInputElement>): void => {
+  // File import handler
+  const handleImportVocabulary = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const data = JSON.parse(event.target?.result as string);
-        if (Array.isArray(data)) {
-          data.forEach((item: any) => {
-            if (item.word && item.difficulty) {
-              addWord(item.word, item.difficulty, item.phonetic, item.translation);
-            }
-          });
-        }
-      } catch (error) {
-        alert('Invalid file format');
-      }
-    };
-    reader.readAsText(file);
+    importVocabulary(file, addWord, (error) => alert(error));
   };
 
   // Get highlighted/difficult words based on settings
@@ -194,7 +121,8 @@ function App() {
       }
       analyzedText={
         <AnalyzedTextSection
-          words={highlightedWords}
+          words={analysisResult?.words || []}
+          highlightedWords={highlightedWords}
           vocabulary={vocabulary}
           showTranslation={settings.showTranslation}
           onWordClick={handleWordClick}
@@ -344,14 +272,14 @@ function App() {
               </div>
 
               <div className="flex gap-2 pt-4 border-t">
-                <Button variant="outline" onClick={exportVocabulary} icon={<Download size={16} />}>
+                <Button variant="outline" onClick={() => exportVocabulary(vocabulary)} icon={<Download size={16} />}>
                   Export
                 </Button>
                 <label className="cursor-pointer">
                   <input
                     type="file"
                     accept=".json"
-                    onChange={importVocabulary}
+                    onChange={handleImportVocabulary}
                     className="hidden"
                   />
                   <span className="inline-flex items-center justify-center gap-2 px-4 py-2 text-base border-2 border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-all">
@@ -371,17 +299,35 @@ function App() {
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Settings"
-            size="md"
+            size="lg"
           >
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Google Drive Section */}
               <div>
-                <label className="block text-sm font-medium mb-2">Auto-save</label>
-                <input
-                  type="checkbox"
-                  checked={settings.autoSave}
-                  onChange={(e) => updateSettings({ autoSave: e.target.checked })}
-                  className="w-4 h-4"
-                />
+                <GoogleDrivePanel />
+              </div>
+
+              {/* Divider */}
+              <hr className="border-gray-200 dark:border-gray-700" />
+
+              {/* General Settings */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  General Settings
+                </h3>
+                <div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.autoSave}
+                      onChange={(e) => updateSettings({ autoSave: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Auto-save vocabulary changes
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </Modal>

@@ -10,3 +10,5 @@ export type {
 
 export { SearchBar } from './SearchBar';
 export type { SearchBarProps } from './SearchBar';
+
+export { ProgressBar } from './ProgressBar';

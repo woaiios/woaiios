@@ -6,6 +6,7 @@
 export interface DatabaseMetadata {
   version: string;
   totalChunks: number;
+  chunkCount: number;
   chunkSize: number;
   totalWords: number;
   baseUrl: string;
@@ -21,10 +22,12 @@ export interface ChunkData {
 export interface LoadProgress {
   loaded: number;
   total: number;
+  percent: number;
   percentage: number;
   currentChunk: number;
   totalChunks: number;
   status: 'loading' | 'complete' | 'error';
+  message?: string;
 }
 
 export interface WordDefinition {
@@ -37,6 +40,7 @@ export interface WordDefinition {
   tag?: string;
   bnc?: number;
   frq?: number;
+  exchange?: string;  // Word forms: "p:past/d:done/i:doing/0:lemma"
 }
 
 export type ProgressCallback = (progress: LoadProgress) => void;

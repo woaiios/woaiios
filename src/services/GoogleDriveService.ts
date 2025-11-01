@@ -23,12 +23,31 @@ export interface SyncResult {
 }
 
 export class GoogleDriveService {
+  private static instance: GoogleDriveService | null = null;
+
   private clientId = '781460731280-7moak9c5fq75dubjlnmes4b4gdku3qvt.apps.googleusercontent.com';
   private scopes = 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email';
   private isInitialized = false;
   private isSignedIn = false;
   private accessToken: string | null = null;
   private fileId: string | null = null;
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(): GoogleDriveService {
+    if (!GoogleDriveService.instance) {
+      GoogleDriveService.instance = new GoogleDriveService();
+    }
+    return GoogleDriveService.instance;
+  }
+
+  /**
+   * Check if authenticated
+   */
+  isAuthenticated(): boolean {
+    return this.isSignedIn;
+  }
 
   /**
    * Initialize Google Drive API

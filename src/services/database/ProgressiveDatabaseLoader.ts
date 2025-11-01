@@ -127,14 +127,16 @@ export class ProgressiveDatabaseLoader {
       const metadata: DatabaseMetadata = {
         version: '1.0',
         chunkCount: chunks.length,
+        totalChunks: chunks.length,
+        chunkSize: 0,
         totalWords: chunks.reduce((sum, chunk) => sum + (chunk.data?.length || 0), 0),
-        lastUpdated: Date.now()
+        baseUrl: ''
       };
 
-      await this.cache.saveMetadata(this.config.dbName, metadata);
+      await this.cache.saveMetadata(metadata);
 
       for (let i = 0; i < chunks.length; i++) {
-        await this.cache.saveChunk(this.config.dbName, i, chunks[i]);
+        await this.cache.saveChunk(i, chunks[i], '1.0');
       }
     } catch (error) {
       console.warn('Failed to cache database:', error);
@@ -146,7 +148,7 @@ export class ProgressiveDatabaseLoader {
    * Clear cached database
    */
   async clearCache(): Promise<void> {
-    await this.cache.clearCache(this.config.dbName);
+    await this.cache.clearCache();
   }
 
   /**
@@ -154,20 +156,15 @@ export class ProgressiveDatabaseLoader {
    */
   private emitProgress(percent: number, message: string): void {
     this.config.onProgress?.({
+      loaded: 0,
+      total: 100,
       percent,
-      message,
-      stage: this.getStage(percent)
+      percentage: percent,
+      currentChunk: 0,
+      totalChunks: this.config.chunkUrls.length,
+      status: percent === 100 ? 'complete' : 'loading',
+      message
     });
-  }
-
-  /**
-   * Get loading stage based on percent
-   */
-  private getStage(percent: number): 'downloading' | 'processing' | 'caching' | 'complete' {
-    if (percent < 80) return 'downloading';
-    if (percent < 90) return 'processing';
-    if (percent < 100) return 'caching';
-    return 'complete';
   }
 
   /**

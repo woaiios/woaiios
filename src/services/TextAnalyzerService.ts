@@ -1,6 +1,44 @@
-import type { AnalyzedWord, DifficultyLevel, TextAnalysisResult } from '../types';
+import type { AnalyzedWord, DifficultyLevel, TextAnalysisResult, WordInfo } from '../types';
+import { WordDatabase } from './database/WordDatabase';
 
 export class TextAnalyzerService {
+  private wordDatabase: WordDatabase | null = null;
+  private databaseInitialized = false;
+
+  constructor() {
+    // Initialize database in the background
+    this.initializeDatabase().catch(error => {
+      console.warn('Failed to initialize word database:', error);
+    });
+  }
+
+  /**
+   * Initialize the word database
+   * Loads only top 10,000 BNC high-frequency words (~2MB compressed)
+   */
+  private async initializeDatabase(): Promise<void> {
+    try {
+      // Load single database file with top 10k high-frequency words
+      const origin = window.location.origin;
+      const base = '/woaiios/'; // From vite.config.ts
+      const dbUrl = `${origin}${base}ecdict-top10k.db.gz`;
+
+      console.log('Loading top 10k words dictionary from:', dbUrl);
+
+      this.wordDatabase = new WordDatabase({
+        chunkUrls: [dbUrl], // Single file instead of 10 chunks
+        useDirectStorage: true,
+        fallbackToAPI: false,
+      });
+      
+      await this.wordDatabase.initialize();
+      this.databaseInitialized = true;
+      console.log('✅ Word database initialized with top 10,000 BNC high-frequency words');
+    } catch (error) {
+      console.warn('Database initialization failed, using fallback:', error);
+      this.databaseInitialized = false;
+    }
+  }
   /**
    * Analyze text and return words with difficulty scores
    */
@@ -52,8 +90,34 @@ export class TextAnalyzerService {
       };
     }
 
-    // Simple difficulty estimation based on word length and common patterns
-    const difficulty = this.estimateDifficulty(lower);
+    // Try to get word info from database
+    let wordInfo: WordInfo | undefined;
+    if (this.databaseInitialized && this.wordDatabase) {
+      try {
+        const dbResult = await this.wordDatabase.query(lower);
+        if (dbResult) {
+          wordInfo = {
+            word: dbResult.word,
+            phonetic: dbResult.phonetic,
+            definition: dbResult.definition,
+            translation: dbResult.translation,
+            collins: dbResult.collins,
+            oxford: dbResult.oxford,
+            tag: dbResult.tag,
+            bnc: dbResult.bnc,
+            frq: dbResult.frq,
+            exchange: dbResult.exchange,
+          };
+        }
+      } catch (error) {
+        console.warn('Database query failed for word:', lower, error);
+      }
+    }
+
+    // Determine difficulty based on database info or fallback to simple estimation
+    const difficulty = wordInfo 
+      ? this.estimateDifficultyFromDatabase(wordInfo)
+      : this.estimateDifficulty(lower);
     const score = this.difficultyToScore(difficulty);
 
     return {
@@ -62,7 +126,25 @@ export class TextAnalyzerService {
       difficulty,
       score,
       isLearning: false,
+      info: wordInfo,
     };
+  }
+
+  /**
+   * Estimate difficulty based on database information
+   */
+  private estimateDifficultyFromDatabase(wordInfo: WordInfo): DifficultyLevel {
+    // Use BNC (British National Corpus) frequency or Collins rating
+    // Higher frequency = easier word
+    const frq = wordInfo.frq || 0;
+    const collins = wordInfo.collins || 0;
+    
+    // Collins rating: 5 = very common, 1 = rare
+    if (collins >= 4 || frq > 5000) return 'beginner';
+    if (collins >= 3 || frq > 3000) return 'intermediate';
+    if (collins >= 2 || frq > 1000) return 'advanced';
+    
+    return 'expert';
   }
 
   /**

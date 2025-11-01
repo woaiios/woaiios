@@ -9,8 +9,8 @@ export class ChunkDownloader {
   private readonly maxRetries: number = 3;
   private readonly timeout: number = 30000; // 30 seconds
 
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+  constructor(baseUrl?: string) {
+    this.baseUrl = baseUrl || '';
   }
 
   /**
