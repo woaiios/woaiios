@@ -1,49 +1,23 @@
 /**
- * Service Worker for Word Discoverer
+ * Service Worker for Word Discoverer (React Version)
  * 提供离线支持和缓存管理
  * Provides offline support and cache management
  */
 
-const CACHE_VERSION = 'v2.0.0';
+const CACHE_VERSION = 'v3.0.0-react';
 const CACHE_NAME = `word-discoverer-${CACHE_VERSION}`;
+const RUNTIME_CACHE = `runtime-${CACHE_VERSION}`;
 
-// 需要缓存的静态资源 (Static assets to cache)
-const STATIC_ASSETS = [
+// Core assets that should be cached immediately
+const CORE_ASSETS = [
   './',
   './index.html',
-  './app.js',
-  './css/main.css',
-  './css/components.css',
-  './css/ecdict-styles.css',
-  './css/pronunciation-checker.css',
-  './js/WordDatabase.js',
-  './js/TextAnalyzer.js',
-  './js/VocabularyManager.js',
-  './js/SettingsManager.js',
-  './js/TranslationService.js',
-  './js/GoogleDriveManager.js',
-  './components/Component.js',
-  './components/Vocabulary/Vocabulary.js',
-  './components/Settings/Settings.js',
-  './components/AnalyzedText/AnalyzedText.js',
-  './components/PronunciationChecker/PronunciationChecker.js',
-  './components/Modal/Modal.js',
-];
-
-// 数据库和字典文件 (Database and dictionary files)
-const DATABASE_ASSETS = [
-  './public/eng-zho.json',
-  './public/eng_dict.txt',
-];
-
-// 外部资源 (External resources)
-const EXTERNAL_RESOURCES = [
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css',
+  './manifest.json',
 ];
 
 /**
  * Install Event - 安装事件
- * 预缓存所有静态资源 (Pre-cache all static assets)
+ * 预缓存核心资源 (Pre-cache core assets)
  */
 self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installing...');
@@ -51,12 +25,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('[Service Worker] Caching static assets');
-        // 缓存静态资源 (Cache static assets)
-        return cache.addAll([...STATIC_ASSETS, ...EXTERNAL_RESOURCES]);
+        console.log('[Service Worker] Caching core assets');
+        return cache.addAll(CORE_ASSETS);
       })
       .then(() => {
-        console.log('[Service Worker] Static assets cached successfully');
+        console.log('[Service Worker] Core assets cached successfully');
         // 强制激活新的 service worker (Force activation of new service worker)
         return self.skipWaiting();
       })
@@ -79,7 +52,7 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames.map((cacheName) => {
             // 删除旧版本的缓存 (Delete old version caches)
-            if (cacheName !== CACHE_NAME) {
+            if (cacheName !== CACHE_NAME && cacheName !== RUNTIME_CACHE) {
               console.log('[Service Worker] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
@@ -232,9 +205,10 @@ async function networkFirst(request) {
  * @returns {boolean}
  */
 function isDatabaseAsset(url) {
-  return url.pathname.includes('/public/eng-zho.json') ||
-         url.pathname.includes('/public/eng_dict.txt') ||
-         url.pathname.includes('/public/db-chunks/') ||
+  return url.pathname.includes('/db-chunks/') ||
+         url.pathname.includes('/eng-zho.json') ||
+         url.pathname.includes('/eng_dict.txt') ||
+         url.pathname.endsWith('.wasm') ||
          url.pathname.includes('.db');
 }
 
