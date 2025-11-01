@@ -40,6 +40,7 @@ export interface WordDefinition {
   tag?: string;
   bnc?: number;
   frq?: number;
+  exchange?: string;  // Word forms: "p:past/d:done/i:doing/0:lemma"
 }
 
 export type ProgressCallback = (progress: LoadProgress) => void;
