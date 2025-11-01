@@ -6,8 +6,11 @@
   "scripts": {
     "prebuild": "node scripts/prepare-public.js",
     "dev": "npm run prebuild && vite",
-    "build": "vite build && node scripts/postbuild.js",
-    "preview": "vite preview"
+    "build": "tsc && vite build && node scripts/postbuild.js",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
   },
   "keywords": [
     "vocabulary",
@@ -19,14 +22,34 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.552.0",
     "pako": "^2.1.0",
-    "sql.js": "^1.12.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.66.0",
+    "sql.js": "^1.12.0",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.9.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "@vitejs/plugin-react": "^5.1.0",
+    "autoprefixer": "^10.4.21",
+    "jsdom": "^27.1.0",
+    "postcss": "^8.5.6",
     "puppeteer": "^24.26.1",
+    "tailwindcss": "^4.1.16",
     "terser": "^5.44.0",
+    "typescript": "^5.9.3",
     "vite": "^7.1.12",
     "vite-plugin-compression": "^0.5.1",
+    "vitest": "^4.0.6",
     "wink-lemmatizer": "^3.0.4"
   }
 }

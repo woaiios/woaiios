@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="theme-color" content="#4A90E2">
+    <meta name="description" content="一个基于网页的英语词汇学习工具，集成 ECDICT 76万+ 词条数据库，支持离线使用">
+    <title>WordDiscover - Expand Your English Vocabulary</title>
+    <link rel="icon" href="data:,">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/ecdict-styles.css">
+    <link rel="stylesheet" href="css/pronunciation-checker.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <i class="fas fa-book"></i>
+                    <span>WordDiscover</span>
+                </div>
+                <div class="header-controls">
+                    <button class="btn btn-outline" id="pronunciationBtn">
+                        <i class="fas fa-microphone"></i>
+                        Pronunciation
+                    </button>
+                    <button class="btn btn-outline" id="vocabularyBtn">
+                        <i class="fas fa-graduation-cap"></i>
+                        Vocabulary
+                    </button>
+                    <button class="btn btn-outline" id="settingsBtn">
+                        <i class="fas fa-cog"></i>
+                        Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Text Input Area -->
+            <div class="text-input-section">
+                <div class="input-group">
+                    <textarea id="textInput" placeholder="Paste your English text here to discover new words and expand your vocabulary..."></textarea>
+                    <div class="input-controls">
+                        <button class="btn btn-secondary" id="clearBtn">
+                            <i class="fas fa-trash"></i>
+                            Clear
+                        </button>
+                        <button class="btn btn-primary" id="analyzeBtn">
+                            <i class="fas fa-search"></i>
+                            Analyze Text
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Controls -->
+            <div class="analysis-controls">
+                <div class="control-group">
+                    <label for="mainDifficultyLevel">Difficulty Level:</label>
+                    <select id="mainDifficultyLevel">
+                        <option value="beginner">Beginner</option>
+                        <option value="intermediate" selected>Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="expert">Expert</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label for="mainHighlightMode">Highlight Mode:</label>
+                    <select id="mainHighlightMode">
+                        <option value="unknown">Unknown Words Only</option>
+                        <option value="difficult" selected>Difficult Words</option>
+                        <option value="all">All Words</option>
+                    </select>
+                </div>
+                <div class="control-group">
+                    <label>
+                        <input type="checkbox" id="showTranslations" checked>
+                        Show Translations on Hover
+                    </label>
+                </div>
+            </div>
+
+            <!-- Analyzed Text Display -->
+            <div class="analyzed-text-section" id="analyzedTextSection" style="display: none;">
+                <h3>Analyzed Text</h3>
+                <div class="analyzed-text" id="analyzedText"></div>
+            </div>
+
+            <!-- Statistics -->
+            <div class="statistics" id="statistics" style="display: none;">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalWords">0</div>
+                    <div class="stat-label">Total Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="highlightedWords">0</div>
+                    <div class="stat-label">Highlighted Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="newWords">0</div>
+                    <div class="stat-label">New Words</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="difficultyScore">0</div>
+                    <div class="stat-label">Difficulty Score</div>
+                </div>
+            </div>
+
+            <!-- Highlighted Words List -->
+            <div class="highlighted-words-list" id="highlightedWordsList" style="display: none;">
+                <h3>Highlighted Words</h3>
+                <div id="highlightedWordsContainer"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Vocabulary Modal Placeholder -->
+    <div class="modal" id="vocabularyModal"></div>
+
+    <!-- Settings Modal Placeholder -->
+    <div class="modal" id="settingsModal"></div>
+
+    <!-- Pronunciation Checker Modal Placeholder -->
+    <div class="modal" id="pronunciationModal"></div>
+
+    <!-- Word Modal -->
+    <div class="modal" id="wordModal">
+        <div class="modal-content" id="wordModalContent">
+            <div class="modal-header">
+                <h3 id="wordModalTitle"></h3>
+                <button class="modal-close" id="wordModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="wordModalTranslation"></p>
+                <div class="modal-actions" id="wordModalActions"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i>
+            <p>Analyzing text...</p>
+        </div>
+    </div>
+
+    <!-- Database Loading Progress -->
+    <div class="db-loading-overlay" id="dbLoadingOverlay">
+        <div class="db-loading-content">
+            <div class="db-loading-icon">
+                <i class="fas fa-database"></i>
+            </div>
+            <h3>Loading Dictionary Database</h3>
+            <p class="db-loading-message" id="dbLoadingMessage">Initializing...</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="dbProgressBar"></div>
+            </div>
+            <div class="progress-info">
+                <span id="dbProgressPercentage">0%</span>
+                <span id="dbProgressChunks">0/10 chunks</span>
+            </div>
+            <p class="db-loading-tip">💡 Dictionary data is cached locally. First load downloads, subsequent loads are instant from cache!</p>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <span class="version">v2.0.0</span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Google Identity Services -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
+    <!-- Service Worker Registration -->
+    <script>
+        // 注册 Service Worker (Register Service Worker)
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/woaiios/sw.js', { scope: '/woaiios/' })
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                        
+                        // 检查更新 (Check for updates)
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            console.log('New Service Worker found, installing...');
+                            
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
+                                    console.log('New content available, please refresh!');
+                                    if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Service Worker registration failed:', error);
+                    });
+                
+                // 监听控制器变化 (Listen for controller change)
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    console.log('Service Worker controller changed, reloading page...');
+                    window.location.reload();
+                });
+            });
+        }
+        
+        // 监听在线/离线状态 (Monitor online/offline status)
+        window.addEventListener('online', () => {
+            console.log('Network: Online');
+            document.body.classList.remove('offline');
+            showNetworkNotification('您已重新连接到网络 / Back online', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            console.log('Network: Offline');
+            document.body.classList.add('offline');
+            showNetworkNotification('您已离线，应用将使用缓存数据 / Offline mode - using cached data', 'warning');
+        });
+        
+        // 显示网络状态通知 (Show network status notification)
+        function showNetworkNotification(message, type) {
+            // 简单的通知实现 (Simple notification implementation)
+            const notification = document.createElement('div');
+            notification.className = `network-notification ${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'success' ? '#4caf50' : '#ff9800'};
+                color: white;
+                border-radius: 4px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+            `;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // 添加动画样式 (Add animation styles)
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+            body.offline::before {
+                content: '⚠️ 离线模式 / Offline Mode';
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #ff9800;
+                color: white;
+                text-align: center;
+                padding: 8px;
+                font-size: 14px;
+                z-index: 9999;
+            }
+        `;
+        document.head.appendChild(style);
+    </script>
+    
+    <script type="module" src="app.js"></script>
+</body>
+</html>

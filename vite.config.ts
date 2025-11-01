@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
+import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
 
 // https://vitejs.dev/config/
@@ -11,6 +12,7 @@ export default defineConfig({
   publicDir: 'public',
   
   plugins: [
+    react(),
     // Gzip compression for all assets
     viteCompression({
       algorithm: 'gzip',
@@ -77,10 +79,13 @@ export default defineConfig({
   // Resolve configuration
   resolve: {
     alias: {
-      '@': resolve(__dirname, './'),
-      '@components': resolve(__dirname, './components'),
-      '@js': resolve(__dirname, './js'),
-      '@css': resolve(__dirname, './css')
+      '@': resolve(__dirname, './src'),
+      '@components': resolve(__dirname, './src/components'),
+      '@hooks': resolve(__dirname, './src/hooks'),
+      '@services': resolve(__dirname, './src/services'),
+      '@store': resolve(__dirname, './src/store'),
+      '@utils': resolve(__dirname, './src/utils'),
+      '@types': resolve(__dirname, './src/types')
     }
   },
   
@@ -96,5 +101,13 @@ export default defineConfig({
   },
   
   // Handle wasm files for sql.js
-  assetsInclude: ['**/*.wasm']
+  assetsInclude: ['**/*.wasm'],
+  
+  // Test configuration
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
+    css: true
+  }
 });
