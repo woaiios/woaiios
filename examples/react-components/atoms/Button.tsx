@@ -39,8 +39,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean
   /** 图标（显示在文字左侧） */
   icon?: ReactNode
-  /** 按钮内容 */
-  children: ReactNode
+  /** 按钮内容（可选，支持仅图标按钮） */
+  children?: ReactNode
 }
 
 export const Button = ({
@@ -91,7 +91,7 @@ export const Button = ({
       ) : (
         icon
       )}
-      <span>{children}</span>
+      {children && <span>{children}</span>}
     </button>
   )
 }

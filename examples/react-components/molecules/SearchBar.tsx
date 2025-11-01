@@ -29,8 +29,8 @@ import { useState, FormEvent, KeyboardEvent } from 'react'
 import { Search } from 'lucide-react'
 
 // 假设这些是从 atoms 导入的
-import { Input, InputProps } from '../atoms/Input'
-import { Button, ButtonProps } from '../atoms/Button'
+import { Input } from '../atoms/Input'
+import { Button } from '../atoms/Button'
 
 export interface SearchBarProps {
   /** 搜索值（受控模式） */

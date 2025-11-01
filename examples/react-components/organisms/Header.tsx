@@ -93,7 +93,7 @@ export const Header = ({
               <span className="hidden md:inline">Settings</span>
             </Button>
 
-            {/* 移动端：仅图标按钮 */}
+            {/* Mobile: Icon-only buttons */}
             <div className="flex gap-2 sm:hidden">
               <Button
                 variant="ghost"
@@ -102,7 +102,7 @@ export const Header = ({
                 onClick={onPronunciationClick}
                 aria-label="Pronunciation"
               >
-                {/* 仅图标 */}
+                {/* Icon only */}
               </Button>
               <Button
                 variant="ghost"
@@ -111,7 +111,7 @@ export const Header = ({
                 onClick={onVocabularyClick}
                 aria-label="Vocabulary"
               >
-                {/* 仅图标 */}
+                {/* Icon only */}
               </Button>
             </div>
           </nav>
