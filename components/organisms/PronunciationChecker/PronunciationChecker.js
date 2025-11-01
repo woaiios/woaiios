@@ -9,8 +9,8 @@
  * - 提供发音改进建议
  */
 
-import { PronunciationChecker } from '../../js/PronunciationChecker.js';
-import { Component } from '../Component.js';
+import { PronunciationChecker } from '../../../js/PronunciationChecker.js';
+import { Component } from '../../Component.js';
 
 export class PronunciationCheckerComponent extends Component {
     constructor(containerId = '#pronunciationModal') {

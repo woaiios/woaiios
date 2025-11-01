@@ -9,7 +9,7 @@
  * - 支持添加/掌握/取消掌握单词 (Support add/master/unmaster words)
  * - 实时刷新文本高亮状态 (Real-time refresh text highlight status)
  */
-import { Component } from '../Component.js';
+import { Component } from '../../Component.js';
 
 export class AnalyzedTextComponent extends Component {
     /**

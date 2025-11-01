@@ -8,7 +8,7 @@
  * - 智能垂直居中定位 (Smart vertical centering)
  * - 内容超出时自动滚动 (Auto scroll when content overflows)
  */
-import { Component } from '../Component.js';
+import { Component } from '../../Component.js';
 
 export class Modal extends Component {
     /**
