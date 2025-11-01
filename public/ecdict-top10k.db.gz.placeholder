@@ -1,0 +1,19 @@
+# Database File Placeholder
+
+This placeholder file indicates that `ecdict-top10k.db.gz` should be placed in this directory.
+
+## For Development/Testing
+
+The actual database file (~2MB) is not committed to version control due to size.
+
+To deploy with full dictionary functionality:
+1. Generate or obtain the `ecdict-top10k.db.gz` file (see DICTIONARY_DATABASE.md)
+2. Place it at `public/ecdict-top10k.db.gz`
+3. Rebuild and deploy
+
+The application will work without this file using fallback difficulty scoring, but will not have:
+- Accurate BNC frequency-based difficulty ratings
+- Phonetic transcriptions
+- English definitions
+- Chinese translations
+- Word form variations (exchange data)
