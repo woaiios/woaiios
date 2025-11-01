@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, Settings, Trash2, Download, Upload } from 'lucide-react';
-import { Button, Textarea, Badge } from './components/atoms';
+import { BookOpen, Settings, Trash2, Download, Upload, Mic } from 'lucide-react';
+import { Button, Textarea, Badge, Select } from './components/atoms';
 import { SearchBar, ControlGroup } from './components/molecules';
 import { Modal } from './components/organisms/Modal';
 import { useAppStore } from './store';
@@ -30,29 +30,47 @@ function App() {
 
   const [showVocabulary, setShowVocabulary] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showPronunciation, setShowPronunciation] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Analyze text whenever it changes
+  // Re-analyze when settings change
+  useEffect(() => {
+    if (currentText.trim()) {
+      analyzeText();
+    }
+  }, [settings.difficultyLevel, settings.highlightMode]);
+
+  // Analyze text function
+  const analyzeText = async () => {
+    if (!currentText.trim()) {
+      setAnalysisResult(null);
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const vocabSet = new Set(vocabulary.map(v => v.word.toLowerCase()));
+      const result = await textAnalyzer.analyzeText(currentText, vocabSet);
+      setAnalysisResult(result);
+    } catch (error) {
+      console.error('Error analyzing text:', error);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Debounced analysis on text change
   useEffect(() => {
     if (!currentText.trim()) {
       setAnalysisResult(null);
       return;
     }
 
-    const analyzeDebounced = setTimeout(async () => {
-      setIsAnalyzing(true);
-      try {
-        const vocabSet = new Set(vocabulary.map(v => v.word.toLowerCase()));
-        const result = await textAnalyzer.analyzeText(currentText, vocabSet);
-        setAnalysisResult(result);
-      } catch (error) {
-        console.error('Error analyzing text:', error);
-      } finally {
-        setIsAnalyzing(false);
-      }
+    const timer = setTimeout(() => {
+      analyzeText();
     }, 500);
 
-    return () => clearTimeout(analyzeDebounced);
+    return () => clearTimeout(timer);
   }, [currentText, vocabulary]);
 
   const handleWordClick = (word: AnalyzedWord) => {
@@ -74,16 +92,16 @@ function App() {
   );
 
   const difficultyOptions = [
-    { value: 'beginner', label: 'Beginner (初级)' },
-    { value: 'intermediate', label: 'Intermediate (中级)' },
-    { value: 'advanced', label: 'Advanced (高级)' },
-    { value: 'expert', label: 'Expert (专家)' },
+    { value: 'beginner', label: 'Beginner' },
+    { value: 'intermediate', label: 'Intermediate' },
+    { value: 'advanced', label: 'Advanced' },
+    { value: 'expert', label: 'Expert' },
   ];
 
   const highlightOptions = [
-    { value: 'all', label: 'All Words (所有单词)' },
-    { value: 'unknown', label: 'Unknown Only (仅未知)' },
-    { value: 'none', label: 'No Highlight (不高亮)' },
+    { value: 'all', label: 'All Words' },
+    { value: 'unknown', label: 'Unknown Only' },
+    { value: 'none', label: 'No Highlight' },
   ];
 
   const exportVocabulary = () => {
@@ -119,6 +137,26 @@ function App() {
     reader.readAsText(file);
   };
 
+  // Get highlighted/difficult words based on settings
+  const getHighlightedWords = () => {
+    if (!analysisResult) return [];
+    
+    const difficultyThreshold = {
+      beginner: 25,
+      intermediate: 50,
+      advanced: 75,
+      expert: 100,
+    }[settings.difficultyLevel];
+
+    return analysisResult.words.filter(word => {
+      if (settings.highlightMode === 'none') return false;
+      if (settings.highlightMode === 'unknown') return !word.isLearning && word.score >= difficultyThreshold;
+      return word.score >= difficultyThreshold;
+    });
+  };
+
+  const highlightedWords = getHighlightedWords();
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
       {/* Header */}
@@ -130,6 +168,15 @@ function App() {
               <h1 className="text-2xl font-bold">Word Discoverer</h1>
             </div>
             <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-white hover:bg-white/20"
+                onClick={() => setShowPronunciation(true)}
+              >
+                <Mic size={18} />
+                <span className="hidden sm:inline">Pronunciation</span>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -164,9 +211,49 @@ function App() {
             rows={6}
             value={currentText}
             onChange={(e) => setCurrentText(e.target.value)}
-            className="w-full"
+            className="w-full mb-4"
           />
-          <div className="flex items-center justify-between mt-4">
+          
+          {/* Analysis Controls */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Difficulty Level:
+              </label>
+              <Select
+                options={difficultyOptions}
+                value={settings.difficultyLevel}
+                onChange={(e) =>
+                  updateSettings({ difficultyLevel: e.target.value as DifficultyLevel })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Highlight Mode:
+              </label>
+              <Select
+                options={highlightOptions}
+                value={settings.highlightMode}
+                onChange={(e) =>
+                  updateSettings({ highlightMode: e.target.value as any })
+                }
+              />
+            </div>
+            <div className="flex items-end">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={settings.showTranslation}
+                  onChange={(e) => updateSettings({ showTranslation: e.target.checked })}
+                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                />
+                <span className="text-sm text-gray-700">Show Translations</span>
+              </label>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               {analysisResult && (
                 <span>
@@ -184,13 +271,44 @@ function App() {
                 <Trash2 size={16} />
                 Clear
               </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={analyzeText}
+                disabled={!currentText.trim() || isAnalyzing}
+                loading={isAnalyzing}
+              >
+                Analyze
+              </Button>
             </div>
           </div>
         </div>
 
+        {/* Statistics */}
+        {analysisResult && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="text-2xl font-bold text-purple-600">{analysisResult.totalWords}</div>
+              <div className="text-sm text-gray-600">Total Words</div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="text-2xl font-bold text-blue-600">{analysisResult.uniqueWords}</div>
+              <div className="text-sm text-gray-600">Unique Words</div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="text-2xl font-bold text-green-600">{highlightedWords.length}</div>
+              <div className="text-sm text-gray-600">Highlighted</div>
+            </div>
+            <div className="bg-white rounded-xl shadow-md p-4">
+              <div className="text-2xl font-bold text-orange-600">{vocabulary.length}</div>
+              <div className="text-sm text-gray-600">In Vocabulary</div>
+            </div>
+          </div>
+        )}
+
         {/* Analysis Result */}
         {analysisResult && (
-          <div className="bg-white rounded-2xl shadow-xl p-6">
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-6">
             <h2 className="text-xl font-bold mb-4 text-gray-800">
               🎯 Analyzed Text
               {isAnalyzing && <span className="text-sm text-gray-500 ml-2">(Analyzing...)</span>}
@@ -207,12 +325,13 @@ function App() {
                     <button
                       key={`${word.word}-${index}`}
                       onClick={() => handleWordClick(word)}
-                      className="px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-110 hover:shadow-md"
+                      className="px-3 py-1.5 rounded-lg font-medium transition-all hover:scale-110 hover:shadow-md relative group"
                       style={{
                         backgroundColor: `${color}20`,
                         color: color,
                         border: `2px solid ${color}`,
                       }}
+                      title={settings.showTranslation ? `Click to see details for "${word.word}"` : word.word}
                     >
                       {word.original}
                       {isInVocab && ' ⭐'}
@@ -247,6 +366,37 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Highlighted Words List */}
+        {highlightedWords.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-xl p-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-800">
+              📋 Highlighted Words ({highlightedWords.length})
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {highlightedWords.map((word, index) => {
+                const color = textAnalyzer.getDifficultyColor(word.difficulty);
+                const isInVocab = isWordInVocabulary(word.word);
+                
+                return (
+                  <button
+                    key={`hl-${word.word}-${index}`}
+                    onClick={() => handleWordClick(word)}
+                    className="px-3 py-2 rounded-lg font-medium transition-all hover:scale-105 hover:shadow-md text-left"
+                    style={{
+                      backgroundColor: `${color}20`,
+                      color: color,
+                      border: `2px solid ${color}`,
+                    }}
+                  >
+                    {word.word}
+                    {isInVocab && ' ⭐'}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Word Dictionary Modal */}
@@ -274,7 +424,7 @@ function App() {
               </div>
             )}
 
-            {selectedWord.translation && (
+            {selectedWord.translation && settings.showTranslation && (
               <div>
                 <h4 className="font-semibold text-gray-700 mb-1">Translation:</h4>
                 <p className="text-gray-600">{selectedWord.translation}</p>
@@ -456,6 +606,24 @@ function App() {
             checked={settings.autoSave}
             onChange={(checked) => updateSettings({ autoSave: checked })}
           />
+        </div>
+      </Modal>
+
+      {/* Pronunciation Modal */}
+      <Modal
+        isOpen={showPronunciation}
+        onClose={() => setShowPronunciation(false)}
+        title="Pronunciation Checker"
+        size="md"
+      >
+        <div className="text-center py-8">
+          <Mic size={64} className="mx-auto mb-4 text-purple-600" />
+          <p className="text-gray-600 mb-4">
+            Pronunciation checker feature coming soon!
+          </p>
+          <p className="text-sm text-gray-500">
+            This feature will allow you to practice pronunciation and get feedback.
+          </p>
         </div>
       </Modal>
     </div>
