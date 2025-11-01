@@ -1,10 +1,18 @@
 import { useState } from 'react';
 import { Button, Input, Select, Badge } from './components/atoms';
+import { ControlGroup, SearchBar } from './components/molecules';
 import { Search, Settings, BookOpen } from 'lucide-react';
 
 function App() {
   const [inputValue, setInputValue] = useState('');
   const [selectValue, setSelectValue] = useState('beginner');
+  const [searchValue, setSearchValue] = useState('');
+  const [formData, setFormData] = useState({
+    username: '',
+    difficulty: 'beginner',
+    description: '',
+    acceptTerms: false,
+  });
 
   const difficultyOptions = [
     { value: 'beginner', label: 'Beginner' },
@@ -12,6 +20,11 @@ function App() {
     { value: 'advanced', label: 'Advanced' },
     { value: 'expert', label: 'Expert' },
   ];
+
+  const handleSearch = (query: string) => {
+    console.log('Searching for:', query);
+    alert(`Searching for: ${query}`);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50">
@@ -34,8 +47,78 @@ function App() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
+          {/* Molecule Components Demo */}
           <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Component Demo</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Molecule Components</h2>
+            
+            <div className="space-y-6">
+              {/* SearchBar */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-gray-700">SearchBar</h3>
+                <SearchBar
+                  value={searchValue}
+                  onChange={setSearchValue}
+                  onSearch={handleSearch}
+                  placeholder="Search for words..."
+                />
+              </div>
+
+              {/* ControlGroup - Form Example */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3 text-gray-700">ControlGroup (Form)</h3>
+                <div className="space-y-4 p-4 bg-gray-50 rounded-lg">
+                  <ControlGroup
+                    type="input"
+                    label="Username"
+                    required
+                    inputProps={{
+                      placeholder: 'Enter your username',
+                      value: formData.username,
+                      onChange: (e) => setFormData({ ...formData, username: e.target.value }),
+                    }}
+                    helperText="At least 3 characters"
+                  />
+                  
+                  <ControlGroup
+                    type="select"
+                    label="Difficulty Level"
+                    selectProps={{
+                      options: difficultyOptions,
+                      value: formData.difficulty,
+                      onChange: (e) => setFormData({ ...formData, difficulty: e.target.value }),
+                    }}
+                  />
+                  
+                  <ControlGroup
+                    type="textarea"
+                    label="Description"
+                    textareaProps={{
+                      placeholder: 'Tell us about yourself...',
+                      rows: 3,
+                      value: formData.description,
+                      onChange: (e) => setFormData({ ...formData, description: e.target.value }),
+                    }}
+                  />
+                  
+                  <ControlGroup
+                    type="checkbox"
+                    checkboxLabel="I accept the terms and conditions"
+                    required
+                    checked={formData.acceptTerms}
+                    onChange={(checked) => setFormData({ ...formData, acceptTerms: checked })}
+                  />
+                  
+                  <Button variant="primary" disabled={!formData.acceptTerms}>
+                    Submit Form
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Atomic Components Demo */}
+          <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Atomic Components</h2>
             
             <div className="space-y-6">
               {/* Button Variants */}
