@@ -85,9 +85,14 @@ function App() {
   const handleWordClick = (word: AnalyzedWord) => {
     setSelectedWord({
       word: word.word,
-      definition: `Definition for "${word.word}"`,
-      phonetic: `/${word.word}/`,
-      translation: `${word.word} 的中文翻译`,
+      definition: word.info?.definition || `Definition for "${word.word}"`,
+      phonetic: word.info?.phonetic || `/${word.word}/`,
+      translation: word.info?.translation || `${word.word} 的中文翻译`,
+      collins: word.info?.collins,
+      oxford: word.info?.oxford,
+      tag: word.info?.tag,
+      bnc: word.info?.bnc,
+      frq: word.info?.frq,
     });
   };
 
