@@ -56,21 +56,23 @@ export const AnalyzedTextSection = ({
                     onClick={() => onWordClick(word)}
                     className={`${colorClass} border-2 rounded-lg px-3 py-2 font-medium transition-all hover:shadow-md cursor-pointer flex items-center gap-1`}
                   >
-                    <div className="flex flex-col items-start">
-                      <span>{word.original}</span>
-                      {isInVocab && vocabItem.phonetic && (
-                        <span className="text-xs opacity-75">{vocabItem.phonetic}</span>
+                    <div className="flex flex-col items-center">
+                      {/* Phonetic above word for highlighted words with dictionary info */}
+                      {showTranslation && highlighted && word.info?.phonetic && (
+                        <span className="text-xs opacity-70 mb-0.5">{word.info.phonetic}</span>
+                      )}
+                      
+                      <div className="flex items-center gap-1">
+                        <span>{word.original}</span>
+                        {isInVocab && <span className="text-yellow-500">⭐</span>}
+                      </div>
+                      
+                      {/* Translation below word for highlighted words with dictionary info */}
+                      {showTranslation && highlighted && word.info?.translation && (
+                        <span className="text-xs opacity-70 mt-0.5">{word.info.translation}</span>
                       )}
                     </div>
-                    {isInVocab && <span className="text-yellow-500">⭐</span>}
                   </button>
-
-                  {showTranslation && vocabItem && (
-                    <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10">
-                      {vocabItem.phonetic && <div>{vocabItem.phonetic}</div>}
-                      {vocabItem.translation && <div>{vocabItem.translation}</div>}
-                    </div>
-                  )}
                 </div>
               );
             })}
