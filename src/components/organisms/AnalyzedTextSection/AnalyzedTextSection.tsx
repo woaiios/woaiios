@@ -2,6 +2,7 @@ import type { AnalyzedWord, VocabularyItem } from '../../../types';
 
 interface AnalyzedTextSectionProps {
   words: AnalyzedWord[];
+  highlightedWords: AnalyzedWord[];
   vocabulary: VocabularyItem[];
   showTranslation: boolean;
   onWordClick: (word: AnalyzedWord) => void;
@@ -16,6 +17,7 @@ const difficultyColors: Record<string, string> = {
 
 export const AnalyzedTextSection = ({
   words,
+  highlightedWords,
   vocabulary,
   showTranslation,
   onWordClick,
@@ -23,6 +25,12 @@ export const AnalyzedTextSection = ({
   const getVocabItem = (word: string) => {
     return vocabulary.find(
       (v) => v.word.toLowerCase() === word.toLowerCase()
+    );
+  };
+
+  const isHighlighted = (word: AnalyzedWord) => {
+    return highlightedWords.some(
+      (hw) => hw.word.toLowerCase() === word.word.toLowerCase()
     );
   };
 
@@ -39,7 +47,8 @@ export const AnalyzedTextSection = ({
             {words.map((word, index) => {
               const vocabItem = getVocabItem(word.word);
               const isInVocab = !!vocabItem;
-              const colorClass = difficultyColors[word.difficulty];
+              const highlighted = isHighlighted(word);
+              const colorClass = highlighted ? difficultyColors[word.difficulty] : 'bg-gray-50 border-gray-300 text-gray-700';
 
               return (
                 <div key={`${word.word}-${index}`} className="relative group">

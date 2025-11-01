@@ -121,7 +121,8 @@ function App() {
       }
       analyzedText={
         <AnalyzedTextSection
-          words={highlightedWords}
+          words={analysisResult?.words || []}
+          highlightedWords={highlightedWords}
           vocabulary={vocabulary}
           showTranslation={settings.showTranslation}
           onWordClick={handleWordClick}
