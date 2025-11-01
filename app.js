@@ -25,10 +25,10 @@ import { WordDatabase } from './js/WordDatabase.js';
 import { TextAnalyzer } from './js/TextAnalyzer.js';
 import { VocabularyManager } from './js/VocabularyManager.js';
 import { SettingsManager } from './js/SettingsManager.js';
-import { VocabularyComponent } from './components/Vocabulary/Vocabulary.js';
-import { SettingsComponent } from './components/Settings/Settings.js';
-import { AnalyzedTextComponent } from './components/AnalyzedText/AnalyzedText.js';
-import { PronunciationCheckerComponent } from './components/PronunciationChecker/PronunciationChecker.js';
+import { VocabularyComponent } from './components/organisms/Vocabulary/Vocabulary.js';
+import { SettingsComponent } from './components/organisms/Settings/Settings.js';
+import { AnalyzedTextComponent } from './components/organisms/AnalyzedText/AnalyzedText.js';
+import { PronunciationCheckerComponent } from './components/organisms/PronunciationChecker/PronunciationChecker.js';
 import { batchDOMUpdate, scheduleIdleTask } from './js/PerformanceUtils.js';
 
 /**
