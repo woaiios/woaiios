@@ -30,10 +30,7 @@
       "@store/*": ["./src/store/*"],
       "@utils/*": ["./src/utils/*"],
       "@types/*": ["./src/types/*"]
-    },
-
-    /* Testing */
-    "types": ["vitest/globals", "@testing-library/jest-dom"]
+    }
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
