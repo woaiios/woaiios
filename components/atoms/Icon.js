@@ -94,7 +94,7 @@ export class Icon {
         // 移除旧的图标类名 (Remove old icon class)
         const classes = Array.from(icon.classList);
         classes.forEach(cls => {
-            if (cls.startsWith('fa-') && cls !== 'fa-spin' && !cls.match(/^fa-(xs|sm|lg|xl|\dx)$/)) {
+            if (cls.startsWith('fa-') && cls !== 'fa-spin' && !cls.match(/^fa-(xs|sm|lg|xl|\d+x)$/)) {
                 icon.classList.remove(cls);
             }
         });
