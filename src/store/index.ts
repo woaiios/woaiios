@@ -17,7 +17,7 @@ interface AppState {
   vocabulary: VocabularyItem[];
   addWord: (word: string, difficulty: DifficultyLevel, phonetic?: string, translation?: string) => void;
   removeWord: (word: string) => void;
-  toggleWordStatus: (word: string) => void; // Toggle between learning and mastered
+  toggleWordStatus: (word: string) => void;
   clearVocabulary: () => void;
   isWordInVocabulary: (word: string) => boolean;
   getWordStatus: (word: string) => 'learning' | 'mastered' | null;
@@ -47,16 +47,16 @@ export const useAppStore = create<AppState>()(
         showTranslation: true,
         autoSave: true,
       },
-      updateSettings: (newSettings) =>
-        set((state) => ({
+      updateSettings: (newSettings: Partial<AppSettings>) =>
+        set((state: AppState) => ({
           settings: { ...state.settings, ...newSettings },
         })),
 
       // Vocabulary management
       vocabulary: [],
-      addWord: (word, difficulty, phonetic, translation) =>
-        set((state) => {
-          const exists = state.vocabulary.some((item) => item.word.toLowerCase() === word.toLowerCase());
+      addWord: (word: string, difficulty: DifficultyLevel, phonetic?: string, translation?: string) =>
+        set((state: AppState) => {
+          const exists = state.vocabulary.some((item: VocabularyItem) => item.word.toLowerCase() === word.toLowerCase());
           if (exists) return state;
           
           return {
@@ -66,55 +66,55 @@ export const useAppStore = create<AppState>()(
                 word, 
                 difficulty, 
                 addedAt: Date.now(),
-                status: 'learning', // Default to learning
+                status: 'learning' as const,
                 phonetic,
                 translation,
               },
             ],
           };
         }),
-      removeWord: (word) =>
-        set((state) => ({
+      removeWord: (word: string) =>
+        set((state: AppState) => ({
           vocabulary: state.vocabulary.filter(
-            (item) => item.word.toLowerCase() !== word.toLowerCase()
+            (item: VocabularyItem) => item.word.toLowerCase() !== word.toLowerCase()
           ),
         })),
-      toggleWordStatus: (word) =>
-        set((state) => ({
-          vocabulary: state.vocabulary.map((item) =>
+      toggleWordStatus: (word: string) =>
+        set((state: AppState) => ({
+          vocabulary: state.vocabulary.map((item: VocabularyItem) =>
             item.word.toLowerCase() === word.toLowerCase()
               ? { ...item, status: item.status === 'learning' ? 'mastered' as const : 'learning' as const }
               : item
           ),
         })),
       clearVocabulary: () => set({ vocabulary: [] }),
-      isWordInVocabulary: (word) => {
+      isWordInVocabulary: (word: string) => {
         const { vocabulary } = get();
-        return vocabulary.some((item) => item.word.toLowerCase() === word.toLowerCase());
+        return vocabulary.some((item: VocabularyItem) => item.word.toLowerCase() === word.toLowerCase());
       },
-      getWordStatus: (word) => {
+      getWordStatus: (word: string) => {
         const { vocabulary } = get();
-        const item = vocabulary.find((item) => item.word.toLowerCase() === word.toLowerCase());
+        const item = vocabulary.find((item: VocabularyItem) => item.word.toLowerCase() === word.toLowerCase());
         return item ? item.status : null;
       },
 
       // Text analysis
       currentText: '',
       analysisResult: null,
-      setCurrentText: (text) => set({ currentText: text }),
-      setAnalysisResult: (result) => set({ analysisResult: result }),
+      setCurrentText: (text: string) => set({ currentText: text }),
+      setAnalysisResult: (result: TextAnalysisResult | null) => set({ analysisResult: result }),
 
-      // Selected word for dictionary
+      // Selected word
       selectedWord: null,
-      setSelectedWord: (word) => set({ selectedWord: word }),
+      setSelectedWord: (word: WordInfo | null) => set({ selectedWord: word }),
 
-      // Loading states
+      // Loading
       isAnalyzing: false,
-      setIsAnalyzing: (loading) => set({ isAnalyzing: loading }),
+      setIsAnalyzing: (loading: boolean) => set({ isAnalyzing: loading }),
     }),
     {
       name: 'word-discoverer-storage',
-      partialize: (state) => ({
+      partialize: (state: AppState) => ({
         settings: state.settings,
         vocabulary: state.vocabulary,
       }),
