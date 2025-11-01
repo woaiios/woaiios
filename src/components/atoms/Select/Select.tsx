@@ -16,7 +16,7 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ options, error, label, helperText, className, id, ...props }, ref) => {
-    const selectId = id || `select-${Math.random().toString(36).substr(2, 9)}`;
+    const selectId = id || `select-${Math.random().toString(36).substring(2, 11)}`;
     
     const selectStyles = clsx(
       'w-full px-4 py-2 pr-10 rounded-lg border transition-colors appearance-none',

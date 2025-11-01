@@ -15,7 +15,7 @@ export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ error, label, helperText, className, id, ...props }, ref) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    const inputId = id || `input-${Math.random().toString(36).substring(2, 11)}`;
     
     const inputStyles = clsx(
       'w-full px-4 py-2 rounded-lg border transition-colors',
@@ -58,7 +58,7 @@ Input.displayName = 'Input';
 
 export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
   ({ error, label, helperText, className, id, ...props }, ref) => {
-    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+    const textareaId = id || `textarea-${Math.random().toString(36).substring(2, 11)}`;
     
     const textareaStyles = clsx(
       'w-full px-4 py-2 rounded-lg border transition-colors',
