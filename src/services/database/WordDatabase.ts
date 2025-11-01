@@ -44,8 +44,24 @@ export class WordDatabase {
         this.loader = new ProgressiveDatabaseLoader({
           ...finalConfig,
           dbName: 'word-dictionary',
-          onComplete: (db) => {
+          onComplete: async (db) => {
             this.database = db;
+            
+            // Import SQL database into IndexedDB for offline access
+            if (this.directStorage && db) {
+              console.log('🔄 Importing dictionary data into IndexedDB for offline use...');
+              try {
+                await this.directStorage.importFromDatabase(db, (progress) => {
+                  if (progress.percentage % 10 === 0) {
+                    console.log(`📥 Import progress: ${progress.percentage.toFixed(1)}%`);
+                  }
+                });
+                console.log('✅ Dictionary data imported to IndexedDB - app is now offline-ready!');
+              } catch (error) {
+                console.warn('Failed to import to IndexedDB, will use SQL fallback:', error);
+              }
+            }
+            
             this.initialized = true;
           },
           onError: (error) => {
