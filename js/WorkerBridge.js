@@ -22,7 +22,7 @@ export class WorkerBridge {
         }
 
         try {
-            this.worker = new Worker(this.workerPath, { type: 'module' });
+            this.worker = new Worker(this.workerPath);
             
             this.worker.onmessage = (event) => {
                 const { id, type, result, error } = event.data;
