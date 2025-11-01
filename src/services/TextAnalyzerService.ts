@@ -14,27 +14,26 @@ export class TextAnalyzerService {
 
   /**
    * Initialize the word database
+   * Loads only top 10,000 BNC high-frequency words (~2MB compressed)
    */
   private async initializeDatabase(): Promise<void> {
     try {
-      // Generate chunk URLs with full absolute URLs
-      const origin = window.location.origin; // e.g., 'http://localhost:4173'
+      // Load single database file with top 10k high-frequency words
+      const origin = window.location.origin;
       const base = '/woaiios/'; // From vite.config.ts
-      const chunkUrls = Array.from({ length: 10 }, (_, i) => 
-        `${origin}${base}db-chunks/chunk-${i + 1}.db.gz`
-      );
+      const dbUrl = `${origin}${base}ecdict-top10k.db.gz`;
 
-      console.log('Loading chunks from:', chunkUrls[0]);
+      console.log('Loading top 10k words dictionary from:', dbUrl);
 
       this.wordDatabase = new WordDatabase({
-        chunkUrls,
+        chunkUrls: [dbUrl], // Single file instead of 10 chunks
         useDirectStorage: true,
         fallbackToAPI: false,
       });
       
       await this.wordDatabase.initialize();
       this.databaseInitialized = true;
-      console.log('✅ Word database initialized with chunks:', chunkUrls.length);
+      console.log('✅ Word database initialized with top 10,000 BNC high-frequency words');
     } catch (error) {
       console.warn('Database initialization failed, using fallback:', error);
       this.databaseInitialized = false;
