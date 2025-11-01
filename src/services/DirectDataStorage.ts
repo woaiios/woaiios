@@ -136,20 +136,20 @@ export class DirectDataStorage {
 
         for (const row of batch) {
           const wordData: WordData = {
-            word: row[0],
-            word_lower: row[0].toLowerCase(),
-            phonetic: row[1] || '',
-            definition: row[2] || '',
-            translation: row[3] || '',
-            pos: row[4] || '',
-            collins: parseInt(row[5]) || 0,
+            word: String(row[0] || ''),
+            word_lower: String(row[0] || '').toLowerCase(),
+            phonetic: String(row[1] || ''),
+            definition: String(row[2] || ''),
+            translation: String(row[3] || ''),
+            pos: String(row[4] || ''),
+            collins: parseInt(String(row[5] || '0')) || 0,
             oxford: row[6] === '1' || row[6] === 1,
-            tag: row[7] || '',
-            bnc: parseInt(row[8]) || 0,
-            frq: parseInt(row[9]) || 0,
-            exchange: row[10] || '',
-            detail: row[11] || '',
-            audio: row[12] || ''
+            tag: String(row[7] || ''),
+            bnc: parseInt(String(row[8] || '0')) || 0,
+            frq: parseInt(String(row[9] || '0')) || 0,
+            exchange: String(row[10] || ''),
+            detail: String(row[11] || ''),
+            audio: String(row[12] || '')
           };
           
           store.put(wordData);
@@ -305,7 +305,9 @@ export class DirectDataStorage {
     // If cache is full, remove oldest entry
     if (this.memoryCache.size >= this.maxCacheSize) {
       const firstKey = this.memoryCache.keys().next().value;
-      this.memoryCache.delete(firstKey);
+      if (firstKey !== undefined) {
+        this.memoryCache.delete(firstKey);
+      }
     }
     this.memoryCache.set(word, data);
   }

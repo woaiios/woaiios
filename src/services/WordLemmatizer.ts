@@ -21,6 +21,7 @@ function initWinkLemmatizer(): Promise<void> {
   if (!winkLemmatizerPromise) {
     winkLemmatizerPromise = (async () => {
       try {
+        // @ts-ignore - wink-lemmatizer has no types
         const module = await import('wink-lemmatizer');
         winkLemmatizer = module.default;
       } catch (error) {

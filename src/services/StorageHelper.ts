@@ -74,7 +74,7 @@ export function isIndexedDBAvailable(): boolean {
 /**
  * Get IndexedDB database size estimate
  */
-export async function getIndexedDBSize(dbName: string): Promise<number> {
+export async function getIndexedDBSize(_dbName?: string): Promise<number> {
   if (!isIndexedDBAvailable()) {
     return 0;
   }
