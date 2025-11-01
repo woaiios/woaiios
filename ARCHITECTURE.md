@@ -9,18 +9,48 @@ The WordDiscoverer application has been refactored from a monolithic 600+ line J
 ### Module Structure
 
 ```
-web/WordDiscover/
+WordDiscoverer/
 ├── app.js                    # Main application orchestrator
-├── js/                       # Module directory
+├── index.html                # Entry point HTML
+├── js/                       # Core logic modules
 │   ├── WordDatabase.js       # Dictionary loading and difficulty analysis
 │   ├── TextAnalyzer.js       # Text processing and analysis logic
-│   ├── VocabularyManager.js   # Vocabulary management and persistence
-│   ├── SettingsManager.js     # Settings management and validation
-│   └── UIController.js       # User interface interactions
-├── index.html               # Updated to use ES6 modules
-├── styles.css              # Unchanged
-├── eng_dict.txt            # Unchanged
-└── script.js.backup        # Original monolithic file (backup)
+│   ├── VocabularyManager.js  # Vocabulary management and persistence
+│   ├── SettingsManager.js    # Settings management and validation
+│   ├── PerformanceUtils.js   # Performance optimization utilities
+│   ├── GoogleDriveManager.js # Google Drive cloud sync
+│   ├── PronunciationChecker.js # Pronunciation checking logic
+│   └── ...                   # Other utility modules
+├── components/               # UI components (Atomic Design)
+│   ├── atoms/                # Basic UI elements
+│   │   ├── Button.js         # Reusable button component
+│   │   ├── Input.js          # Input/textarea components
+│   │   ├── Select.js         # Dropdown select component
+│   │   ├── Icon.js           # Icon wrapper component
+│   │   ├── Badge.js          # Badge/tag component
+│   │   └── index.js          # Unified exports
+│   ├── molecules/            # Simple component combinations
+│   │   ├── ControlGroup.js   # Label + control pairing
+│   │   └── index.js          # Unified exports
+│   ├── organisms/            # Complex functional modules
+│   │   ├── Modal/            # Modal dialog component
+│   │   ├── Vocabulary/       # Vocabulary management UI
+│   │   ├── Settings/         # Settings management UI
+│   │   ├── AnalyzedText/     # Analyzed text display
+│   │   ├── PronunciationChecker/ # Pronunciation checker UI
+│   │   └── index.js          # Unified exports
+│   ├── Component.js          # Base component class
+│   └── README.md             # Atomic Design documentation
+├── css/                      # Stylesheets
+│   ├── main.css              # Main styles
+│   ├── components.css        # Component styles
+│   └── ...                   # Other style files
+├── workers/                  # Web Workers for background tasks
+├── scripts/                  # Build and utility scripts
+└── public/                   # Static assets
+    ├── eng_dict.txt          # Dictionary file
+    ├── eng-zho.json          # ECDICT database
+    └── ...                   # Other assets
 ```
 
 ### Module Responsibilities
@@ -152,3 +182,53 @@ The new architecture makes it easy to add:
 - **Refactored**: 6 modules totaling ~800 lines, better organized
 - **Maintainability**: Significantly improved
 - **Testability**: Much easier to test individual components
+
+## Atomic Design Component Architecture
+
+Starting from version 2.x, the UI components follow **Atomic Design** methodology for better organization and reusability.
+
+### Component Hierarchy
+
+```
+Atoms (原子) → Molecules (分子) → Organisms (有机体) → Templates (模板) → Pages (页面)
+```
+
+**Atoms (原子组件)**: Basic UI elements
+- `Button` - Reusable button with multiple variants
+- `Input` - Input and textarea components
+- `Select` - Dropdown selection component
+- `Icon` - Font Awesome icon wrapper
+- `Badge` - Tag/badge component
+
+**Molecules (分子组件)**: Simple combinations of atoms
+- `ControlGroup` - Label + control (select/input/checkbox) pairing
+
+**Organisms (有机体组件)**: Complex functional modules
+- `Modal` - Modal dialog with header, body, and close button
+- `VocabularyComponent` - Complete vocabulary management interface
+- `SettingsComponent` - Complete settings management interface
+- `AnalyzedTextComponent` - Analyzed text display with interactions
+- `PronunciationCheckerComponent` - Complete pronunciation checker interface
+
+**Templates & Pages**: Managed by `app.js`
+- The main application layout and page composition is handled by the WordDiscoverer class in `app.js`
+
+### Benefits of Atomic Design
+
+1. **Clear Component Hierarchy**: Easy to understand and locate components
+2. **High Reusability**: Atomic components can be used throughout the application
+3. **Better Maintainability**: Single-responsibility components are easier to maintain
+4. **Scalability**: Easy to add new components following the established pattern
+5. **Consistency**: Standardized component creation and usage patterns
+
+For detailed documentation on the component architecture, see [components/README.md](./components/README.md).
+
+### Migration from Flat Structure
+
+The component reorganization maintains backward compatibility:
+
+- Old: `components/Modal/Modal.js` → New: `components/organisms/Modal/Modal.js`
+- Old: `components/Vocabulary/Vocabulary.js` → New: `components/organisms/Vocabulary/Vocabulary.js`
+- Old: `components/Settings/Settings.js` → New: `components/organisms/Settings/Settings.js`
+
+All imports in `app.js` have been updated to reflect the new structure.
