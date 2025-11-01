@@ -8,6 +8,7 @@ import {
   StatisticsPanel,
   AnalyzedTextSection,
   HighlightedWordsList,
+  GoogleDrivePanel,
 } from './components/organisms';
 import { MainTemplate } from './components/templates';
 import { useAppStore } from './store';
@@ -376,17 +377,35 @@ function App() {
             isOpen={showSettings}
             onClose={() => setShowSettings(false)}
             title="Settings"
-            size="md"
+            size="lg"
           >
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Google Drive Section */}
               <div>
-                <label className="block text-sm font-medium mb-2">Auto-save</label>
-                <input
-                  type="checkbox"
-                  checked={settings.autoSave}
-                  onChange={(e) => updateSettings({ autoSave: e.target.checked })}
-                  className="w-4 h-4"
-                />
+                <GoogleDrivePanel />
+              </div>
+
+              {/* Divider */}
+              <hr className="border-gray-200 dark:border-gray-700" />
+
+              {/* General Settings */}
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  General Settings
+                </h3>
+                <div>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.autoSave}
+                      onChange={(e) => updateSettings({ autoSave: e.target.checked })}
+                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <span className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">
+                      Auto-save vocabulary changes
+                    </span>
+                  </label>
+                </div>
               </div>
             </div>
           </Modal>
