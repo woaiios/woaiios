@@ -79,7 +79,7 @@ export class WordDatabase {
     try {
       // Try direct storage first (fastest)
       if (this.directStorage) {
-        const result = await this.directStorage.getWord(normalized);
+        const result = await this.directStorage.queryWord(normalized);
         if (result) {
           return this.formatWordData(result);
         }
@@ -115,10 +115,10 @@ export class WordDatabase {
     // Try direct storage batch query first
     if (this.directStorage && words.length > 10) {
       try {
-        const storageResults = await this.directStorage.batchGetWords(words);
-        for (const [word, data] of storageResults.entries()) {
-          if (data) {
-            results.set(word, this.formatWordData(data));
+        const storageResults = await this.directStorage.queryWordsBatch(words);
+        for (const result of storageResults) {
+          if (result.data) {
+            results.set(result.word, this.formatWordData(result.data));
           }
         }
       } catch (error) {
@@ -181,9 +181,8 @@ export class WordDatabase {
       phonetic: String(data.phonetic || data.phonetics || ''),
       definition: String(data.definition || data.meanings || ''),
       translation: String(data.translation || data.translations || ''),
-      pos: String(data.pos || ''),
       collins: Number(data.collins || 0),
-      oxford: Boolean(data.oxford),
+      oxford: Number(data.oxford || 0),
       tag: String(data.tag || ''),
       bnc: Number(data.bnc || 0),
       frq: Number(data.frq || 0)
@@ -198,7 +197,7 @@ export class WordDatabase {
       await this.loader.clearCache();
     }
     if (this.directStorage) {
-      await this.directStorage.clear();
+      await this.directStorage.clearData();
     }
   }
 

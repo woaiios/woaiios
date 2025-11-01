@@ -11,6 +11,12 @@ export class DatabaseCache {
   private dbVersion = 1;
   private cacheDB: IDBDatabase | null = null;
 
+  constructor(cacheName?: string) {
+    if (cacheName) {
+      this.dbName = cacheName;
+    }
+  }
+
   /**
    * Initialize IndexedDB cache
    */
@@ -88,7 +94,7 @@ export class DatabaseCache {
   /**
    * Load chunk from cache
    */
-  async loadChunk(chunkNumber: number, currentVersion: string): Promise<Uint8Array | null> {
+  async loadChunk(_dbName: string, chunkNumber: number, currentVersion?: string): Promise<Uint8Array | null> {
     if (!this.cacheDB) return null;
 
     return new Promise((resolve) => {
@@ -99,7 +105,7 @@ export class DatabaseCache {
 
         request.onsuccess = () => {
           const result = request.result as ChunkData | undefined;
-          if (result && result.version === currentVersion) {
+          if (result && (!currentVersion || result.version === currentVersion)) {
             console.log(`📦 Loaded chunk ${chunkNumber} from cache`);
             resolve(result.data);
           } else {
@@ -137,7 +143,7 @@ export class DatabaseCache {
   /**
    * Load metadata
    */
-  async loadMetadata(): Promise<DatabaseMetadata | null> {
+  async loadMetadata(_dbName?: string): Promise<DatabaseMetadata | null> {
     if (!this.cacheDB) return null;
 
     return new Promise((resolve) => {
