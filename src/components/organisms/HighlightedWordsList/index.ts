@@ -1,0 +1,1 @@
+export { HighlightedWordsList } from './HighlightedWordsList';
