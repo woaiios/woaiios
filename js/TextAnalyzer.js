@@ -1,105 +1,23 @@
 /**
- * TextAnalyzer Module
+ * TextAnalyzer Module (Refactored)
  * Handles text analysis and word processing logic
- * Now using ECDICT SQLite database
+ * Now using modular components for better maintainability
  */
+import { WordTokenizer } from './analyzers/WordTokenizer.js';
+import { DifficultyCalculator } from './analyzers/DifficultyCalculator.js';
+import { TranslationFormatter } from './analyzers/TranslationFormatter.js';
+import { ExchangeParser } from './analyzers/ExchangeParser.js';
+
 export class TextAnalyzer {
     constructor(wordDatabase, translationService) {
         this.wordDatabase = wordDatabase;
         this.translationService = translationService;
-        this.tokenizer = null;
-        this.translationCache = new Map(); // Cache formatted translations to avoid repeated HTML generation
-        this.maxCacheSize = 5000; // Limit cache size as user requested: "别存太多"
         
-        // Constants for exchange field parsing
-        this.LEMMA_KEY = '0';           // Primary lemma (base form)
-        this.LEMMA_VARIATION_KEY = '1'; // Alternative lemma form
-        
-        // Expert difficulty configuration for learning words
-        this.EXPERT_DIFFICULTY = {
-            level: 'expert',
-            score: 100,
-            className: 'expert'
-        };
-        
-        this.loadTokenizer();
-    }
-
-    /**
-     * Load tokenizer - now using Intl.Segmenter
-     */
-    async loadTokenizer() {
-        try {
-            // Check if Intl.Segmenter is available
-            if (Intl.Segmenter) {
-                // Create a segmenter for English
-                this.tokenizer = new Intl.Segmenter(undefined, { granularity: 'word' });
-                console.log('Intl.Segmenter loaded successfully');
-            } else {
-                throw new Error('Intl.Segmenter not supported in this browser');
-            }
-        } catch (error) {
-            console.warn('Error loading Intl.Segmenter, falling back to simple extraction:', error);
-            // Fallback function in case Intl.Segmenter fails
-            this.tokenizer = {
-                tokenize: (text) => {
-                    return text.split(/\s+/).map(token => ({ value: token, tag: 'word' }));
-                }
-            };
-        }
-    }
-
-    /**
-     * Parse exchange field to get word forms
-     * @param {string} exchange - Exchange field from database
-     * @returns {Object} Word forms (past, done, ing, third, plural, comparative, superlative, lemma)
-     */
-    parseExchange(exchange) {
-        const forms = {
-            p: null,      // past tense (did)
-            d: null,      // past participle (done)
-            i: null,      // present participle (doing)
-            '3': null,    // third person singular (does)
-            r: null,      // comparative (-er)
-            t: null,      // superlative (-est)
-            s: null,      // plural
-            [this.LEMMA_KEY]: null,           // primary lemma (base form)
-            [this.LEMMA_VARIATION_KEY]: null  // alternative lemma form
-        };
-
-        if (!exchange) return forms;
-
-        const pairs = exchange.split('/');
-        for (const pair of pairs) {
-            const [type, value] = pair.split(':');
-            if (type && value) {
-                forms[type] = value;
-            }
-        }
-
-        return forms;
-    }
-
-    /**
-     * Check if word data has difficulty metadata
-     * @param {Object} wordInfo - Word information
-     * @returns {boolean} True if word has metadata
-     */
-    hasMetadata(wordInfo) {
-        if (!wordInfo) return false;
-        
-        const tag = wordInfo.tag || '';
-        
-        // Check for any difficulty indicators
-        return (
-            wordInfo.oxford === 1 || wordInfo.oxford === true ||
-            wordInfo.collins > 0 ||
-            wordInfo.bnc > 0 ||
-            tag.includes('zk') || tag.includes('gk') || 
-            tag.includes('cet4') || tag.includes('cet6') ||
-            tag.includes('ielts') || tag.includes('toefl') ||
-            tag.includes('gre')
-        );
+        // Initialize sub-modules
+        this.exchangeParser = new ExchangeParser();
+        this.tokenizer = new WordTokenizer();
+        this.difficultyCalculator = new DifficultyCalculator();
+        this.translationFormatter = new TranslationFormatter(this.exchangeParser);
     }
 
     /**
@@ -108,32 +26,34 @@ export class TextAnalyzer {
      * @returns {Array<string>} Array of words
      */
     extractWords(text) {
-        // Use Intl.Segmenter if available
-        if (this.tokenizer && this.tokenizer.segment) {
-            const segments = this.tokenizer.segment(text);
-            return Array.from(segments)
-                .filter(segment => segment.isWordLike)
-                .map(segment => segment.segment)
-                .filter(word => word.length > 1)
-                // Only include English words (containing only Latin alphabet characters)
-                .filter(word => /^[a-zA-Z]+$/.test(word));
-        }
-        
-        // Fallback to original method
-        return text
-            .split(/\s+/)
-            .filter(word => word.length > 1)
-            // Only include English words (containing only Latin alphabet characters)
-            .filter(word => /^[a-zA-Z]+$/.test(word));
+        return this.tokenizer.extractWords(text);
     }
 
     /**
-     * Analyze words for difficulty and highlighting.
-     * @param {Array<string>} words - Array of words to analyze.
-     * @param {string} difficultyLevel - Current difficulty level setting.
-     * @param {string} highlightMode - Highlight mode setting.
-     * @param {Object} vocabulary - User's vocabulary, containing 'learning' and 'mastered' maps.
-     * @returns {Promise<Object>} Analysis results.
+     * Parse exchange field (delegated to ExchangeParser)
+     * @param {string} exchange - Exchange field from database
+     * @returns {Object} Word forms
+     */
+    parseExchange(exchange) {
+        return this.exchangeParser.parseExchange(exchange);
+    }
+
+    /**
+     * Check if word data has difficulty metadata
+     * @param {Object} wordInfo - Word information
+     * @returns {boolean} True if word has metadata
+     */
+    hasMetadata(wordInfo) {
+        return this.difficultyCalculator.hasMetadata(wordInfo);
+    }
+
+    /**
+     * Analyze words for difficulty and highlighting
+     * @param {Array<string>} words - Array of words to analyze
+     * @param {string} difficultyLevel - Current difficulty level setting
+     * @param {string} highlightMode - Highlight mode setting
+     * @param {Object} vocabulary - User's vocabulary (learning, mastered)
+     * @returns {Promise<Object>} Analysis results
      */
     async analyzeWords(words, difficultyLevel, highlightMode, vocabulary) {
         const analysis = {
@@ -146,125 +66,63 @@ export class TextAnalyzer {
 
         const { learning: learningWords, mastered: masteredWords } = vocabulary;
 
-        // Count word frequency using lowercase for counting but preserving original case for display
-        words.forEach(word => {
-            const lowerWord = word.toLowerCase();
-            analysis.wordFrequency[lowerWord] = (analysis.wordFrequency[lowerWord] || 0) + 1;
-        });
+        // Count word frequency
+        analysis.wordFrequency = this.tokenizer.countWordFrequency(words);
 
-        // Analyze each unique word (using lowercase for comparison)
-        const uniqueWords = [...new Set(words.map(word => word.toLowerCase()))];
+        // Get unique words
+        const uniqueWords = this.tokenizer.getUniqueWords(words);
         
-        // Use batch query for better performance - query all words at once
         const startTime = performance.now();
         
         // Batch query all unique words
-        const wordDataMap = new Map();
-        if (this.wordDatabase.useDirectStorage && this.wordDatabase.directStorage && this.wordDatabase.directStorage.isInitialized) {
-            // Use optimized batch query
-            const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(uniqueWords);
-            batchResults.forEach(result => {
-                if (result.data) {
-                    wordDataMap.set(result.word, result.data);
-                }
-            });
-        } else {
-            // Fallback to individual queries
-            for (const word of uniqueWords) {
-                const data = await this.wordDatabase.queryWord(word);
-                if (data) {
-                    wordDataMap.set(word, data);
-                }
-            }
-        }
+        const wordDataMap = await this.batchQueryWords(uniqueWords);
         
-        // Process each word with the pre-fetched data
         // First pass: check for words that need lemma lookup
-        const lemmasToQuery = new Set();
-        for (const lowerWord of uniqueWords) {
-            const wordData = wordDataMap.get(lowerWord);
-            // If word exists but has no metadata, check if it has a lemma
-            if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
-                const forms = this.parseExchange(wordData.exchange);
-                const lemma = forms[this.LEMMA_KEY] || forms[this.LEMMA_VARIATION_KEY];
-                if (lemma && lemma.toLowerCase() !== lowerWord) {
-                    const lemmaLower = lemma.toLowerCase();
-                    // Only query if lemma not already in wordDataMap (避免重复查询)
-                    if (!wordDataMap.has(lemmaLower)) {
-                        lemmasToQuery.add(lemmaLower);
-                    }
-                }
-            }
-        }
+        const lemmasToQuery = this.collectLemmasToQuery(uniqueWords, wordDataMap);
         
-        // Batch query lemmas if needed (lemmas use cache, won't query database if already cached)
+        // Batch query lemmas if needed
         if (lemmasToQuery.size > 0) {
-            const lemmasArray = Array.from(lemmasToQuery);
-            if (this.wordDatabase.useDirectStorage && this.wordDatabase.directStorage && this.wordDatabase.directStorage.isInitialized) {
-                const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(lemmasArray);
-                batchResults.forEach(result => {
-                    if (result.data) {
-                        wordDataMap.set(result.word, result.data);
-                    }
-                });
-            } else {
-                for (const lemma of lemmasArray) {
-                    const data = await this.wordDatabase.queryWord(lemma);
-                    if (data) {
-                        wordDataMap.set(lemma, data);
-                    }
-                }
-            }
+            const lemmaDataMap = await this.batchQueryWords(Array.from(lemmasToQuery));
+            // Merge lemma data into wordDataMap
+            lemmaDataMap.forEach((data, word) => {
+                wordDataMap.set(word, data);
+            });
         }
         
         // Second pass: calculate difficulty with lemma fallback
         for (const lowerWord of uniqueWords) {
-            // Find the original casing of the word for display
             const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
             
             let wordData = wordDataMap.get(lowerWord);
-            let difficultyData = wordData; // Use separate variable for difficulty calculation
+            let difficultyData = this.getDifficultyData(lowerWord, wordData, wordDataMap);
             
-            // If word has no metadata, try to use its lemma's data for difficulty
-            if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
-                const forms = this.parseExchange(wordData.exchange);
-                const lemma = forms[this.LEMMA_KEY] || forms[this.LEMMA_VARIATION_KEY];
-                if (lemma && lemma.toLowerCase() !== lowerWord) {
-                    const lemmaData = wordDataMap.get(lemma.toLowerCase());
-                    // Use lemma data for difficulty calculation only
-                    if (lemmaData && this.hasMetadata(lemmaData)) {
-                        difficultyData = lemmaData;
-                    }
-                }
-            }
+            let difficulty = this.difficultyCalculator.calculateDifficulty(difficultyData, lowerWord);
             
-            let difficulty = this.calculateDifficultyFromData(difficultyData, lowerWord);
-            
-            // A word is never highlighted if it is in the mastered list.
+            // Check vocabulary status
             const isMastered = masteredWords.has(lowerWord);
-            // A word should always be highlighted if it is in the learning list.
             const isLearning = learningWords.has(lowerWord);
             
             // Words in learning list should be treated as highest difficulty
             if (isLearning) {
                 difficulty = {
-                    ...this.EXPERT_DIFFICULTY,
+                    ...this.difficultyCalculator.EXPERT_DIFFICULTY,
                     info: difficulty.info
                 };
             }
             
-            const isHighlighted = !isMastered && (isLearning || this.shouldHighlight(lowerWord, difficulty, highlightMode, learningWords, difficultyLevel));
+            const isHighlighted = !isMastered && (isLearning || 
+                this.difficultyCalculator.shouldHighlight(lowerWord, difficulty, highlightMode, learningWords, difficultyLevel));
             
             if (isHighlighted) {
                 analysis.highlightedWords.push({
-                    word: originalWord, // Use original casing for display
+                    word: originalWord,
                     difficulty: difficulty,
                     frequency: analysis.wordFrequency[lowerWord],
-                    translation: this.formatTranslationFromData(originalWord, wordData),
-                    phonetic: wordData?.phonetic || '' // Add phonetic information
+                    translation: this.translationFormatter.formatTranslation(originalWord, wordData),
+                    phonetic: wordData?.phonetic || ''
                 });
                 
-                // A word is new only if it's in neither list.
+                // A word is new only if it's in neither list
                 if (!learningWords.has(lowerWord)) {
                     analysis.newWords.push(lowerWord);
                 }
@@ -276,274 +134,141 @@ export class TextAnalyzer {
         const endTime = performance.now();
         console.log(`📊 Analyzed ${uniqueWords.length} unique words in ${(endTime - startTime).toFixed(2)}ms`);
 
-        analysis.difficultyScore = uniqueWords.length > 0 ? Math.round(analysis.difficultyScore / uniqueWords.length) : 0;
+        analysis.difficultyScore = uniqueWords.length > 0 
+            ? Math.round(analysis.difficultyScore / uniqueWords.length) 
+            : 0;
         
         return analysis;
     }
 
     /**
-     * Calculate difficulty from word data (extracted from WordDatabase.getWordDifficulty)
+     * Batch query words from database
+     * @param {Array<string>} words - Array of words to query
+     * @returns {Promise<Map>} Map of word data
+     */
+    async batchQueryWords(words) {
+        const wordDataMap = new Map();
+        
+        if (this.wordDatabase.useDirectStorage && 
+            this.wordDatabase.directStorage && 
+            this.wordDatabase.directStorage.isInitialized) {
+            // Use optimized batch query
+            const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(words);
+            batchResults.forEach(result => {
+                if (result.data) {
+                    wordDataMap.set(result.word, result.data);
+                }
+            });
+        } else {
+            // Fallback to individual queries
+            for (const word of words) {
+                const data = await this.wordDatabase.queryWord(word);
+                if (data) {
+                    wordDataMap.set(word, data);
+                }
+            }
+        }
+        
+        return wordDataMap;
+    }
+
+    /**
+     * Collect lemmas that need to be queried
+     * @param {Array<string>} uniqueWords - Unique words
+     * @param {Map} wordDataMap - Map of word data
+     * @returns {Set<string>} Set of lemmas to query
+     */
+    collectLemmasToQuery(uniqueWords, wordDataMap) {
+        const lemmasToQuery = new Set();
+        
+        for (const lowerWord of uniqueWords) {
+            const wordData = wordDataMap.get(lowerWord);
+            // If word exists but has no metadata, check if it has a lemma
+            if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
+                const lemma = this.exchangeParser.getLemma(wordData.exchange);
+                if (lemma && lemma.toLowerCase() !== lowerWord) {
+                    const lemmaLower = lemma.toLowerCase();
+                    // Only query if lemma not already in wordDataMap
+                    if (!wordDataMap.has(lemmaLower)) {
+                        lemmasToQuery.add(lemmaLower);
+                    }
+                }
+            }
+        }
+        
+        return lemmasToQuery;
+    }
+
+    /**
+     * Get difficulty data with lemma fallback
+     * @param {string} lowerWord - Lowercase word
+     * @param {Object} wordData - Word data
+     * @param {Map} wordDataMap - Map of word data
+     * @returns {Object} Difficulty data
+     */
+    getDifficultyData(lowerWord, wordData, wordDataMap) {
+        let difficultyData = wordData;
+        
+        // If word has no metadata, try to use its lemma's data
+        if (wordData && !this.hasMetadata(wordData) && wordData.exchange) {
+            const lemma = this.exchangeParser.getLemma(wordData.exchange);
+            if (lemma && lemma.toLowerCase() !== lowerWord) {
+                const lemmaData = wordDataMap.get(lemma.toLowerCase());
+                if (lemmaData && this.hasMetadata(lemmaData)) {
+                    difficultyData = lemmaData;
+                }
+            }
+        }
+        
+        return difficultyData;
+    }
+
+    /**
+     * Calculate difficulty from word data (for backward compatibility)
      * @param {Object} wordInfo - Word information
      * @param {string} word - Word being analyzed
      * @returns {Object} Difficulty information
      */
     calculateDifficultyFromData(wordInfo, word) {
-        // If still not found in database, treat as common word (don't highlight)
-        if (!wordInfo) {
-            return {
-                level: 'common',
-                score: 0,
-                className: 'common',
-                info: null
-            };
-        }
-
-        let level = 'expert';
-        let score = 100;
-        const tag = wordInfo.tag || '';
-        let hasMetadata = false;
-
-        // Oxford 3000 core vocabulary
-        if (wordInfo.oxford === 1 || wordInfo.oxford === true) {
-            level = 'common';
-            score = 0;
-            hasMetadata = true;
-        }
-        // Collins 5 stars
-        else if (wordInfo.collins >= 5) {
-            level = 'common';
-            score = 10;
-            hasMetadata = true;
-        }
-        // Collins 4 stars or common exam tags
-        else if (wordInfo.collins >= 4 || tag.includes('zk') || tag.includes('gk') || tag.includes('cet4')) {
-            level = 'beginner';
-            score = 25;
-            hasMetadata = true;
-        }
-        // Collins 3 stars or CET6
-        else if (wordInfo.collins >= 3 || tag.includes('cet6')) {
-            level = 'intermediate';
-            score = 50;
-            hasMetadata = true;
-        }
-        // Collins 1-2 stars or IELTS/TOEFL
-        else if (wordInfo.collins >= 1 || tag.includes('ielts') || tag.includes('toefl')) {
-            level = 'advanced';
-            score = 75;
-            hasMetadata = true;
-        }
-        // High frequency words (BNC < 20000)
-        else if (wordInfo.bnc > 0 && wordInfo.bnc < 20000) {
-            level = 'common';
-            score = 15;
-            hasMetadata = true;
-        }
-        // Medium frequency (BNC < 50000)
-        else if (wordInfo.bnc > 0 && wordInfo.bnc < 50000) {
-            level = 'beginner';
-            score = 30;
-            hasMetadata = true;
-        }
-        // Lower frequency
-        else if (wordInfo.bnc > 0 && wordInfo.bnc < 100000) {
-            level = 'intermediate';
-            score = 55;
-            hasMetadata = true;
-        }
-
-        return {
-            level: level,
-            score: score,
-            className: level,
-            info: wordInfo
-        };
+        return this.difficultyCalculator.calculateDifficulty(wordInfo, word);
     }
 
     /**
-     * Format translation from word data (extracted from getTranslation)
+     * Format translation from word data (for backward compatibility)
      * @param {string} word - Original word
      * @param {Object} wordInfo - Word information
      * @returns {string} Translation HTML
      */
     formatTranslationFromData(word, wordInfo) {
-        if (!wordInfo) {
-            return `<div class="word-info">
-                <h3>${word}</h3>
-                <p class="no-translation">未找到释义</p>
-            </div>`;
-        }
-
-        // Build compact HTML from ECDICT data with collapsible details
-        let html = `<div class="word-info ecdict-entry compact">`;
-        
-        // Word title (always visible)
-        html += `<h3 class="word-title">${wordInfo.word}</h3>`;
-        
-        // Phonetic (always visible - first line)
-        if (wordInfo.phonetic) {
-            html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
-        }
-        
-        // Chinese translation (always visible - second line)
-        if (wordInfo.translation) {
-            html += `<div class="translation-compact">`;
-            const lines = wordInfo.translation.split('\\n');
-            const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
-            if (firstLine) {
-                html += `<p>${firstLine}</p>`;
-            }
-            html += `</div>`;
-        }
-        
-        // Collapsible details section (simplified for performance)
-        html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
-        html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
-        html += `</div>`;
-        
-        html += `<div class="word-details-content">`;
-        
-        // Collins stars and Oxford badge
-        if (wordInfo.collins > 0 || wordInfo.oxford) {
-            html += `<div class="word-meta">`;
-            if (wordInfo.collins > 0) {
-                html += `<span class="collins-stars">${'★'.repeat(wordInfo.collins)}</span>`;
-            }
-            if (wordInfo.oxford) {
-                html += `<span class="oxford-badge">Oxford 3000</span>`;
-            }
-            html += `</div>`;
-        }
-        
-        // Tags (exam levels)
-        if (wordInfo.tag) {
-            const tags = wordInfo.tag.split(' ').filter(t => t);
-            if (tags.length > 0) {
-                html += `<div class="word-tags">`;
-                const tagNames = {
-                    'zk': '中考', 'gk': '高考', 'cet4': 'CET-4', 'cet6': 'CET-6',
-                    'ielts': 'IELTS', 'toefl': 'TOEFL', 'gre': 'GRE', 'tem4': 'TEM-4', 'tem8': 'TEM-8'
-                };
-                tags.forEach(tag => {
-                    const tagName = tagNames[tag] || tag;
-                    html += `<span class="tag">${tagName}</span>`;
-                });
-                html += `</div>`;
-            }
-        }
-        
-        // Full Chinese translation (if multiple lines)
-        if (wordInfo.translation) {
-            const lines = wordInfo.translation.split('\\n');
-            if (lines.length > 1) {
-                html += `<div class="translation">`;
-                lines.forEach((line, index) => {
-                    if (line.trim() && index > 0) { // Skip first line as it's already shown
-                        html += `<p>${this.escapeHtml(line)}</p>`;
-                    }
-                });
-                html += `</div>`;
-            }
-        }
-        
-        // English definition
-        if (wordInfo.definition) {
-            html += `<div class="definition">`;
-            html += `<h4>English Definition:</h4>`;
-            const lines = wordInfo.definition.split('\\n');
-            lines.forEach(line => {
-                if (line.trim()) {
-                    html += `<p>${this.escapeHtml(line)}</p>`;
-                }
-            });
-            html += `</div>`;
-        }
-        
-        // Word forms (exchange)
-        if (wordInfo.exchange) {
-            const forms = this.wordDatabase.parseExchange(wordInfo.exchange);
-            const formLabels = {
-                'p': '过去式', 'd': '过去分词', 'i': '现在分词', '3': '第三人称单数',
-                'r': '比较级', 't': '最高级', 's': '复数', '0': '原形'
-            };
-            
-            const validForms = [];
-            for (const [key, value] of Object.entries(forms)) {
-                if (value && formLabels[key]) {
-                    validForms.push(`${formLabels[key]}: ${value}`);
-                }
-            }
-            
-            if (validForms.length > 0) {
-                html += `<div class="word-forms">`;
-                html += `<h4>词形变化:</h4>`;
-                html += `<p>${validForms.join(' | ')}</p>`;
-                html += `</div>`;
-            }
-        }
-        
-        // Frequency information
-        if (wordInfo.bnc > 0 || wordInfo.frq > 0) {
-            html += `<div class="word-frequency">`;
-            if (wordInfo.bnc > 0) {
-                html += `<span>BNC词频: ${wordInfo.bnc.toLocaleString()}</span>`;
-            }
-            if (wordInfo.frq > 0) {
-                html += `<span>当代词频: ${wordInfo.frq.toLocaleString()}</span>`;
-            }
-            html += `</div>`;
-        }
-        
-        html += `</div>`; // Close word-details-content
-        html += `</div>`; // Close word-info
-        
-        return html;
+        return this.translationFormatter.formatTranslation(word, wordInfo);
     }
 
     /**
-     * Determine if a word should be highlighted based on settings and vocabulary.
-     * @param {string} word - Word to check.
-     * @param {Object} difficulty - Difficulty information.
-     * @param {string} highlightMode - Highlight mode.
-     * @param {Map} learningWords - The user's list of words they are learning.
-     * @param {string} userDifficultyLevel - The user's selected difficulty threshold.
-     * @returns {boolean} True if the word should be highlighted.
+     * Determine if a word should be highlighted (for backward compatibility)
+     * @param {string} word - Word to check
+     * @param {Object} difficulty - Difficulty information
+     * @param {string} highlightMode - Highlight mode
+     * @param {Map} learningWords - Learning words
+     * @param {string} userDifficultyLevel - User difficulty level
+     * @returns {boolean} True if should highlight
      */
     shouldHighlight(word, difficulty, highlightMode, learningWords, userDifficultyLevel) {
-        const difficultyOrder = { 'common': 0, 'beginner': 1, 'intermediate': 2, 'advanced': 3, 'expert': 4, 'unknown': 5 };
-        const wordDifficultyIndex = difficultyOrder[difficulty.level];
-        const userDifficultyIndex = difficultyOrder[userDifficultyLevel];
-
-        // Determine if the word is considered difficult for the user
-        const isDifficultForUser = wordDifficultyIndex > userDifficultyIndex;
-
-        switch (highlightMode) {
-            case 'unknown':
-                // Highlight difficult words that are not in the learning list.
-                return isDifficultForUser && !learningWords.has(word);
-            case 'difficult':
-                // Highlight all words considered difficult for the user.
-                return isDifficultForUser;
-            case 'all':
-                // Highlight all words that are not marked as mastered.
-                return true;
-            default:
-                return false;
-        }
+        return this.difficultyCalculator.shouldHighlight(
+            word, difficulty, highlightMode, learningWords, userDifficultyLevel
+        );
     }
 
     /**
      * Get translation for a word from ECDICT database
-     * Uses cache to avoid repeated queries and HTML generation
      * @param {string} word - Word to translate
      * @returns {Promise<string>} Translation HTML
      */
     async getTranslation(word) {
         const lowerWord = word.toLowerCase();
         
-        // Check cache first to avoid repeated queries
-        if (this.translationCache.has(lowerWord)) {
-            return this.translationCache.get(lowerWord);
+        // Check cache first
+        if (this.translationFormatter.translationCache.has(lowerWord)) {
+            return this.translationFormatter.translationCache.get(lowerWord);
         }
         
         if (!this.wordDatabase.isDatabaseLoaded()) {
@@ -558,213 +283,34 @@ export class TextAnalyzer {
             wordInfo = await this.wordDatabase.findByLemma(lowerWord);
         }
         
-        let html;
-        if (!wordInfo) {
-            html = `<div class="word-info">
-                <h3>${word}</h3>
-                <p class="no-translation">未找到释义</p>
-            </div>`;
-        } else {
-            // Build compact HTML from ECDICT data with collapsible details
-            html = `<div class="word-info ecdict-entry compact">`;
-            
-            // Word title (always visible)
-            html += `<h3 class="word-title">${wordInfo.word}</h3>`;
-            
-            // Phonetic (always visible - first line)
-            if (wordInfo.phonetic) {
-                html += `<div class="phonetic-line">/${wordInfo.phonetic}/</div>`;
-            }
-            
-            // Chinese translation (always visible - second line)
-            if (wordInfo.translation) {
-                html += `<div class="translation-compact">`;
-                const lines = wordInfo.translation.split('\\n');
-                const firstLine = lines[0] ? this.escapeHtml(lines[0].trim()) : '';
-                if (firstLine) {
-                    html += `<p>${firstLine}</p>`;
-                }
-                html += `</div>`;
-            }
-            
-            // Collapsible details section
-            html += `<div class="word-details-toggle" onclick="this.parentElement.classList.toggle('expanded')">`;
-            html += `<span class="toggle-icon">▼</span> <span class="toggle-text">更多详情</span>`;
-            html += `</div>`;
-        
-        html += `<div class="word-details-content">`;
-        
-        // Collins stars and Oxford badge
-        if (wordInfo.collins > 0 || wordInfo.oxford) {
-            html += `<div class="word-meta">`;
-            if (wordInfo.collins > 0) {
-                html += `<span class="collins-stars">${'★'.repeat(wordInfo.collins)}</span>`;
-            }
-            if (wordInfo.oxford) {
-                html += `<span class="oxford-badge">Oxford 3000</span>`;
-            }
-            html += `</div>`;
-        }
-        
-        // Tags (exam levels)
-        if (wordInfo.tag) {
-            const tags = wordInfo.tag.split(' ').filter(t => t);
-            if (tags.length > 0) {
-                html += `<div class="word-tags">`;
-                const tagNames = {
-                    'zk': '中考', 'gk': '高考', 'cet4': 'CET-4', 'cet6': 'CET-6',
-                    'ielts': 'IELTS', 'toefl': 'TOEFL', 'gre': 'GRE', 'tem4': 'TEM-4', 'tem8': 'TEM-8'
-                };
-                tags.forEach(tag => {
-                    const tagName = tagNames[tag] || tag;
-                    html += `<span class="tag">${tagName}</span>`;
-                });
-                html += `</div>`;
-            }
-        }
-        
-        // Full Chinese translation (if multiple lines)
-        if (wordInfo.translation) {
-            const lines = wordInfo.translation.split('\\n');
-            if (lines.length > 1) {
-                html += `<div class="translation">`;
-                lines.forEach((line, index) => {
-                    if (line.trim() && index > 0) { // Skip first line as it's already shown
-                        html += `<p>${this.escapeHtml(line)}</p>`;
-                    }
-                });
-                html += `</div>`;
-            }
-        }
-        
-        // English definition
-        if (wordInfo.definition) {
-            html += `<div class="definition">`;
-            html += `<h4>English Definition:</h4>`;
-            const lines = wordInfo.definition.split('\\n');
-            lines.forEach(line => {
-                if (line.trim()) {
-                    html += `<p>${this.escapeHtml(line)}</p>`;
-                }
-            });
-            html += `</div>`;
-        }
-        
-        // Word forms (exchange)
-        if (wordInfo.exchange) {
-            const forms = this.wordDatabase.parseExchange(wordInfo.exchange);
-            const formLabels = {
-                'p': '过去式', 'd': '过去分词', 'i': '现在分词', '3': '第三人称单数',
-                'r': '比较级', 't': '最高级', 's': '复数', '0': '原形'
-            };
-            
-            const validForms = [];
-            for (const [key, value] of Object.entries(forms)) {
-                if (value && formLabels[key]) {
-                    validForms.push(`${formLabels[key]}: ${value}`);
-                }
-            }
-            
-            if (validForms.length > 0) {
-                html += `<div class="word-forms">`;
-                html += `<h4>词形变化:</h4>`;
-                html += `<p>${validForms.join(' | ')}</p>`;
-                html += `</div>`;
-            }
-        }
-        
-        // Frequency information
-        if (wordInfo.bnc > 0 || wordInfo.frq > 0) {
-            html += `<div class="word-frequency">`;
-            if (wordInfo.bnc > 0) {
-                html += `<span>BNC词频: ${wordInfo.bnc.toLocaleString()}</span>`;
-            }
-            if (wordInfo.frq > 0) {
-                html += `<span>当代词频: ${wordInfo.frq.toLocaleString()}</span>`;
-            }
-            html += `</div>`;
-        }
-        
-            html += `</div>`; // Close word-details-content
-            html += `</div>`; // Close word-info
-        }
-        
-        // Store in cache for future use (avoid repeated queries)
-        this.translationCache.set(lowerWord, html);
-        
-        // Limit cache size to avoid memory issues (as user requested: "别存太多")
-        if (this.translationCache.size > this.maxCacheSize) {
-            const firstKey = this.translationCache.keys().next().value;
-            this.translationCache.delete(firstKey);
-        }
-        
-        return html;
+        return this.translationFormatter.formatTranslation(word, wordInfo);
     }
 
     /**
-     * Escape HTML special characters
+     * Extract first Chinese translation (delegated to TranslationFormatter)
+     * @param {string} translationHtml - Full translation HTML
+     * @returns {string} First Chinese word
+     */
+    extractFirstChineseTranslation(translationHtml) {
+        return this.translationFormatter.extractFirstChineseTranslation(translationHtml);
+    }
+
+    /**
+     * Escape HTML (delegated to TranslationFormatter)
      * @param {string} text - Text to escape
      * @returns {string} Escaped text
      */
     escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
+        return this.translationFormatter.escapeHtml(text);
     }
 
     /**
-     * Escape HTML for safe attribute usage
+     * Escape HTML attribute (delegated to TranslationFormatter)
      * @param {string} text - Text to escape
-     * @returns {string} Escaped text safe for HTML attributes
+     * @returns {string} Escaped text
      */
     escapeHtmlAttribute(text) {
-        if (!text) return '';
-        return text
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    /**
-     * Extract first Chinese word from translation HTML
-     * @param {string} translationHtml - Full translation HTML
-     * @returns {string} First Chinese word (plain text)
-     */
-    extractFirstChineseTranslation(translationHtml) {
-        if (!translationHtml) return '';
-        
-        // Use DOMParser for safer HTML parsing
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(translationHtml, 'text/html');
-        
-        // Try to find the translation in the compact format
-        const translationCompact = doc.querySelector('.translation-compact p');
-        let fullText = '';
-        if (translationCompact) {
-            fullText = translationCompact.textContent.trim();
-        } else {
-            // Fallback: try to find any paragraph in the translation
-            const firstP = doc.querySelector('p');
-            if (firstP && !firstP.classList.contains('no-translation')) {
-                fullText = firstP.textContent.trim();
-            }
-        }
-        
-        // Extract the first Chinese word (skip English parts like "adj.", "n.", "v.", etc.)
-        if (fullText) {
-            // Remove English parts like "n.", "v.", "adj.", "adv.", "prep.", "conj.", etc.
-            // Also remove punctuation at the beginning
-            let cleanText = fullText.replace(/^[a-zA-Z]+\.\s*/, '');
-            
-            // Extract the first Chinese word (split by common separators)
-            // Split by semicolon, comma, or space, but keep Chinese characters together
-            const firstWord = cleanText.split(/[;；,，\s]+/)[0];
-            return firstWord || '';
-        }
-        
-        return '';
+        return this.translationFormatter.escapeHtmlAttribute(text);
     }
 
     /**
@@ -774,26 +320,31 @@ export class TextAnalyzer {
      * @returns {Promise<string>} Processed HTML text
      */
     async processTextForDisplay(originalText, analysis) {
-        const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
+        const highlightedMap = new Map(
+            analysis.highlightedWords.map(item => [item.word.toLowerCase(), item])
+        );
 
-        // Split the text by word boundaries, keeping the delimiters.
-        const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
+        // Split text by word boundaries
+        const parts = this.tokenizer.splitTextByWords(originalText);
 
         // Extract unique words that need translations
-        const uniqueWords = [...new Set(parts.filter(part => /\b[a-zA-Z-]+\b/.test(part)))];
+        const uniqueWords = [...new Set(parts.filter(part => this.tokenizer.isWord(part)))];
         
-        // Batch fetch translations for all unique words
+        // Batch fetch translations
         const translationMap = new Map();
         
-        // First, add translations from analysis (for highlighted words)
+        // Add translations from analysis (for highlighted words)
         for (const item of analysis.highlightedWords) {
             if (item.translation) {
                 translationMap.set(item.word.toLowerCase(), item.translation);
             }
         }
         
-        // Fetch remaining translations for non-highlighted words
-        const wordsNeedingTranslation = uniqueWords.filter(w => !translationMap.has(w.toLowerCase()));
+        // Fetch remaining translations
+        const wordsNeedingTranslation = uniqueWords.filter(w => 
+            !translationMap.has(w.toLowerCase())
+        );
+        
         if (wordsNeedingTranslation.length > 0) {
             const batchTranslations = await Promise.all(
                 wordsNeedingTranslation.map(word => this.getTranslation(word))
@@ -803,28 +354,28 @@ export class TextAnalyzer {
             });
         }
 
-        // Now process all parts with pre-fetched translations
+        // Process all parts with pre-fetched translations
         const processedParts = parts.map((part) => {
             const lowerCasePart = part.toLowerCase();
-            // Check if the part is a word and not just a delimiter.
-            if (!/\b[a-zA-Z-]+\b/.test(lowerCasePart)) {
-                return part; // Return delimiters as is.
+            
+            if (!this.tokenizer.isWord(lowerCasePart)) {
+                return part; // Return delimiters as is
             }
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
             const translation = translationMap.get(lowerCasePart) || '';
 
-            // Escape HTML for the data attribute using the dedicated method
+            // Escape HTML for attributes
             const escapedTranslation = this.escapeHtmlAttribute(translation);
 
-            // Extract first Chinese translation for display below word
+            // Extract Chinese annotation
             let chineseAnnotation = '';
             if (highlightedInfo) {
                 chineseAnnotation = this.extractFirstChineseTranslation(translation);
             }
             const escapedChinese = this.escapeHtml(chineseAnnotation);
 
-            // Build double-ruby structure
+            // Build container classes
             let containerClasses = 'double-ruby word-span';
             if (highlightedInfo) {
                 containerClasses += ` highlight ${highlightedInfo.difficulty.className}`;
@@ -833,8 +384,7 @@ export class TextAnalyzer {
             // Get phonetic annotation
             let phoneticAnnotation = '&nbsp;';
             if (highlightedInfo && highlightedInfo.phonetic) {
-                const escapedPhonetic = this.escapeHtml(highlightedInfo.phonetic);
-                phoneticAnnotation = escapedPhonetic;
+                phoneticAnnotation = this.escapeHtml(highlightedInfo.phonetic);
             }
 
             // Get Chinese annotation
@@ -858,7 +408,8 @@ export class TextAnalyzer {
      * @returns {Object} Complexity metrics
      */
     calculateComplexityMetrics(words, difficultyLevel) {
-        const uniqueWords = [...new Set(words)];
+        const uniqueWords = this.tokenizer.getUniqueWords(words);
+        
         const metrics = {
             totalWords: words.length,
             uniqueWords: uniqueWords.length,
@@ -887,11 +438,9 @@ export class TextAnalyzer {
     
     /**
      * Clear translation cache
-     * Useful when memory usage needs to be reduced
      */
     clearTranslationCache() {
-        this.translationCache.clear();
-        console.log('🗑️ Translation cache cleared');
+        this.translationFormatter.clearCache();
     }
     
     /**
@@ -899,10 +448,6 @@ export class TextAnalyzer {
      * @returns {Object} Cache statistics
      */
     getCacheStats() {
-        return {
-            size: this.translationCache.size,
-            maxSize: this.maxCacheSize,
-            utilization: `${((this.translationCache.size / this.maxCacheSize) * 100).toFixed(1)}%`
-        };
+        return this.translationFormatter.getCacheStats();
     }
 }
