@@ -25,11 +25,7 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-    cors: true,
-    fs: {
-      // Don't transform worker files
-      strict: false
-    }
+    cors: true
   },
   
   // Build configuration
@@ -86,13 +82,7 @@ export default defineConfig({
   
   // Optimization
   optimizeDeps: {
-    exclude: ['sql.js'],
-    entries: ['index.html']
-  },
-  
-  // Worker configuration
-  worker: {
-    format: 'es'
+    exclude: ['sql.js']
   },
   
   // Handle wasm files for sql.js

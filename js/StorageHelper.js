@@ -22,15 +22,6 @@ export class StorageHelper {
             return;
         }
 
-        // Temporarily disable worker in dev mode due to Vite parsing issue
-        // Worker will work in production build
-        if (import.meta.env.DEV) {
-            console.log('⚠️ Worker disabled in dev mode, using sync localStorage');
-            this.useWorker = false;
-            this.isInitialized = true;
-            return;
-        }
-
         // Check if Web Workers are supported
         if (typeof Worker === 'undefined') {
             console.warn('⚠️ Web Workers not supported, using synchronous localStorage');
@@ -41,8 +32,7 @@ export class StorageHelper {
 
         try {
             // Try to initialize worker
-            // Worker file is in public folder to avoid Vite processing
-            const workerPath = '/woaiios/workers/storage-worker.js';
+            const workerPath = new URL('../workers/storage-worker.js', import.meta.url).href;
             this.worker = new WorkerBridge(workerPath);
             await this.worker.initialize();
             console.log('✅ StorageHelper using Web Worker for async operations');
