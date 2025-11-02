@@ -7,9 +7,7 @@ import pako from 'pako';
 import { scheduleIdleTask, processInChunks } from './PerformanceUtils.js';
 
 export class ProgressiveDatabaseLoader {
-    constructor(SQL) {
-        this.SQL = SQL;
-        this.db = null;
+    constructor() {
         this.metadata = null;
         this.loadedChunks = new Set();
         this.loadingProgress = 0;
@@ -25,7 +23,7 @@ export class ProgressiveDatabaseLoader {
     }
 
     /**
-     * Initialize the loader and create empty database
+     * Initialize the loader and load metadata
      */
     async initialize() {
         try {
@@ -46,28 +44,6 @@ export class ProgressiveDatabaseLoader {
             this.totalBytes = this.metadata.chunks.reduce((sum, chunk) => sum + chunk.sizeBytes, 0);
             
             console.log(`📊 Metadata loaded: ${this.metadata.totalChunks} chunks, ${this.metadata.totalWords.toLocaleString()} words`);
-            
-            // Create empty database with schema
-            this.db = new this.SQL.Database();
-            this.db.exec(`
-                CREATE TABLE words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word TEXT NOT NULL,
-                    phonetic TEXT,
-                    definition TEXT,
-                    translation TEXT,
-                    pos TEXT,
-                    collins INTEGER DEFAULT 0,
-                    oxford INTEGER DEFAULT 0,
-                    tag TEXT,
-                    bnc INTEGER DEFAULT 0,
-                    frq INTEGER DEFAULT 0,
-                    exchange TEXT,
-                    detail TEXT,
-                    audio TEXT
-                );
-                CREATE INDEX idx_word ON words(word);
-            `);
             
             this.isInitialized = true;
             this.emit('progress', { loaded: 0, total: this.totalBytes, percentage: 0, message: 'Initialized' });
@@ -118,39 +94,35 @@ export class ProgressiveDatabaseLoader {
                 throw new Error(`Failed to load chunk ${chunkNumber}: ${response.status}`);
             }
             
-            // Decompress
-            let compressedBuffer = await response.arrayBuffer();
-            let buffer;
+            // Get response data
+            let buffer = await response.arrayBuffer();
+            let jsonString;
             
+            // Check if already decompressed by server (Content-Encoding: gzip)
             const contentEncoding = response.headers.get('Content-Encoding');
             
-            if (contentEncoding === 'gzip' || compressedBuffer.byteLength > chunkInfo.sizeBytes * 1.5) {
-                buffer = compressedBuffer;
+            if (contentEncoding === 'gzip') {
+                // Server already decompressed it
+                console.log(`  ℹ️ Server auto-decompressed chunk ${chunkNumber}`);
+                jsonString = new TextDecoder('utf-8').decode(buffer);
             } else {
-                const compressedArray = new Uint8Array(compressedBuffer);
-                const decompressedArray = pako.ungzip(compressedArray);
-                buffer = decompressedArray.buffer;
-            }
-            
-            // Load chunk database
-            const chunkDb = new this.SQL.Database(new Uint8Array(buffer));
-            
-            // Copy words from chunk to main database
-            const result = chunkDb.exec('SELECT word, phonetic, definition, translation, pos, collins, oxford, tag, bnc, frq, exchange, detail, audio FROM words');
-            
-            if (result.length > 0 && result[0].values.length > 0) {
-                const stmt = this.db.prepare(`
-                    INSERT INTO words (word, phonetic, definition, translation, pos, collins, oxford, tag, bnc, frq, exchange, detail, audio)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `);
-                
-                for (const row of result[0].values) {
-                    stmt.run(row);
+                // Need to decompress manually
+                try {
+                    console.log(`  🗜️ Decompressing chunk ${chunkNumber}...`);
+                    const compressedArray = new Uint8Array(buffer);
+                    const decompressedArray = pako.ungzip(compressedArray);
+                    jsonString = new TextDecoder('utf-8').decode(decompressedArray);
+                } catch (e) {
+                    // If pako fails, try reading as plain text (might already be decompressed)
+                    console.log(`  ℹ️ Pako failed, trying as plain text...`);
+                    jsonString = new TextDecoder('utf-8').decode(buffer);
                 }
-                stmt.free();
             }
             
-            chunkDb.close();
+            // Parse JSON
+            const chunkWords = JSON.parse(jsonString);
+            
+            console.log(`✅ Chunk ${chunkNumber} decompressed and parsed: ${chunkWords.length.toLocaleString()} words`);
             
             // Update progress
             this.loadedChunks.add(chunkNumber);
@@ -163,7 +135,8 @@ export class ProgressiveDatabaseLoader {
                 chunkNumber,
                 loaded: this.loadedChunks.size,
                 total: this.metadata.totalChunks,
-                percentage: this.loadingProgress
+                percentage: this.loadingProgress,
+                chunkWords  // Array of word objects
             });
             
             this.emit('progress', {
@@ -208,7 +181,7 @@ export class ProgressiveDatabaseLoader {
     /**
      * Load only the first N chunks (for quick start)
      */
-    async loadPriorityChunks(count = 3) {
+    async loadPriorityChunks(count = 1) {
         if (!this.isInitialized) {
             await this.initialize();
         }
@@ -221,7 +194,10 @@ export class ProgressiveDatabaseLoader {
         
         // Continue loading remaining chunks in background
         if (count < this.metadata.totalChunks) {
-            this.loadRemainingChunksInBackground(count + 1);
+            // Use setTimeout to ensure it runs asynchronously in the background
+            setTimeout(() => {
+                this.loadRemainingChunksInBackground(count + 1);
+            }, 100);
         }
         
         return true;
@@ -232,8 +208,10 @@ export class ProgressiveDatabaseLoader {
      */
     async loadRemainingChunksInBackground(startFrom) {
         console.log(`🔄 Loading remaining chunks in background starting from ${startFrom}...`);
+        console.log(`📊 Total chunks to load: ${this.metadata.totalChunks - startFrom + 1}`);
         
         for (let i = startFrom; i <= this.metadata.totalChunks; i++) {
+            console.log(`⏳ Loading chunk ${i}/${this.metadata.totalChunks} in background...`);
             await this.loadChunk(i);
             
             // Small delay between chunks to not block the UI
@@ -245,13 +223,6 @@ export class ProgressiveDatabaseLoader {
             totalChunks: this.metadata.totalChunks,
             totalWords: this.metadata.totalWords
         });
-    }
-
-    /**
-     * Get the database instance
-     */
-    getDatabase() {
-        return this.db;
     }
 
     /**
@@ -289,16 +260,6 @@ export class ProgressiveDatabaseLoader {
     emit(event, data) {
         if (this.listeners[event]) {
             this.listeners[event].forEach(callback => callback(data));
-        }
-    }
-
-    /**
-     * Close database
-     */
-    close() {
-        if (this.db) {
-            this.db.close();
-            this.db = null;
         }
     }
 }

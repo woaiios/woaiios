@@ -64,30 +64,6 @@ async function splitDatabase() {
             
             console.log(`\n📦 Creating chunk ${chunkNum}/${NUM_CHUNKS}...`);
             
-            // Create new database for this chunk
-            const chunkDb = new SQL.Database();
-            
-            // Create the words table structure
-            chunkDb.exec(`
-                CREATE TABLE words (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    word TEXT NOT NULL,
-                    phonetic TEXT,
-                    definition TEXT,
-                    translation TEXT,
-                    pos TEXT,
-                    collins INTEGER DEFAULT 0,
-                    oxford INTEGER DEFAULT 0,
-                    tag TEXT,
-                    bnc INTEGER DEFAULT 0,
-                    frq INTEGER DEFAULT 0,
-                    exchange TEXT,
-                    detail TEXT,
-                    audio TEXT
-                );
-                CREATE INDEX idx_word ON words(word);
-            `);
-            
             // Copy data with frequency-based ordering
             // Priority: BNC frequency (lower = more common), then frq, then collins
             const query = `
@@ -106,49 +82,49 @@ async function splitDatabase() {
                 const words = result[0].values;
                 console.log(`  📝 Processing ${words.length.toLocaleString()} words...`);
                 
-                // Insert words into chunk database
-                const stmt = chunkDb.prepare(`
-                    INSERT INTO words (word, phonetic, definition, translation, pos, collins, oxford, tag, bnc, frq, exchange, detail, audio)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                `);
+                // Convert to JSON array of objects
+                const wordObjects = words.map(row => ({
+                    word: row[0],
+                    phonetic: row[1],
+                    definition: row[2],
+                    translation: row[3],
+                    pos: row[4],
+                    collins: row[5],
+                    oxford: row[6],
+                    tag: row[7],
+                    bnc: row[8],
+                    frq: row[9],
+                    exchange: row[10],
+                    detail: row[11],
+                    audio: row[12]
+                }));
                 
-                for (const word of words) {
-                    stmt.run(word);
-                }
-                stmt.free();
+                // Convert to JSON string
+                const jsonString = JSON.stringify(wordObjects);
+                const jsonBuffer = Buffer.from(jsonString, 'utf8');
                 
-                // Export chunk database
-                const chunkData = chunkDb.export();
-                const chunkBuffer = Buffer.from(chunkData);
-                
-                // Save uncompressed for development
-                const chunkPath = join(outputDir, `chunk-${chunkNum}.db`);
-                writeFileSync(chunkPath, chunkBuffer);
-                
-                // Compress chunk
+                // Compress chunk (only save .gz files)
                 console.log(`  🗜️  Compressing chunk ${chunkNum}...`);
-                const compressed = await gzipAsync(chunkBuffer, { level: 9 });
-                const compressedPath = join(outputDir, `chunk-${chunkNum}.db.gz`);
+                const compressed = await gzipAsync(jsonBuffer, { level: 9 });
+                const compressedPath = join(outputDir, `chunk-${chunkNum}.json.gz`);
                 writeFileSync(compressedPath, compressed);
                 
-                const originalSize = chunkBuffer.length / 1024 / 1024;
+                const originalSize = jsonBuffer.length / 1024 / 1024;
                 const compressedSize = compressed.length / 1024 / 1024;
-                const ratio = ((1 - compressed.length / chunkBuffer.length) * 100).toFixed(1);
+                const ratio = ((1 - compressed.length / jsonBuffer.length) * 100).toFixed(1);
                 
                 console.log(`  ✅ Chunk ${chunkNum}: ${originalSize.toFixed(2)}MB → ${compressedSize.toFixed(2)}MB (${ratio}% reduction)`);
                 
                 // Add to metadata
                 metadata.chunks.push({
                     chunkNumber: chunkNum,
-                    filename: `chunk-${chunkNum}.db.gz`,
+                    filename: `chunk-${chunkNum}.json.gz`,
                     wordCount: words.length,
                     sizeBytes: compressed.length,
                     offset: offset,
                     priority: chunkNum // Lower number = higher priority (more frequent words)
                 });
             }
-            
-            chunkDb.close();
         }
         
         // Save metadata

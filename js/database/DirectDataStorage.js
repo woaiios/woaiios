@@ -49,46 +49,104 @@ export class DirectDataStorage {
         const isImported = await this.isDataImported();
         
         if (!isImported) {
-            console.log('⚠️ Starting data import from SQL database...');
+            console.log('⚠️ Starting data import from JSON chunks...');
+            
+            // Set up background import listeners FIRST (before loading any chunks)
+            this._setupBackgroundImportListeners();
+            
+            // Initialize and load first chunk (data will be auto-imported via events)
             await this._wordDatabase.initialize();
-            await this._importFromSQLDatabase();
+            
+            // Mark as ready after first chunk
+            this.isInitialized = true;
+            console.log('✅ DirectDataStorage ready (first chunk auto-imported via events)');
+            
         } else {
             console.log('✅ DirectDataStorage ready (data already imported)');
+            this.isInitialized = true;
         }
         
-        this.isInitialized = true;
         return true;
     }
 
     /**
-     * Import data from SQL database to IndexedDB
+     * Setup background import listeners
      * @private
      */
-    async _importFromSQLDatabase() {
-        const sqlDB = this._wordDatabase.db;
+    async _setupBackgroundImportListeners() {
+        console.log('🔄 Setting up background chunk import listeners...');
         
-        if (!sqlDB) {
-            throw new Error('WordDatabase not initialized');
-        }
-
-        console.log('🔄 Importing data to IndexedDB...');
-        const startTime = Date.now();
+        // Import NotificationManager dynamically to avoid circular dependency
+        const { NotificationManager } = await import('../modules/NotificationManager.js');
         
-        const result = sqlDB.exec(`
-            SELECT word, phonetic, definition, translation, pos, collins, oxford, 
-                   tag, bnc, frq, exchange, detail
-            FROM words
-        `);
+        // Set up listener for new chunk loads
+        if (this._wordDatabase.progressiveLoader) {
+            console.log('✅ Chunk load listeners registered');
+            
+            this._wordDatabase.progressiveLoader.on('chunkLoaded', async (data) => {
+                console.log(`🔔 chunkLoaded event received: chunk ${data.chunkNumber}`);
+                
+                // Check if chunk data is provided
+                if (!data.chunkWords || data.chunkWords.length === 0) {
+                    console.warn(`⚠️ No chunk data for chunk ${data.chunkNumber}`);
+                    return;
+                }
+                
+                const rows = data.chunkWords;
+                console.log(`📥 Importing chunk ${data.chunkNumber}: ${rows.length.toLocaleString()} words...`);
+                
+                const startTime = Date.now();
+                
+                // chunkWords is already an array of word objects (JSON format)
+                // No need to convert from SQL row format
+                
+                // Insert entire chunk in one batch
+                await this.indexedDB.insertWordsBatch(rows);
+                
+                const duration = Date.now() - startTime;
+                console.log(`✅ Chunk ${data.chunkNumber} imported in ${(duration/1000).toFixed(2)}s`);
+                
+                // Show notification after chunk import completed
+                const totalChunks = this._wordDatabase.progressiveLoader.metadata.totalChunks;
+                NotificationManager.show(
+                    `📚 Chunk ${data.chunkNumber}/${totalChunks} loaded (${rows.length.toLocaleString()} words)`,
+                    'info'
+                );
+            });
 
-        if (result.length === 0 || result[0].values.length === 0) {
-            console.log('⚠️ No data to import');
-            return;
+            // Listen for completion
+            this._wordDatabase.progressiveLoader.on('complete', async () => {
+                await this._markImportComplete(
+                    this._wordDatabase.progressiveLoader.metadata.totalWords
+                );
+                
+                // Show completion notification
+                const totalWords = this._wordDatabase.progressiveLoader.metadata.totalWords;
+                NotificationManager.show(
+                    `✨ All dictionary data loaded! ${totalWords.toLocaleString()} words available.`,
+                    'success'
+                );
+                console.log('✅ All chunks imported to IndexedDB');
+            });
+        } else {
+            console.warn('⚠️ Progressive loader not available');
         }
+    }
 
-        const rows = result[0].values;
-        const totalRows = rows.length;
-        console.log(`📊 Importing ${totalRows.toLocaleString()} words...`);
+    /**
+     * Continue importing remaining chunks in background (DEPRECATED - listeners handle this now)
+     * @private
+     */
+    async _importRemainingChunksInBackground() {
+        // This method is no longer needed as listeners are set up before loading starts
+        console.log('ℹ️ Background import listeners already configured');
+    }
 
+    /**
+     * Import rows to IndexedDB
+     * @private
+     */
+    async _importRows(rows, totalRows, showProgress = true) {
         const BATCH_SIZE = 1000;
         const YIELD_INTERVAL = 3;
 
@@ -113,7 +171,7 @@ export class DirectDataStorage {
             const imported = Math.min(i + BATCH_SIZE, totalRows);
             
             // Progress callback
-            if (this.progressCallback) {
+            if (showProgress && this.progressCallback) {
                 this.progressCallback({
                     imported,
                     total: totalRows,
@@ -123,7 +181,7 @@ export class DirectDataStorage {
             }
 
             // Log progress
-            if (imported % 10000 === 0 || imported === totalRows) {
+            if (showProgress && (imported % 10000 === 0 || imported === totalRows)) {
                 console.log(`📥 Progress: ${imported.toLocaleString()}/${totalRows.toLocaleString()} (${((imported/totalRows)*100).toFixed(1)}%)`);
             }
             
@@ -132,11 +190,6 @@ export class DirectDataStorage {
                 await new Promise(resolve => setTimeout(resolve, 0));
             }
         }
-
-        await this._markImportComplete(totalRows);
-
-        const duration = Date.now() - startTime;
-        console.log(`✅ Import completed in ${(duration/1000).toFixed(2)}s`);
     }
 
     /**
