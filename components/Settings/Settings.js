@@ -1,4 +1,6 @@
 import { Modal } from '../Modal/Modal.js';
+import { NotificationManager } from '../../js/modules/NotificationManager.js';
+import { FileUtils } from '../../js/modules/FileUtils.js';
 
 export class SettingsComponent {
     constructor(settingsManager, googleDriveManager) {
@@ -276,8 +278,8 @@ export class SettingsComponent {
 
     onExportSettings() {
         const data = this.settingsManager.exportSettings();
-        this.app.downloadJSON(data, 'settings.json');
-        this.app.showNotification('Settings exported successfully!');
+        FileUtils.downloadJSON(data, 'settings.json');
+        NotificationManager.show('Settings exported successfully!');
     }
 
     onImportSettingsFileChange(event) {
@@ -289,12 +291,12 @@ export class SettingsComponent {
                 const data = JSON.parse(e.target.result);
                 if (this.settingsManager.importSettings(data)) {
                     this.loadSettingsToUI();
-                    this.app.showNotification('Settings imported successfully!');
+                    NotificationManager.show('Settings imported successfully!');
                 } else {
-                    this.app.showNotification('Error importing settings.', 'error');
+                    NotificationManager.show('Error importing settings.', 'error');
                 }
             } catch (error) {
-                this.app.showNotification('Error importing settings.', 'error');
+                NotificationManager.show('Error importing settings.', 'error');
             }
         };
         reader.readAsText(file);
@@ -317,10 +319,10 @@ export class SettingsComponent {
             // Sign in
             const success = await this.googleDriveManager.signIn();
             if (success) {
-                this.app.showNotification('Successfully connected to Google Drive!');
+                NotificationManager.show('Successfully connected to Google Drive!');
                 await this.updateGoogleDriveStatus();
             } else {
-                this.app.showNotification('Failed to connect to Google Drive.', 'error');
+                NotificationManager.show('Failed to connect to Google Drive.', 'error');
                 if (enableBtn) {
                     enableBtn.innerHTML = '<i class="fab fa-google"></i> Connect to Google Drive';
                     enableBtn.disabled = false;
@@ -328,7 +330,7 @@ export class SettingsComponent {
             }
         } catch (error) {
             console.error('Error enabling Google Drive:', error);
-            this.app.showNotification('Error connecting to Google Drive.', 'error');
+            NotificationManager.show('Error connecting to Google Drive.', 'error');
             const enableBtn = document.getElementById('enableGoogleDriveBtn');
             if (enableBtn) {
                 enableBtn.innerHTML = '<i class="fab fa-google"></i> Connect to Google Drive';
@@ -353,17 +355,17 @@ export class SettingsComponent {
                     
                     if (syncResult.success) {
                         this.lastSyncTime = new Date();
-                        this.app.showNotification('Successfully synced with Google Drive!');
+                        NotificationManager.show('Successfully synced with Google Drive!');
                         await this.updateGoogleDriveStatus();
                         
                         // If we downloaded new data, update the local vocabulary
                         if (syncResult.action === 'download' || syncResult.action === 'merge') {
                             this.app.vocabularyManager.importVocabulary(syncResult.data);
                             this.app.updateCounts();
-                            this.app.showNotification('Vocabulary updated from Google Drive!');
+                            NotificationManager.show('Vocabulary updated from Google Drive!');
                         }
                     } else {
-                        this.app.showNotification('Failed to sync with Google Drive: ' + syncResult.error, 'error');
+                        NotificationManager.show('Failed to sync with Google Drive: ' + syncResult.error, 'error');
                     }
                 } finally {
                     // Restore button
@@ -373,7 +375,7 @@ export class SettingsComponent {
             }
         } catch (error) {
             console.error('Error syncing with Google Drive:', error);
-            this.app.showNotification('Error syncing with Google Drive.', 'error');
+            NotificationManager.show('Error syncing with Google Drive.', 'error');
             const syncBtn = document.getElementById('syncNowBtn');
             if (syncBtn) {
                 syncBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Sync Now';
@@ -388,14 +390,14 @@ export class SettingsComponent {
             if (success) {
                 this.userInfo = null;
                 this.lastSyncTime = null;
-                this.app.showNotification('Disconnected from Google Drive.');
+                NotificationManager.show('Disconnected from Google Drive.');
                 await this.updateGoogleDriveStatus();
             } else {
-                this.app.showNotification('Failed to disconnect from Google Drive.', 'error');
+                NotificationManager.show('Failed to disconnect from Google Drive.', 'error');
             }
         } catch (error) {
             console.error('Error disconnecting from Google Drive:', error);
-            this.app.showNotification('Error disconnecting from Google Drive.', 'error');
+            NotificationManager.show('Error disconnecting from Google Drive.', 'error');
         }
     }
 }

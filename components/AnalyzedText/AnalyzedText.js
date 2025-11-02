@@ -10,6 +10,7 @@
  * - 实时刷新文本高亮状态 (Real-time refresh text highlight status)
  */
 import { Component } from '../Component.js';
+import { NotificationManager } from '../../js/modules/NotificationManager.js';
 
 export class AnalyzedTextComponent extends Component {
     /**
@@ -179,7 +180,7 @@ export class AnalyzedTextComponent extends Component {
     async handleWordAddToLearning(word, translation) {
         const result = await this.vocabularyManager.addWord(word, translation);
         if (result) {
-            this.app.showNotification(`📖 '${word}' added to learning list.`);
+            NotificationManager.show(`📖 '${word}' added to learning list.`);
         }
         this.app.updateCounts();
         await this.refreshTextAnalysis();
@@ -193,7 +194,7 @@ export class AnalyzedTextComponent extends Component {
     async handleWordMaster(word, translation) {
         const result = await this.vocabularyManager.masterWord(word, translation);
         if (result === 'added_to_mastered' || result === 'moved_to_mastered') {
-            this.app.showNotification(`✅ '${word}' marked as mastered.`);
+            NotificationManager.show(`✅ '${word}' marked as mastered.`);
         }
         this.app.updateCounts();
         await this.refreshTextAnalysis();
@@ -206,7 +207,7 @@ export class AnalyzedTextComponent extends Component {
     async handleWordUnmaster(word) {
         const result = await this.vocabularyManager.unmasterWord(word);
         if (result === 'moved_to_learning') {
-            this.app.showNotification(`📖 '${word}' moved to learning list.`);
+            NotificationManager.show(`📖 '${word}' moved to learning list.`);
             this.app.updateCounts();
         }
         await this.refreshTextAnalysis();

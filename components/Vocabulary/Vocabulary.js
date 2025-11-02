@@ -12,6 +12,8 @@
  * @class VocabularyComponent
  */
 import { Modal } from '../Modal/Modal.js';
+import { NotificationManager } from '../../js/modules/NotificationManager.js';
+import { FileUtils } from '../../js/modules/FileUtils.js';
 
 export class VocabularyComponent {
     /**
@@ -198,7 +200,7 @@ export class VocabularyComponent {
         const result = await this.vocabularyManager.masterWord(word);
         if (result) {
             this.updateAndRenderLists();
-            this.app.showNotification(`'${word}' moved to mastered list.`);
+            NotificationManager.show(`'${word}' moved to mastered list.`);
             this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
         }
     }
@@ -212,7 +214,7 @@ export class VocabularyComponent {
         const result = await this.vocabularyManager.unmasterWord(word);
         if (result) {
             this.updateAndRenderLists();
-            this.app.showNotification(`'${word}' moved back to learning list.`);
+            NotificationManager.show(`'${word}' moved back to learning list.`);
             this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
         }
     }
@@ -227,7 +229,7 @@ export class VocabularyComponent {
             const result = await this.vocabularyManager.removeWord(word);
             if (result) {
                 this.updateAndRenderLists();
-                this.app.showNotification(`'${word}' has been deleted.`, 'info');
+                NotificationManager.show(`'${word}' has been deleted.`, 'info');
                 this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
             }
         }
@@ -239,8 +241,8 @@ export class VocabularyComponent {
      */
     onExportVocabulary() {
         const data = this.vocabularyManager.exportVocabulary();
-        this.app.downloadJSON(data, 'word-discoverer-vocabulary.json');
-        this.app.showNotification('Vocabulary exported successfully!');
+        FileUtils.downloadJSON(data, 'word-discoverer-vocabulary.json');
+        NotificationManager.show('Vocabulary exported successfully!');
     }
 
     /**
@@ -257,13 +259,13 @@ export class VocabularyComponent {
                 const data = JSON.parse(e.target.result);
                 if (this.vocabularyManager.importVocabulary(data)) {
                     this.updateAndRenderLists();
-                    this.app.showNotification('Vocabulary imported successfully!');
+                    NotificationManager.show('Vocabulary imported successfully!');
                     this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
                 } else {
-                    this.app.showNotification('Error importing vocabulary. Check file format.', 'error');
+                    NotificationManager.show('Error importing vocabulary. Check file format.', 'error');
                 }
             } catch (error) {
-                this.app.showNotification('Error importing vocabulary. Check file format.', 'error');
+                NotificationManager.show('Error importing vocabulary. Check file format.', 'error');
             }
         };
         reader.readAsText(file);
@@ -274,11 +276,11 @@ export class VocabularyComponent {
      * 删除所有学习和已掌握的单词（需要确认）(Delete all learning and mastered words - requires confirmation)
      */
     async onClearVocabulary() {
-        if (confirm('Clear all vocabulary (both learning and mastered)? This action cannot be undone.')) {
-            await this.vocabularyManager.clearVocabulary();
-            this.updateAndRenderLists();
-            this.app.showNotification('All vocabulary has been cleared.');
-            this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
+        if (confirm('Are you sure you want to clear all vocabulary? This cannot be undone.')) {
+            this.vocabularyManager.clearAll();
+            this.render();
+            NotificationManager.show('All vocabulary has been cleared.');
+            this.app.updateCounts();
         }
     }
 }
