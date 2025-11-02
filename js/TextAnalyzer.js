@@ -1,6 +1,7 @@
 /**
  * TextAnalyzer Module (Refactored)
  * Handles text analysis and word processing logic
+ * Uses DirectDataStorage as the data access layer
  */
 import { WordTokenizer } from './analyzers/WordTokenizer.js';
 import { DifficultyCalculator } from './analyzers/DifficultyCalculator.js';
@@ -10,15 +11,15 @@ import { WordAnalysisEngine } from './analyzers/WordAnalysisEngine.js';
 import { TextDisplayProcessor } from './analyzers/TextDisplayProcessor.js';
 
 export class TextAnalyzer {
-    constructor(wordDatabase, translationService) {
-        this.wordDatabase = wordDatabase;
+    constructor(dataStorage, translationService) {
+        this.dataStorage = dataStorage;  // Uses DirectDataStorage instead of WordDatabase
         this.translationService = translationService;
         
         this.exchangeParser = new ExchangeParser();
         this.tokenizer = new WordTokenizer();
         this.difficultyCalculator = new DifficultyCalculator();
         this.translationFormatter = new TranslationFormatter(this.exchangeParser);
-        this.analysisEngine = new WordAnalysisEngine(wordDatabase, this.tokenizer, this.difficultyCalculator, this.exchangeParser);
+        this.analysisEngine = new WordAnalysisEngine(dataStorage, this.tokenizer, this.difficultyCalculator, this.exchangeParser);
         this.displayProcessor = new TextDisplayProcessor(this.tokenizer, this.translationFormatter);
     }
 
@@ -65,13 +66,13 @@ export class TextAnalyzer {
             return this.translationFormatter.translationCache.get(lowerWord);
         }
         
-        if (!this.wordDatabase.isDatabaseLoaded()) {
+        if (!this.dataStorage.isDatabaseLoaded()) {
             return `<div class="word-info"><p>数据库未加载</p></div>`;
         }
         
-        let wordInfo = await this.wordDatabase.queryWord(lowerWord);
+        let wordInfo = await this.dataStorage.queryWord(lowerWord);
         if (!wordInfo) {
-            wordInfo = await this.wordDatabase.findByLemma(lowerWord);
+            wordInfo = await this.dataStorage.findByLemma(lowerWord);
         }
         
         return this.translationFormatter.formatTranslation(word, wordInfo);
@@ -105,7 +106,7 @@ export class TextAnalyzer {
         };
 
         uniqueWords.forEach(word => {
-            const difficulty = this.wordDatabase.getWordDifficulty(word, difficultyLevel);
+            const difficulty = this.dataStorage.getWordDifficulty(word, difficultyLevel);
             metrics.difficultyDistribution[difficulty.level]++;
         });
 

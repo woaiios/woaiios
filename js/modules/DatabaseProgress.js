@@ -2,14 +2,15 @@
  * DatabaseProgress - 数据库加载进度管理器
  * 负责管理数据库加载时的进度条显示
  * (Manages database loading progress bar display)
+ * Uses DirectDataStorage as the data access layer
  */
 export class DatabaseProgress {
     /**
      * 构造函数
-     * @param {Object} wordDatabase - WordDatabase 实例
+     * @param {Object} dataStorage - DirectDataStorage 实例
      */
-    constructor(wordDatabase) {
-        this.wordDatabase = wordDatabase;
+    constructor(dataStorage) {
+        this.dataStorage = dataStorage;
         this.elements = {
             overlay: document.getElementById('dbLoadingOverlay'),
             progressBar: document.getElementById('dbProgressBar'),
@@ -24,7 +25,7 @@ export class DatabaseProgress {
      */
     initialize() {
         // 设置进度回调 - 更新加载进度条
-        this.wordDatabase.setProgressCallback((data) => {
+        this.dataStorage.setProgressCallback((data) => {
             // 只有在真正需要加载时才显示进度条
             this.elements.overlay.classList.add('show');
             
@@ -44,14 +45,14 @@ export class DatabaseProgress {
         });
         
         // 设置分块加载完成回调
-        if (this.wordDatabase.progressiveLoader) {
-            this.wordDatabase.progressiveLoader.on('chunkLoaded', (data) => {
+        if (this.dataStorage._wordDatabase?.progressiveLoader) {
+            this.dataStorage._wordDatabase.progressiveLoader.on('chunkLoaded', (data) => {
                 const cacheStatus = data.fromCache ? ' (cached)' : '';
                 this.elements.chunks.textContent = `${data.loaded}/${data.total} chunks${cacheStatus}`;
             });
             
             // 所有分块加载完成后隐藏遮罩
-            this.wordDatabase.progressiveLoader.on('complete', () => {
+            this.dataStorage._wordDatabase.progressiveLoader.on('complete', () => {
                 setTimeout(() => {
                     this.elements.overlay.classList.remove('show');
                 }, 1000);

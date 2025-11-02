@@ -1,10 +1,11 @@
 /**
  * WordAnalysisEngine Module
  * Handles word analysis workflow and data processing
+ * Uses DirectDataStorage as the data access layer
  */
 export class WordAnalysisEngine {
-    constructor(wordDatabase, tokenizer, difficultyCalculator, exchangeParser) {
-        this.wordDatabase = wordDatabase;
+    constructor(dataStorage, tokenizer, difficultyCalculator, exchangeParser) {
+        this.dataStorage = dataStorage;  // Uses DirectDataStorage instead of WordDatabase
         this.tokenizer = tokenizer;
         this.difficultyCalculator = difficultyCalculator;
         this.exchangeParser = exchangeParser;
@@ -73,18 +74,11 @@ export class WordAnalysisEngine {
     async batchQueryWords(words) {
         const wordDataMap = new Map();
         
-        if (this.wordDatabase.useDirectStorage && 
-            this.wordDatabase.directStorage?.isInitialized) {
-            const batchResults = await this.wordDatabase.directStorage.queryWordsBatch(words);
-            batchResults.forEach(result => {
-                if (result.data) wordDataMap.set(result.word, result.data);
-            });
-        } else {
-            for (const word of words) {
-                const data = await this.wordDatabase.queryWord(word);
-                if (data) wordDataMap.set(word, data);
-            }
-        }
+        // Use DirectDataStorage's batch query method
+        const batchResults = await this.dataStorage.queryWordsBatch(words);
+        batchResults.forEach(result => {
+            if (result.data) wordDataMap.set(result.word, result.data);
+        });
         
         return wordDataMap;
     }

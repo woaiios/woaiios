@@ -22,7 +22,8 @@ export class WorkerBridge {
         }
 
         try {
-            this.worker = new Worker(this.workerPath, { type: 'module' });
+            // Use ?worker suffix for Vite
+            this.worker = new Worker(this.workerPath);
             
             this.worker.onmessage = (event) => {
                 const { id, type, result, error } = event.data;

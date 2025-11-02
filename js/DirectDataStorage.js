@@ -2,7 +2,13 @@
  * DirectDataStorage Module
  * Stores word data directly in IndexedDB for faster lookups
  * Optimized for querying 300 words in under 50ms
+ * 
+ * Architecture:
+ * - This is the ONLY data access layer for the application
+ * - Owns and manages WordDatabase instance internally
+ * - External code should NEVER access WordDatabase directly
  */
+import { WordDatabase } from './WordDatabase.js';
 
 export class DirectDataStorage {
     constructor() {
@@ -12,18 +18,157 @@ export class DirectDataStorage {
         this.isInitialized = false;
         this.memoryCache = new Map(); // In-memory LRU cache
         this.maxCacheSize = 10000; // Cache up to 10k words in memory
-        this.importQueue = Promise.resolve(); // Queue to serialize imports
         this.stats = {
             cacheHits: 0,
             cacheMisses: 0,
             totalQueries: 0
         };
+        
+        // Internal WordDatabase instance - PRIVATE, do not expose
+        this._wordDatabase = new WordDatabase();
+        this.progressCallback = null;
+    }
+
+    /**
+     * Set progress callback for database initialization
+     * @param {Function} callback - Progress callback function
+     */
+    setProgressCallback(callback) {
+        this.progressCallback = callback;
+        this._wordDatabase.setProgressCallback(callback);
+    }
+
+    /**
+     * Initialize DirectDataStorage and internal WordDatabase
+     * This is the main entry point for data layer initialization
+     */
+    async initialize() {
+        // Initialize IndexedDB for fast queries
+        await this._initializeIndexedDB();
+        
+        // Check if we have data in IndexedDB
+        const isImported = await this.isDataImported();
+        
+        if (!isImported) {
+            console.log('⚠️ Data not yet imported to DirectDataStorage, starting import...');
+            
+            // Only initialize WordDatabase if we need to import data
+            await this._wordDatabase.initialize();
+            
+            // Import all data from the loaded SQL database
+            await this._importFromCurrentDatabase();
+        } else {
+            console.log('✅ DirectDataStorage ready with pre-imported data (skipping SQL database download)');
+        }
+        
+        return true;
+    }
+
+    /**
+     * Import data from the currently loaded SQL database
+     * @private
+     */
+    async _importFromCurrentDatabase() {
+        const sqlDB = this._wordDatabase.db;
+        
+        if (!sqlDB) {
+            console.error('❌ WordDatabase not initialized');
+            return false;
+        }
+
+        console.log('🔄 Starting data import from SQL database to IndexedDB...');
+        const startTime = Date.now();
+        
+        try {
+            const result = sqlDB.exec(`
+                SELECT word, phonetic, definition, translation, pos, collins, oxford, 
+                       tag, bnc, frq, exchange, detail
+                FROM words
+            `);
+
+            if (result.length === 0 || result[0].values.length === 0) {
+                console.log('⚠️ No data to import');
+                return true;
+            }
+
+            const rows = result[0].values;
+            const totalRows = rows.length;
+            console.log(`📊 Importing ${totalRows.toLocaleString()} words to IndexedDB...`);
+
+            const batchSize = 1000;
+            let importedCount = 0;
+
+            for (let i = 0; i < rows.length; i += batchSize) {
+                const batch = rows.slice(i, i + batchSize);
+                
+                const transaction = this.db.transaction(['words'], 'readwrite');
+                const store = transaction.objectStore('words');
+
+                for (const row of batch) {
+                    const wordData = {
+                        word: row[0],
+                        word_lower: row[0].toLowerCase(),
+                        phonetic: row[1] || '',
+                        definition: row[2] || '',
+                        translation: row[3] || '',
+                        pos: row[4] || '',
+                        collins: parseInt(row[5]) || 0,
+                        oxford: row[6] === '1' || row[6] === 1,
+                        tag: row[7] || '',
+                        bnc: parseInt(row[8]) || 0,
+                        frq: parseInt(row[9]) || 0,
+                        exchange: row[10] || '',
+                        detail: row[11] || ''
+                    };
+                    
+                    store.put(wordData);
+                }
+
+                await new Promise((resolve, reject) => {
+                    transaction.oncomplete = resolve;
+                    transaction.onerror = () => reject(transaction.error);
+                });
+
+                importedCount += batch.length;
+                
+                if (this.progressCallback) {
+                    this.progressCallback({
+                        imported: importedCount,
+                        total: totalRows,
+                        percentage: (importedCount / totalRows) * 100,
+                        message: `Importing to IndexedDB: ${importedCount}/${totalRows}`
+                    });
+                }
+
+                if (importedCount % 10000 === 0 || importedCount === totalRows) {
+                    console.log(`📥 Import progress: ${importedCount.toLocaleString()}/${totalRows.toLocaleString()} words (${((importedCount/totalRows)*100).toFixed(1)}%)`);
+                }
+                
+                // Yield to main thread every 3 batches
+                if (i % (batchSize * 3) === 0 && i + batchSize < rows.length) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+
+            // Mark import as complete
+            await this.markImportComplete(totalRows);
+
+            const duration = Date.now() - startTime;
+            console.log(`✅ Import completed in ${(duration/1000).toFixed(2)}s`);
+            console.log(`📊 Total words imported: ${importedCount.toLocaleString()}`);
+
+            return true;
+        } catch (error) {
+            console.error(`❌ Error importing data:`, error);
+            throw error;
+        }
     }
 
     /**
      * Initialize IndexedDB for direct data storage
+     * @private
      */
-    async initialize() {
+    async _initializeIndexedDB() {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.dbVersion);
             
@@ -59,123 +204,6 @@ export class DirectDataStorage {
         });
     }
 
-    /**
-     * Import data from SQL database into IndexedDB
-     * This is a one-time migration process
-     * Uses idle callbacks to avoid blocking main thread
-     */
-    async importFromDatabase(sqlDB, chunkNumber, progressCallback = null) {
-        // Add to queue to serialize imports
-        this.importQueue = this.importQueue.then(() => 
-            this._doImport(sqlDB, chunkNumber, progressCallback)
-        ).catch(error => {
-            console.error('Import queue error:', error);
-        });
-        
-        return this.importQueue;
-    }
-
-    async _doImport(sqlDB, chunkNumber, progressCallback = null) {
-        if (!this.isInitialized) {
-            await this.initialize();
-        }
-
-        // Check if this chunk was already imported
-        const chunkKey = `chunk_${chunkNumber}_imported`;
-        const chunkMetadata = await this.getMetadata(chunkKey);
-        if (chunkMetadata && chunkMetadata.value === true) {
-            console.log(`✅ Chunk ${chunkNumber} already imported, skipping`);
-            return true;
-        }
-
-        console.log(`🔄 Starting import of chunk ${chunkNumber} to DirectDataStorage...`);
-        const startTime = Date.now();
-        
-        try {
-            const result = sqlDB.exec(`
-                SELECT word, phonetic, definition, translation, pos, collins, oxford, 
-                       tag, bnc, frq, exchange, detail, audio 
-                FROM words
-            `);
-
-            if (result.length === 0 || result[0].values.length === 0) {
-                console.log('⚠️ No new data to import');
-                return true;
-            }
-
-            const rows = result[0].values;
-            const totalRows = rows.length;
-            console.log(`📊 Importing ${totalRows.toLocaleString()} words from chunk ${chunkNumber}...`);
-
-            const batchSize = 1000;
-            let importedCount = 0;
-
-            for (let i = 0; i < rows.length; i += batchSize) {
-                const batch = rows.slice(i, i + batchSize);
-                
-                const transaction = this.db.transaction(['words'], 'readwrite');
-                const store = transaction.objectStore('words');
-
-                for (const row of batch) {
-                    const wordData = {
-                        word: row[0],
-                        word_lower: row[0].toLowerCase(),
-                        phonetic: row[1] || '',
-                        definition: row[2] || '',
-                        translation: row[3] || '',
-                        pos: row[4] || '',
-                        collins: parseInt(row[5]) || 0,
-                        oxford: row[6] === '1' || row[6] === 1,
-                        tag: row[7] || '',
-                        bnc: parseInt(row[8]) || 0,
-                        frq: parseInt(row[9]) || 0,
-                        exchange: row[10] || '',
-                        detail: row[11] || '',
-                        audio: row[12] || ''
-                    };
-                    
-                    store.put(wordData);
-                }
-
-                await new Promise((resolve, reject) => {
-                    transaction.oncomplete = resolve;
-                    transaction.onerror = () => reject(transaction.error);
-                });
-
-                importedCount += batch.length;
-                
-                if (progressCallback) {
-                    progressCallback({
-                        imported: importedCount,
-                        total: totalRows,
-                        percentage: (importedCount / totalRows) * 100
-                    });
-                }
-
-                if (importedCount % 10000 === 0 || importedCount === totalRows) {
-                    console.log(`📥 Chunk ${chunkNumber}: ${importedCount.toLocaleString()}/${totalRows.toLocaleString()} words (${((importedCount/totalRows)*100).toFixed(1)}%)`);
-                }
-                
-                if (i % (batchSize * 3) === 0 && i + batchSize < rows.length) {
-                    await new Promise(resolve => setTimeout(resolve, 0));
-                }
-            }
-
-            // Mark this chunk as imported
-            await this.setMetadata(chunkKey, true);
-            await this.setMetadata(`${chunkKey}_date`, new Date().toISOString());
-            await this.setMetadata(`${chunkKey}_words`, importedCount);
-
-            const duration = Date.now() - startTime;
-            console.log(`✅ Chunk ${chunkNumber} import completed in ${(duration/1000).toFixed(2)}s`);
-            console.log(`📊 Words imported: ${importedCount.toLocaleString()}`);
-
-            return true;
-        } catch (error) {
-            console.error(`❌ Error importing chunk ${chunkNumber}:`, error);
-            throw error;
-        }
-    }
 
     async markImportComplete(totalWords) {
         await this.setMetadata('importComplete', true);
@@ -309,6 +337,44 @@ export class DirectDataStorage {
     }
 
     /**
+     * Get word difficulty level
+     * Delegates to internal WordDatabase
+     * @param {string} word - Word to analyze
+     * @returns {Promise<Object>} Difficulty information
+     */
+    async getWordDifficulty(word) {
+        return await this._wordDatabase.getWordDifficulty(word);
+    }
+
+    /**
+     * Parse exchange field to get word forms
+     * @param {string} exchange - Exchange field from database
+     * @returns {Object} Word forms
+     */
+    parseExchange(exchange) {
+        return this._wordDatabase.parseExchange(exchange);
+    }
+
+    /**
+     * Find word by lemma (base form)
+     * @param {string} word - Inflected word form
+     * @returns {Promise<Object|null>} Base word information
+     */
+    async findByLemma(word) {
+        return await this._wordDatabase.findByLemma(word);
+    }
+
+    /**
+     * Fuzzy match words
+     * @param {string} word - Word to match
+     * @param {number} limit - Maximum results
+     * @returns {Promise<Array>} Matching words
+     */
+    async fuzzyMatch(word, limit = 10) {
+        return this._wordDatabase.fuzzyMatch(word, limit);
+    }
+
+    /**
      * Get cache statistics
      */
     getCacheStats() {
@@ -386,5 +452,18 @@ export class DirectDataStorage {
             this.isInitialized = false;
         }
         this.clearCache();
+        
+        // Close internal WordDatabase
+        if (this._wordDatabase) {
+            this._wordDatabase.close();
+        }
+    }
+
+    /**
+     * Check if database is loaded
+     * @returns {boolean} Loading status
+     */
+    isDatabaseLoaded() {
+        return this.isInitialized && this._wordDatabase.isDatabaseLoaded();
     }
 }

@@ -9,7 +9,9 @@ import { WorkerBridge } from './WorkerBridge.js';
 export class StorageHelper {
     constructor() {
         this.worker = null;
-        this.useWorker = true;
+        // 禁用 Worker: localStorage 无法在 Worker 中访问
+        // 如果需要异步存储，应该使用 IndexedDB 重写 Worker
+        this.useWorker = false;
         this.isInitialized = false;
     }
 

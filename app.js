@@ -7,11 +7,11 @@
  * - 使用 ECDICT 76万+ 词条数据库 (Using ECDICT database with 760,000+ entries)
  * - 渐进式加载数据库，优化首次加载速度 (Progressive database loading for faster initial load)
  * - 支持 Google Drive 云端同步 (Google Drive cloud synchronization support)
- * - 使用 Web Workers 处理耗时操作 (Uses Web Workers for intensive operations)
+ * - 使用 DirectDataStorage 作为唯一数据访问层 (Uses DirectDataStorage as the only data access layer)
  * - 使用 requestIdleCallback 优化主线程性能 (Uses requestIdleCallback for better main thread performance)
  * 
  * 核心模块 (Core Modules):
- * - WordDatabase: 词典数据库管理 (Dictionary database management)
+ * - DirectDataStorage: 数据访问层 (Data access layer) - ONLY interface to database
  * - TextAnalyzer: 文本分析引擎 (Text analysis engine)
  * - VocabularyManager: 词汇管理 (Vocabulary management)
  * - SettingsManager: 设置管理 (Settings management)
@@ -21,7 +21,7 @@
  * - SettingsComponent: 设置界面 (Settings interface)
  * - AnalyzedTextComponent: 文本分析结果显示 (Analyzed text display)
  */
-import { WordDatabase } from './js/WordDatabase.js';
+import { DirectDataStorage } from './js/DirectDataStorage.js';
 import { TextAnalyzer } from './js/TextAnalyzer.js';
 import { VocabularyManager } from './js/VocabularyManager.js';
 import { SettingsManager } from './js/SettingsManager.js';
@@ -47,10 +47,10 @@ class WordDiscoverer {
      */
     constructor() {
         // 核心逻辑模块 (Core Logic Modules)
-        this.settingsManager = new SettingsManager();               // 设置管理器 (Settings manager)
-        this.wordDatabase = new WordDatabase();                     // 词典数据库 (Dictionary database)
-        this.vocabularyManager = new VocabularyManager();           // 词汇管理器 (Vocabulary manager)
-        this.textAnalyzer = new TextAnalyzer(this.wordDatabase);   // 文本分析器 (Text analyzer)
+        this.settingsManager = new SettingsManager();                           // 设置管理器 (Settings manager)
+        this.dataStorage = new DirectDataStorage();                             // 数据访问层 (Data access layer) - ONLY interface to database
+        this.vocabularyManager = new VocabularyManager();                       // 词汇管理器 (Vocabulary manager)
+        this.textAnalyzer = new TextAnalyzer(this.dataStorage);                // 文本分析器 (Text analyzer)
 
         // UI 组件 (UI Components)
         this.vocabularyComponent = new VocabularyComponent(this.vocabularyManager);
@@ -60,7 +60,7 @@ class WordDiscoverer {
         
         // 模块管理器 (Module Managers)
         this.eventHandlers = new EventHandlers(this);
-        this.databaseProgress = new DatabaseProgress(this.wordDatabase);
+        this.databaseProgress = new DatabaseProgress(this.dataStorage);
         
         // 设置组件与主应用的双向引用 (Set bidirectional references between components and main app)
         this.vocabularyComponent.setApp(this);
@@ -82,8 +82,8 @@ class WordDiscoverer {
         // 初始化数据库加载进度管理
         this.databaseProgress.initialize();
         
-        // 初始化数据库
-        await this.wordDatabase.initialize();
+        // 初始化数据存储层（会自动初始化内部的 WordDatabase）
+        await this.dataStorage.initialize();
         
         // 首批数据加载完成后隐藏遮罩（应用已可用）
         this.databaseProgress.hideAfterFirstLoad();

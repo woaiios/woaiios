@@ -3,9 +3,11 @@ import { resolve } from 'path';
 import viteCompression from 'vite-plugin-compression';
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  // Base public path when served in production
-  base: '/woaiios/',
+export default defineConfig(({ command }) => ({
+  // Base public path
+  // Dev mode: use root to allow direct CSS access
+  // Build mode: use /woaiios/ for GitHub Pages
+  base: command === 'serve' ? '/' : '/woaiios/',
   
   // Public directory for static assets
   publicDir: 'public',
@@ -87,4 +89,4 @@ export default defineConfig({
   
   // Handle wasm files for sql.js
   assetsInclude: ['**/*.wasm']
-});
+}));
