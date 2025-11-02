@@ -17,33 +17,18 @@ export class StorageHelper {
 
     /**
      * Initialize the storage helper
-     * Attempts to use Web Worker, falls back to direct localStorage if unavailable
+     * Uses direct localStorage (Worker disabled because localStorage is not accessible in Workers)
      */
     async initialize() {
         if (this.isInitialized) {
             return;
         }
 
-        // Check if Web Workers are supported
-        if (typeof Worker === 'undefined') {
-            console.warn('⚠️ Web Workers not supported, using synchronous localStorage');
-            this.useWorker = false;
-            this.isInitialized = true;
-            return;
-        }
-
-        try {
-            // Try to initialize worker
-            const workerPath = new URL('../workers/storage-worker.js', import.meta.url).href;
-            this.worker = new WorkerBridge(workerPath);
-            await this.worker.initialize();
-            console.log('✅ StorageHelper using Web Worker for async operations');
-            this.isInitialized = true;
-        } catch (error) {
-            console.warn('⚠️ Failed to initialize storage worker, falling back to sync localStorage:', error);
-            this.useWorker = false;
-            this.isInitialized = true;
-        }
+        // Worker is disabled: localStorage cannot be accessed in Web Workers
+        // If async storage is needed, should rewrite Worker to use IndexedDB instead
+        console.log('✅ StorageHelper using direct localStorage (Worker disabled)');
+        this.useWorker = false;
+        this.isInitialized = true;
     }
 
     /**

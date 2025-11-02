@@ -1,0 +1,329 @@
+{
+  "errors": [
+    {
+      "text": "请求失败: http://localhost:3000/db-chunks/chunk-3.db.gz",
+      "reason": "net::ERR_ABORTED"
+    },
+    {
+      "text": "Error loading chunk 3: TypeError: Failed to fetch",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js"
+    },
+    {
+      "text": "Progressive loader error: TypeError: Failed to fetch",
+      "location": "http://localhost:3000/js/database/WordDatabase.js"
+    }
+  ],
+  "warnings": [],
+  "allMessages": [
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": "http://localhost:3000/@vite/client:732:8"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": "http://localhost:3000/@vite/client:826:11"
+    },
+    {
+      "type": "log",
+      "text": "✅ Worker initialized: http://localhost:3000/workers/storage-worker.js",
+      "location": "http://localhost:3000/js/WorkerBridge.js:59:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Worker initialized: http://localhost:3000/workers/storage-worker.js",
+      "location": "http://localhost:3000/js/WorkerBridge.js:59:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Intl.Segmenter loaded successfully",
+      "location": "http://localhost:3000/js/analyzers/WordTokenizer.js:19:24"
+    },
+    {
+      "type": "log",
+      "text": "✅ StorageHelper using Web Worker for async operations",
+      "location": "http://localhost:3000/js/StorageHelper.js:39:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ StorageHelper using Web Worker for async operations",
+      "location": "http://localhost:3000/js/StorageHelper.js:39:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ SettingsManager initialized",
+      "location": "http://localhost:3000/js/SettingsManager.js:38:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ VocabularyManager initialized with 0 learning words and 0 mastered words",
+      "location": "http://localhost:3000/js/VocabularyManager.js:33:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ IndexedDB initialized",
+      "location": "http://localhost:3000/js/database/IndexedDBAdapter.js:24:24"
+    },
+    {
+      "type": "log",
+      "text": "⚠️ Starting data import from SQL database...",
+      "location": "http://localhost:3000/js/database/DirectDataStorage.js:51:20"
+    },
+    {
+      "type": "log",
+      "text": "Initializing sql.js...",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:93:20"
+    },
+    {
+      "type": "log",
+      "text": "Storage Worker initialized (but localStorage is not available in workers!)",
+      "location": "http://localhost:3000/workers/storage-worker.js:68:8"
+    },
+    {
+      "type": "log",
+      "text": "Storage Worker initialized (but localStorage is not available in workers!)",
+      "location": "http://localhost:3000/workers/storage-worker.js:68:8"
+    },
+    {
+      "type": "log",
+      "text": "🚀 Using progressive database loading...",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:107:20"
+    },
+    {
+      "type": "log",
+      "text": "🚀 Initializing Progressive Database Loader...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:31:20"
+    },
+    {
+      "type": "log",
+      "text": "📥 Fetching metadata...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:38:20"
+    },
+    {
+      "type": "log",
+      "text": "📊 Metadata loaded: 10 chunks, 770,611 words",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:47:20"
+    },
+    {
+      "type": "log",
+      "text": "📚 Loading 3 priority chunks...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:244:16"
+    },
+    {
+      "type": "log",
+      "text": "📥 Downloading chunk 1/10 (77,062 words)...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:102:20"
+    },
+    {
+      "type": "log",
+      "text": "📍 Fetching chunk from: /db-chunks/chunk-1.db.gz",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:115:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Chunk 1 loaded (17.5% complete)",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:188:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Chunk 1 loaded (17.5%)",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:173:20"
+    },
+    {
+      "type": "log",
+      "text": "📥 Downloading chunk 2/10 (77,062 words)...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:102:20"
+    },
+    {
+      "type": "log",
+      "text": "📍 Fetching chunk from: /db-chunks/chunk-2.db.gz",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:115:20"
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered successfully: http://localhost:3000/",
+      "location": "http://localhost:3000/:205:32"
+    },
+    {
+      "type": "log",
+      "text": "New Service Worker found, installing...",
+      "location": "http://localhost:3000/:210:36"
+    },
+    {
+      "type": "log",
+      "text": "✅ Chunk 2 loaded (26.5% complete)",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:188:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Chunk 2 loaded (26.5%)",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:173:20"
+    },
+    {
+      "type": "log",
+      "text": "📥 Downloading chunk 3/10 (77,062 words)...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:102:20"
+    },
+    {
+      "type": "log",
+      "text": "📍 Fetching chunk from: /db-chunks/chunk-3.db.gz",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:115:20"
+    },
+    {
+      "type": "log",
+      "text": "Service Worker controller changed, reloading page...",
+      "location": "http://localhost:3000/:229:28"
+    },
+    {
+      "type": "error",
+      "text": "Error loading chunk 3: TypeError: Failed to fetch",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:206:20"
+    },
+    {
+      "type": "error",
+      "text": "Progressive loader error: TypeError: Failed to fetch",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:181:20"
+    },
+    {
+      "type": "log",
+      "text": "🔄 Loading remaining chunks in background starting from 4...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:262:16"
+    },
+    {
+      "type": "log",
+      "text": "📥 Downloading chunk 4/10 (77,062 words)...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:102:20"
+    },
+    {
+      "type": "log",
+      "text": "📍 Fetching chunk from: /db-chunks/chunk-4.db.gz",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:115:20"
+    },
+    {
+      "type": "log",
+      "text": "ECDICT database ready: 154,124 words",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:126:24"
+    },
+    {
+      "type": "log",
+      "text": "🔄 Importing data to IndexedDB...",
+      "location": "http://localhost:3000/js/database/DirectDataStorage.js:73:16"
+    },
+    {
+      "type": "log",
+      "text": "📊 Importing 154,124 words...",
+      "location": "http://localhost:3000/js/database/DirectDataStorage.js:89:16"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connecting...",
+      "location": "http://localhost:3000/@vite/client:732:8"
+    },
+    {
+      "type": "debug",
+      "text": "[vite] connected.",
+      "location": "http://localhost:3000/@vite/client:826:11"
+    },
+    {
+      "type": "log",
+      "text": "✅ Worker initialized: http://localhost:3000/workers/storage-worker.js",
+      "location": "http://localhost:3000/js/WorkerBridge.js:59:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Worker initialized: http://localhost:3000/workers/storage-worker.js",
+      "location": "http://localhost:3000/js/WorkerBridge.js:59:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ Intl.Segmenter loaded successfully",
+      "location": "http://localhost:3000/js/analyzers/WordTokenizer.js:19:24"
+    },
+    {
+      "type": "log",
+      "text": "✅ StorageHelper using Web Worker for async operations",
+      "location": "http://localhost:3000/js/StorageHelper.js:39:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ StorageHelper using Web Worker for async operations",
+      "location": "http://localhost:3000/js/StorageHelper.js:39:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ SettingsManager initialized",
+      "location": "http://localhost:3000/js/SettingsManager.js:38:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ VocabularyManager initialized with 0 learning words and 0 mastered words",
+      "location": "http://localhost:3000/js/VocabularyManager.js:33:20"
+    },
+    {
+      "type": "log",
+      "text": "✅ IndexedDB initialized",
+      "location": "http://localhost:3000/js/database/IndexedDBAdapter.js:24:24"
+    },
+    {
+      "type": "log",
+      "text": "Service Worker registered successfully: http://localhost:3000/",
+      "location": "http://localhost:3000/:205:32"
+    },
+    {
+      "type": "log",
+      "text": "⚠️ Starting data import from SQL database...",
+      "location": "http://localhost:3000/js/database/DirectDataStorage.js:51:20"
+    },
+    {
+      "type": "log",
+      "text": "Initializing sql.js...",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:93:20"
+    },
+    {
+      "type": "log",
+      "text": "Storage Worker initialized (but localStorage is not available in workers!)",
+      "location": "http://localhost:3000/workers/storage-worker.js:68:8"
+    },
+    {
+      "type": "log",
+      "text": "Storage Worker initialized (but localStorage is not available in workers!)",
+      "location": "http://localhost:3000/workers/storage-worker.js:68:8"
+    },
+    {
+      "type": "log",
+      "text": "🚀 Using progressive database loading...",
+      "location": "http://localhost:3000/js/database/WordDatabase.js:107:20"
+    },
+    {
+      "type": "log",
+      "text": "🚀 Initializing Progressive Database Loader...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:31:20"
+    },
+    {
+      "type": "log",
+      "text": "📥 Fetching metadata...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:38:20"
+    },
+    {
+      "type": "log",
+      "text": "📊 Metadata loaded: 10 chunks, 770,611 words",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:47:20"
+    },
+    {
+      "type": "log",
+      "text": "📚 Loading 3 priority chunks...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:244:16"
+    },
+    {
+      "type": "log",
+      "text": "📥 Downloading chunk 1/10 (77,062 words)...",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:102:20"
+    },
+    {
+      "type": "log",
+      "text": "📍 Fetching chunk from: /db-chunks/chunk-1.db.gz",
+      "location": "http://localhost:3000/js/ProgressiveDatabaseLoader.js:115:20"
+    }
+  ]
+}

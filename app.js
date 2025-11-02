@@ -21,7 +21,15 @@
  * - SettingsComponent: 设置界面 (Settings interface)
  * - AnalyzedTextComponent: 文本分析结果显示 (Analyzed text display)
  */
-import { DirectDataStorage } from './js/DirectDataStorage.js';
+
+// Import CSS files - Vite will process these
+import './css/main.css';
+import './css/components.css';
+import './css/ecdict-styles.css';
+import './css/pronunciation-checker.css';
+
+// Import JavaScript modules
+import { DirectDataStorage } from './js/database/DirectDataStorage.js';
 import { TextAnalyzer } from './js/TextAnalyzer.js';
 import { VocabularyManager } from './js/VocabularyManager.js';
 import { SettingsManager } from './js/SettingsManager.js';
@@ -34,7 +42,6 @@ import { NotificationManager } from './js/modules/NotificationManager.js';
 import { UIRenderer } from './js/modules/UIRenderer.js';
 import { DatabaseProgress } from './js/modules/DatabaseProgress.js';
 import { EventHandlers } from './js/modules/EventHandlers.js';
-import { FileUtils } from './js/modules/FileUtils.js';
 
 /**
  * WordDiscoverer 主类 - Main WordDiscoverer Class
