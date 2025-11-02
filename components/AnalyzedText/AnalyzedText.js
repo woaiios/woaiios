@@ -183,7 +183,7 @@ export class AnalyzedTextComponent extends Component {
             NotificationManager.show(`📖 '${word}' added to learning list.`);
         }
         this.app.updateCounts();
-        await this.refreshTextAnalysis();
+        await this.app.analyzeText();
     }
 
     /**
@@ -197,7 +197,7 @@ export class AnalyzedTextComponent extends Component {
             NotificationManager.show(`✅ '${word}' marked as mastered.`);
         }
         this.app.updateCounts();
-        await this.refreshTextAnalysis();
+        await this.app.analyzeText();
     }
 
     /**
@@ -210,29 +210,6 @@ export class AnalyzedTextComponent extends Component {
             NotificationManager.show(`📖 '${word}' moved to learning list.`);
             this.app.updateCounts();
         }
-        await this.refreshTextAnalysis();
-    }
-    
-    /**
-     * 重新分析并刷新文本高亮 - Re-analyze and refresh text highlights
-     * 当词汇状态改变时更新文本中的高亮显示 (Update highlights in text when vocabulary status changes)
-     */
-    async refreshTextAnalysis() {
-        // 获取当前显示的文本内容 (Get currently displayed text content)
-        const currentText = document.getElementById('textInput').value;
-        if (!currentText) return;
-        
-        // 使用集中的分析方法 (Use centralized analysis method)
-        const analysis = await this.app.performTextAnalysis(currentText);
-        const processedText = await this.app.textAnalyzer.processTextForDisplay(currentText, analysis);
-        this.render(processedText);
-        
-        // 更新统计信息（仅在主页面时）(Update statistics - only on main page)
-        if (this.app.updateStatistics) {
-            this.app.updateStatistics(analysis);
-        }
-        
-        // 更新高亮单词列表 (Update highlighted words list)
-        this.app.displayHighlightedWords?.(analysis.highlightedWords);
+        await this.app.analyzeText();
     }
 }

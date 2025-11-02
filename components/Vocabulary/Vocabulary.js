@@ -201,7 +201,7 @@ export class VocabularyComponent {
         if (result) {
             this.updateAndRenderLists();
             NotificationManager.show(`'${word}' moved to mastered list.`);
-            this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
+            this.app.analyzeText(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
         }
     }
 
@@ -215,7 +215,7 @@ export class VocabularyComponent {
         if (result) {
             this.updateAndRenderLists();
             NotificationManager.show(`'${word}' moved back to learning list.`);
-            this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
+            this.app.analyzeText(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
         }
     }
 
@@ -230,7 +230,7 @@ export class VocabularyComponent {
             if (result) {
                 this.updateAndRenderLists();
                 NotificationManager.show(`'${word}' has been deleted.`, 'info');
-                this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
+                this.app.analyzeText(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
             }
         }
     }
@@ -260,7 +260,7 @@ export class VocabularyComponent {
                 if (this.vocabularyManager.importVocabulary(data)) {
                     this.updateAndRenderLists();
                     NotificationManager.show('Vocabulary imported successfully!');
-                    this.app.refreshTextAnalysis(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
+                    this.app.analyzeText(); // 刷新文本分析以更新高亮 (Refresh text analysis to update highlights)
                 } else {
                     NotificationManager.show('Error importing vocabulary. Check file format.', 'error');
                 }

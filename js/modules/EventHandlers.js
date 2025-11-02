@@ -58,8 +58,8 @@ export class EventHandlers {
         const mainDifficultyLevel = document.getElementById('mainDifficultyLevel');
         if (mainDifficultyLevel) {
             mainDifficultyLevel.addEventListener('change', async (e) => {
-                this.app.settingsManager.setSetting('difficultyLevel', e.target.value);
-                await this.app.refreshTextAnalysis(); // 立即刷新文本分析结果
+                await this.app.settingsManager.setSetting('difficultyLevel', e.target.value);
+                await this.app.analyzeText(); // 立即刷新文本分析结果
             });
         }
         
@@ -67,8 +67,8 @@ export class EventHandlers {
         const mainHighlightMode = document.getElementById('mainHighlightMode');
         if (mainHighlightMode) {
             mainHighlightMode.addEventListener('change', async (e) => {
-                this.app.settingsManager.setSetting('highlightMode', e.target.value);
-                await this.app.refreshTextAnalysis(); // 立即刷新文本分析结果
+                await this.app.settingsManager.setSetting('highlightMode', e.target.value);
+                await this.app.analyzeText(); // 立即刷新文本分析结果
             });
         }
     }

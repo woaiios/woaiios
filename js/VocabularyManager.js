@@ -451,7 +451,7 @@ export class VocabularyManager {
                     console.log('Vocabulary merged and synced with Google Drive');
                     // 在这里添加文本分析刷新调用
                     if (window.wordDiscoverer) {
-                        window.wordDiscoverer.refreshTextAnalysis();
+                        window.wordDiscoverer.analyzeText();
                     }
                 } else if (syncResult.action === 'download') {
                     // This case is for compatibility if sync logic changes back.
@@ -459,7 +459,7 @@ export class VocabularyManager {
                     console.log('Vocabulary synced from Google Drive');
                     // 在这里添加文本分析刷新调用
                     if (window.wordDiscoverer) {
-                        window.wordDiscoverer.refreshTextAnalysis();
+                        window.wordDiscoverer.analyzeText();
                     }
                 } else if (syncResult.action === 'upload') {
                     console.log('Vocabulary uploaded to Google Drive');
@@ -496,7 +496,7 @@ export class VocabularyManager {
                 console.log('Vocabulary force synced from Google Drive');
                 // 在这里添加文本分析刷新调用
                 if (window.wordDiscoverer) {
-                    window.wordDiscoverer.refreshTextAnalysis();
+                    window.wordDiscoverer.analyzeText();
                 }
                 return true;
             }

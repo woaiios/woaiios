@@ -147,25 +147,6 @@ class WordDiscoverer {
     }
     
     /**
-     * 刷新文本分析 - Refresh text analysis
-     * 当设置改变时重新分析已有文本 (Re-analyze existing text when settings change)
-     */
-    async refreshTextAnalysis() {
-        // 只有在已经有分析过的文本时才刷新 (Only refresh if text has been analyzed)
-        if (document.getElementById('analyzedTextSection').style.display !== 'block') return;
-        
-        const text = document.getElementById('textInput').value.trim();
-        if (!text) return;
-
-        // 重新分析并更新显示 (Re-analyze and update display)
-        const analysis = await this.performTextAnalysis(text);
-        const processedText = await this.textAnalyzer.processTextForDisplay(text, analysis);
-        this.analyzedTextComponent.render(processedText);
-        UIRenderer.updateStatistics(analysis);
-        UIRenderer.displayHighlightedWords(analysis.highlightedWords);
-    }
-    
-    /**
      * 更新词汇数量显示 - Update vocabulary counts
      * 刷新词汇组件中的学习和已掌握单词数量 (Refresh learning and mastered word counts in vocabulary component)
      * Uses batchDOMUpdate to avoid layout thrashing

@@ -127,7 +127,7 @@ export class DifficultyCalculator {
         const userDifficultyIndex = this.DIFFICULTY_ORDER[userDifficultyLevel];
 
         // Determine if the word is considered difficult for the user
-        const isDifficultForUser = wordDifficultyIndex > userDifficultyIndex;
+        const isDifficultForUser = wordDifficultyIndex >= userDifficultyIndex;
 
         switch (highlightMode) {
             case 'unknown':
