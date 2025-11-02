@@ -99,26 +99,33 @@ export class WordDatabase {
                 }
             });
             
-            this.progressiveLoader.on('chunkLoaded', (data) => {
+            this.progressiveLoader.on('chunkLoaded', async (data) => {
                 console.log(`✅ Chunk ${data.chunkNumber} loaded (${data.percentage.toFixed(1)}% complete)`);
+                
+                // Import each chunk incrementally to IndexedDB
+                if (this.useDirectStorage && this.directStorage) {
+                    const isImported = await this.directStorage.isDataImported();
+                    if (!isImported) {
+                        try {
+                            await this.directStorage.importFromDatabase(this.db, data.chunkNumber, (progress) => {
+                                console.log(`📥 Importing chunk ${data.chunkNumber}: ${progress.percentage.toFixed(1)}%`);
+                            });
+                        } catch (error) {
+                            console.warn(`⚠️ Failed to import chunk ${data.chunkNumber}:`, error);
+                        }
+                    }
+                }
             });
             
             this.progressiveLoader.on('complete', async (data) => {
                 console.log(`✨ All database chunks loaded! Total: ${data.totalWords.toLocaleString()} words`);
                 
-                // Import to DirectDataStorage if not already done
+                // Mark import as complete after all chunks loaded
                 if (this.useDirectStorage && this.directStorage) {
                     const isImported = await this.directStorage.isDataImported();
                     if (!isImported) {
-                        console.log('🔄 Starting one-time import to DirectDataStorage for future performance...');
-                        try {
-                            await this.directStorage.importFromDatabase(this.db, (progress) => {
-                                console.log(`📥 Import progress: ${progress.percentage.toFixed(1)}%`);
-                            });
-                            console.log('✅ Import to DirectDataStorage completed!');
-                        } catch (error) {
-                            console.warn('⚠️ Failed to import to DirectDataStorage, will continue with SQL:', error);
-                        }
+                        await this.directStorage.markImportComplete(data.totalWords);
+                        console.log('✅ IndexedDB import marked complete');
                     }
                 }
             });

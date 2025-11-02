@@ -12,6 +12,7 @@ export class DirectDataStorage {
         this.isInitialized = false;
         this.memoryCache = new Map(); // In-memory LRU cache
         this.maxCacheSize = 10000; // Cache up to 10k words in memory
+        this.importQueue = Promise.resolve(); // Queue to serialize imports
         this.stats = {
             cacheHits: 0,
             cacheMisses: 0,
@@ -63,23 +64,34 @@ export class DirectDataStorage {
      * This is a one-time migration process
      * Uses idle callbacks to avoid blocking main thread
      */
-    async importFromDatabase(sqlDB, progressCallback = null) {
+    async importFromDatabase(sqlDB, chunkNumber, progressCallback = null) {
+        // Add to queue to serialize imports
+        this.importQueue = this.importQueue.then(() => 
+            this._doImport(sqlDB, chunkNumber, progressCallback)
+        ).catch(error => {
+            console.error('Import queue error:', error);
+        });
+        
+        return this.importQueue;
+    }
+
+    async _doImport(sqlDB, chunkNumber, progressCallback = null) {
         if (!this.isInitialized) {
             await this.initialize();
         }
 
-        console.log('🔄 Starting data import to DirectDataStorage...');
+        // Check if this chunk was already imported
+        const chunkKey = `chunk_${chunkNumber}_imported`;
+        const chunkMetadata = await this.getMetadata(chunkKey);
+        if (chunkMetadata && chunkMetadata.value === true) {
+            console.log(`✅ Chunk ${chunkNumber} already imported, skipping`);
+            return true;
+        }
+
+        console.log(`🔄 Starting import of chunk ${chunkNumber} to DirectDataStorage...`);
         const startTime = Date.now();
         
         try {
-            // Check if data already imported
-            const metadata = await this.getMetadata('importComplete');
-            if (metadata && metadata.value === true) {
-                console.log('✅ Data already imported, skipping');
-                return true;
-            }
-
-            // Get all words from SQL database
             const result = sqlDB.exec(`
                 SELECT word, phonetic, definition, translation, pos, collins, oxford, 
                        tag, bnc, frq, exchange, detail, audio 
@@ -87,14 +99,14 @@ export class DirectDataStorage {
             `);
 
             if (result.length === 0 || result[0].values.length === 0) {
-                throw new Error('No data found in SQL database');
+                console.log('⚠️ No new data to import');
+                return true;
             }
 
             const rows = result[0].values;
             const totalRows = rows.length;
-            console.log(`📊 Importing ${totalRows.toLocaleString()} words...`);
+            console.log(`📊 Importing ${totalRows.toLocaleString()} words from chunk ${chunkNumber}...`);
 
-            // Batch insert for better performance
             const batchSize = 1000;
             let importedCount = 0;
 
@@ -140,31 +152,35 @@ export class DirectDataStorage {
                     });
                 }
 
-                // Log progress every 10k words
                 if (importedCount % 10000 === 0 || importedCount === totalRows) {
-                    console.log(`📥 Imported ${importedCount.toLocaleString()}/${totalRows.toLocaleString()} words (${((importedCount/totalRows)*100).toFixed(1)}%)`);
+                    console.log(`📥 Chunk ${chunkNumber}: ${importedCount.toLocaleString()}/${totalRows.toLocaleString()} words (${((importedCount/totalRows)*100).toFixed(1)}%)`);
                 }
                 
-                // Yield to main thread every few batches to keep UI responsive
                 if (i % (batchSize * 3) === 0 && i + batchSize < rows.length) {
                     await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
 
-            // Mark import as complete
-            await this.setMetadata('importComplete', true);
-            await this.setMetadata('importDate', new Date().toISOString());
-            await this.setMetadata('totalWords', totalRows);
+            // Mark this chunk as imported
+            await this.setMetadata(chunkKey, true);
+            await this.setMetadata(`${chunkKey}_date`, new Date().toISOString());
+            await this.setMetadata(`${chunkKey}_words`, importedCount);
 
             const duration = Date.now() - startTime;
-            console.log(`✅ Import completed in ${(duration/1000).toFixed(2)}s`);
-            console.log(`📊 Total words imported: ${importedCount.toLocaleString()}`);
+            console.log(`✅ Chunk ${chunkNumber} import completed in ${(duration/1000).toFixed(2)}s`);
+            console.log(`📊 Words imported: ${importedCount.toLocaleString()}`);
 
             return true;
         } catch (error) {
-            console.error('❌ Error importing data:', error);
+            console.error(`❌ Error importing chunk ${chunkNumber}:`, error);
             throw error;
         }
+    }
+
+    async markImportComplete(totalWords) {
+        await this.setMetadata('importComplete', true);
+        await this.setMetadata('importDate', new Date().toISOString());
+        await this.setMetadata('totalWords', totalWords);
     }
 
     /**

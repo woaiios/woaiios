@@ -77,10 +77,11 @@ class WordDiscoverer {
         const dbProgressChunks = document.getElementById('dbProgressChunks');
         const dbLoadingMessage = document.getElementById('dbLoadingMessage');
         
-        dbLoadingOverlay.classList.add('show');
-        
         // 设置进度回调 - 更新加载进度条 (Set progress callback - update loading progress bar)
         this.wordDatabase.setProgressCallback((data) => {
+            // 只有在真正需要加载时才显示进度条
+            dbLoadingOverlay.classList.add('show');
+            
             dbProgressBar.style.width = `${data.percentage.toFixed(1)}%`;
             dbProgressPercentage.textContent = `${data.percentage.toFixed(1)}%`;
             
