@@ -22,8 +22,14 @@ export class WorkerBridge {
         }
 
         try {
-            // Use ?worker suffix for Vite
-            this.worker = new Worker(this.workerPath);
+            // Create worker - support both Vite worker class and path string
+            if (typeof this.workerPath === 'function') {
+                // Vite worker import (class constructor)
+                this.worker = new this.workerPath();
+            } else {
+                // Legacy path string (for backwards compatibility)
+                this.worker = new Worker(this.workerPath, { type: 'module' });
+            }
             
             this.worker.onmessage = (event) => {
                 const { id, type, result, error } = event.data;

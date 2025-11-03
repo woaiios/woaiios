@@ -5,9 +5,8 @@ import viteCompression from 'vite-plugin-compression';
 // https://vitejs.dev/config/
 export default defineConfig(({ command }) => ({
   // Base public path
-  // Dev mode: use root to allow direct CSS access
-  // Build mode: use /woaiios/ for GitHub Pages
-  base: command === 'serve' ? '/' : '/woaiios/',
+  // Use /woaiios/ for both dev and build to ensure consistent paths
+  base: '/woaiios/',
   
   // Public directory for static assets
   publicDir: 'public',

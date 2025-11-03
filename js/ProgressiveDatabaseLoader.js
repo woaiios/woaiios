@@ -1,10 +1,11 @@
 /**
  * ProgressiveDatabaseLoader Module
- * Implements progressive database loading with caching and offline support
+ * Implements progressive database loading with Web Worker for non-blocking operations
  * Loads database chunks in order of word frequency (high-frequency words first)
+ * All heavy operations (decompression, parsing) run in a background worker thread
  */
-import pako from 'pako';
-import { scheduleIdleTask, processInChunks } from './PerformanceUtils.js';
+import { WorkerBridge } from './WorkerBridge.js';
+import DatabaseWorker from '../workers/DatabaseLoaderWorker.js?worker';
 
 export class ProgressiveDatabaseLoader {
     constructor() {
@@ -14,6 +15,7 @@ export class ProgressiveDatabaseLoader {
         this.totalBytes = 0;
         this.loadedBytes = 0;
         this.isInitialized = false;
+        this.workerBridge = null;
         this.listeners = {
             progress: [],
             chunkLoaded: [],
@@ -27,23 +29,23 @@ export class ProgressiveDatabaseLoader {
      */
     async initialize() {
         try {
-            console.log('🚀 Initializing Progressive Database Loader...');
+            console.log('🚀 Initializing Progressive Database Loader with Web Worker...');
             
-            // Load metadata from server
-            const metadataPath = import.meta.env.DEV 
-                ? '/db-chunks/metadata.json'
-                : `${import.meta.env.BASE_URL}db-chunks/metadata.json`;
+            // Initialize worker using Vite's worker import
+            this.workerBridge = new WorkerBridge(DatabaseWorker);
+            await this.workerBridge.initialize();
             
-            console.log('📥 Fetching metadata...');
-            const response = await fetch(metadataPath);
-            if (!response.ok) {
-                throw new Error(`Failed to load metadata: ${response.status}`);
-            }
+            // Prepare metadata URL - use BASE_URL for both dev and production
+            const metadataUrl = `${import.meta.env.BASE_URL}db-chunks/metadata.json`;
             
-            this.metadata = await response.json();
-            this.totalBytes = this.metadata.chunks.reduce((sum, chunk) => sum + chunk.sizeBytes, 0);
+            console.log('📥 Initializing worker with metadata...');
+            const result = await this.workerBridge.sendMessage('initialize', { metadataUrl });
             
-            console.log(`📊 Metadata loaded: ${this.metadata.totalChunks} chunks, ${this.metadata.totalWords.toLocaleString()} words`);
+            this.metadata = result;
+            this.totalBytes = result.totalBytes;
+            
+            console.log(`📊 Metadata loaded: ${result.totalChunks} chunks, ${result.totalWords.toLocaleString()} words`);
+            console.log('✅ Web Worker is ready - heavy operations will not block UI!');
             
             this.isInitialized = true;
             this.emit('progress', { loaded: 0, total: this.totalBytes, percentage: 0, message: 'Initialized' });
@@ -57,7 +59,7 @@ export class ProgressiveDatabaseLoader {
     }
 
     /**
-     * Load a specific chunk
+     * Load a specific chunk using Web Worker
      */
     async loadChunk(chunkNumber) {
         if (!this.isInitialized) {
@@ -70,73 +72,42 @@ export class ProgressiveDatabaseLoader {
         }
         
         try {
-            const chunkInfo = this.metadata.chunks.find(c => c.chunkNumber === chunkNumber);
-            if (!chunkInfo) {
-                throw new Error(`Chunk ${chunkNumber} not found in metadata`);
-            }
-            
-            // Download chunk from server
-            console.log(`📥 Downloading chunk ${chunkNumber}/${this.metadata.totalChunks} (${chunkInfo.wordCount.toLocaleString()} words)...`);
+            console.log(`📥 Requesting chunk ${chunkNumber}/${this.metadata.totalChunks} from worker...`);
             
             this.emit('progress', {
                 loaded: this.loadedBytes,
                 total: this.totalBytes,
                 percentage: this.loadingProgress,
-                message: `Downloading: chunk ${chunkNumber}/${this.metadata.totalChunks}`
+                message: `Loading chunk ${chunkNumber}/${this.metadata.totalChunks} (in worker)`
             });
             
-            const chunkPath = import.meta.env.DEV 
-                ? `/db-chunks/${chunkInfo.filename}`
-                : `${import.meta.env.BASE_URL}db-chunks/${chunkInfo.filename}`;
+            // Prepare base URL for worker - use BASE_URL for both dev and production
+            const baseUrl = `${import.meta.env.BASE_URL}db-chunks/`;
             
-            const response = await fetch(chunkPath);
-            if (!response.ok) {
-                throw new Error(`Failed to load chunk ${chunkNumber}: ${response.status}`);
+            // Send to worker - all heavy operations happen there!
+            const result = await this.workerBridge.sendMessage('loadChunk', {
+                chunkNumber,
+                baseUrl
+            });
+            
+            if (result.alreadyLoaded) {
+                return true;
             }
             
-            // Get response data
-            let buffer = await response.arrayBuffer();
-            let jsonString;
-            
-            // Check if already decompressed by server (Content-Encoding: gzip)
-            const contentEncoding = response.headers.get('Content-Encoding');
-            
-            if (contentEncoding === 'gzip') {
-                // Server already decompressed it
-                console.log(`  ℹ️ Server auto-decompressed chunk ${chunkNumber}`);
-                jsonString = new TextDecoder('utf-8').decode(buffer);
-            } else {
-                // Need to decompress manually
-                try {
-                    console.log(`  🗜️ Decompressing chunk ${chunkNumber}...`);
-                    const compressedArray = new Uint8Array(buffer);
-                    const decompressedArray = pako.ungzip(compressedArray);
-                    jsonString = new TextDecoder('utf-8').decode(decompressedArray);
-                } catch (e) {
-                    // If pako fails, try reading as plain text (might already be decompressed)
-                    console.log(`  ℹ️ Pako failed, trying as plain text...`);
-                    jsonString = new TextDecoder('utf-8').decode(buffer);
-                }
-            }
-            
-            // Parse JSON
-            const chunkWords = JSON.parse(jsonString);
-            
-            console.log(`✅ Chunk ${chunkNumber} decompressed and parsed: ${chunkWords.length.toLocaleString()} words`);
-            
-            // Update progress
+            // Update local state
             this.loadedChunks.add(chunkNumber);
-            this.loadedBytes += chunkInfo.sizeBytes;
-            this.loadingProgress = (this.loadedBytes / this.totalBytes) * 100;
+            this.loadedBytes = result.progress.loadedBytes;
+            this.loadingProgress = result.progress.percentage;
             
-            console.log(`✅ Chunk ${chunkNumber} loaded (${this.loadingProgress.toFixed(1)}% complete)`);
+            console.log(`✅ Chunk ${chunkNumber} loaded: ${result.wordCount.toLocaleString()} words (${this.loadingProgress.toFixed(1)}% complete)`);
             
+            // Emit events
             this.emit('chunkLoaded', {
                 chunkNumber,
                 loaded: this.loadedChunks.size,
                 total: this.metadata.totalChunks,
                 percentage: this.loadingProgress,
-                chunkWords  // Array of word objects
+                chunkWords: result.chunkWords  // Parsed words from worker
             });
             
             this.emit('progress', {
@@ -243,6 +214,17 @@ export class ProgressiveDatabaseLoader {
             loadedBytes: this.loadedBytes,
             totalBytes: this.totalBytes
         };
+    }
+
+    /**
+     * Cleanup and terminate worker
+     */
+    cleanup() {
+        if (this.workerBridge) {
+            this.workerBridge.terminate();
+            this.workerBridge = null;
+            console.log('🧹 Worker terminated and cleaned up');
+        }
     }
 
     /**
