@@ -260,6 +260,28 @@ body {
     background: rgba(244, 67, 54, 0.7); /* Red */
 }
 
+/* Vocabulary status overlays (toggled by AnalyzedTextComponent.updateWordSpans).
+   These rules must stay after the difficulty rules above so they win at equal specificity. */
+.word-span.in-vocabulary {
+    text-decoration: underline dotted #6b7280;
+    text-underline-offset: 4px;
+}
+
+/* Learning words that had no difficulty highlight get the default yellow */
+.word-span.learning:not(.highlighted-word) {
+    background: rgba(255, 235, 59, 0.7);
+}
+
+/* Mastered words lose their difficulty highlight entirely */
+.word-span.mastered,
+.word-span.highlighted-word.mastered:hover {
+    background: transparent;
+}
+
+.word-span.highlighted-word.mastered:hover {
+    transform: none;
+}
+
 /* Statistics */
 .statistics {
     display: grid;

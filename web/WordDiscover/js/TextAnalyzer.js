@@ -8,6 +8,7 @@ export class TextAnalyzer {
         this.translationService = translationService;
         this.dictionary = null;
         this.wordFormsMap = new Map(); // Map word forms to their base forms
+        this.translationCache = new Map(); // Cache translations: dictionary is static after load
         this.tokenizer = null;
         this.loadDictionaries();
         this.loadTokenizer();
@@ -123,17 +124,21 @@ export class TextAnalyzer {
 
         const { learning: learningWords, mastered: masteredWords } = vocabulary;
 
-        // Count word frequency using lowercase for counting but preserving original case for display
+        // Single pass: count word frequency and map lowercase -> first original casing for display
+        const originalCaseMap = new Map();
         words.forEach(word => {
             const lowerWord = word.toLowerCase();
             analysis.wordFrequency[lowerWord] = (analysis.wordFrequency[lowerWord] || 0) + 1;
+            if (!originalCaseMap.has(lowerWord)) {
+                originalCaseMap.set(lowerWord, word);
+            }
         });
 
         // Analyze each unique word (using lowercase for comparison)
         const uniqueWords = [...new Set(words.map(word => word.toLowerCase()))];
         uniqueWords.forEach(lowerWord => {
-            // Find the original casing of the word for display
-            const originalWord = words.find(word => word.toLowerCase() === lowerWord) || lowerWord;
+            // Find the original casing of the word for display (O(1) lookup instead of O(n) scan)
+            const originalWord = originalCaseMap.get(lowerWord) || lowerWord;
             
             const difficulty = this.wordDatabase.getWordDifficulty(lowerWord);
             
@@ -203,6 +208,26 @@ export class TextAnalyzer {
      * @returns {string} Translation
      */
     getTranslation(word) {
+        // Dictionary loads asynchronously; don't cache fallback results computed before it arrives
+        if (!this.dictionary || this.wordFormsMap.size === 0) {
+            return this.computeTranslation(word);
+        }
+
+        if (this.translationCache.has(word)) {
+            return this.translationCache.get(word);
+        }
+
+        const translation = this.computeTranslation(word);
+        this.translationCache.set(word, translation);
+        return translation;
+    }
+
+    /**
+     * Compute translation for a word (uncached)
+     * @param {string} word - Word to translate
+     * @returns {string} Translation
+     */
+    computeTranslation(word) {
         // First try to find the base form of the word with original casing
         let baseForm = this.wordFormsMap.get(word);
         

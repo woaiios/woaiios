@@ -7,6 +7,15 @@ export class AnalyzedTextComponent extends Component {
         this.app = null;
         this.currentWord = null;
         this.currentTranslation = null;
+        
+        // Register delegated click listener once in constructor
+        this.element.addEventListener('click', (e) => {
+            if (e.target.classList.contains('word-span')) {
+                const word = e.target.dataset.word;
+                const translation = e.target.dataset.translation;
+                this.showWordModal(word, translation, e);
+            }
+        });
     }
 
     setApp(app) {
@@ -15,20 +24,6 @@ export class AnalyzedTextComponent extends Component {
 
     render(processedText) {
         this.element.innerHTML = processedText;
-        this.addEventListeners();
-    }
-
-    addEventListeners() {
-        // 使用事件委托，监听父元素上的点击事件
-        this.element.addEventListener('click', (e) => {
-            // 检查被点击的元素是否是单词span
-            if (e.target.classList.contains('word-span')) {
-                const word = e.target.dataset.word;
-                const translation = e.target.dataset.translation;
-                // 显示单词操作模态框
-                this.showWordModal(word, translation, e);
-            }
-        });
     }
 
     showWordModal(word, translation, event) {
@@ -57,7 +52,9 @@ export class AnalyzedTextComponent extends Component {
         modalActions.innerHTML = '';
         
         // 根据单词状态添加操作按钮
-        if (this.vocabularyManager.masteredWords.has(word)) {
+        // 词汇表键统一为小写（见 VocabularyManager），查询时必须先转换大小写
+        const lowerCaseWord = word.toLowerCase();
+        if (this.vocabularyManager.masteredWords.has(lowerCaseWord)) {
             // 单词已在掌握列表中
             const unmasterBtn = document.createElement('button');
             unmasterBtn.textContent = 'Move to Learning List';
@@ -67,7 +64,7 @@ export class AnalyzedTextComponent extends Component {
                 this.closeWordModal();
             };
             modalActions.appendChild(unmasterBtn);
-        } else if (this.vocabularyManager.learningWords.has(word)) {
+        } else if (this.vocabularyManager.learningWords.has(lowerCaseWord)) {
             // 单词已在学习列表中
             const masterBtn = document.createElement('button');
             masterBtn.textContent = 'Mark as Mastered';
@@ -127,7 +124,8 @@ export class AnalyzedTextComponent extends Component {
             this.app.showNotification(`📖 '${word}' added to learning list.`);
         }
         this.app.updateCounts();
-        this.refreshTextAnalysis();
+        this.updateWordSpans();
+        this.refreshStatistics();
     }
 
     handleWordMaster(word, translation) {
@@ -136,7 +134,8 @@ export class AnalyzedTextComponent extends Component {
             this.app.showNotification(`✅ '${word}' marked as mastered.`);
         }
         this.app.updateCounts();
-        this.refreshTextAnalysis();
+        this.updateWordSpans();
+        this.refreshStatistics();
     }
 
     handleWordUnmaster(word) {
@@ -145,7 +144,23 @@ export class AnalyzedTextComponent extends Component {
             this.app.showNotification(`📖 '${word}' moved to learning list.`);
             this.app.updateCounts();
         }
-        this.refreshTextAnalysis();
+        this.updateWordSpans();
+        this.refreshStatistics();
+    }
+
+    // 更新统计信息（仅在主页面可用时）
+    refreshStatistics() {
+        if (!this.app.updateStatistics) return;
+        const textInput = document.getElementById('textInput');
+        if (!textInput) return;
+        const currentText = textInput.value;
+        if (!currentText) return;
+        const analysis = this.app.performTextAnalysis(currentText);
+        this.app.updateStatistics(analysis);
+        // Also refresh the highlighted-words list so counts stay consistent.
+        if (this.app.displayHighlightedWords) {
+            this.app.displayHighlightedWords(analysis.highlightedWords);
+        }
     }
     
     // 重新分析并刷新文本高亮
@@ -163,5 +178,21 @@ export class AnalyzedTextComponent extends Component {
         if (this.app.updateStatistics) {
             this.app.updateStatistics(analysis);
         }
+    }
+    
+    // Update word spans directly without full re-render
+    updateWordSpans() {
+        const wordSpans = this.element.querySelectorAll('.word-span');
+        wordSpans.forEach(span => {
+            // 词汇表键统一为小写（见 VocabularyManager），查询时必须先转换大小写
+            const word = span.dataset.word.toLowerCase();
+            const isLearning = this.vocabularyManager.learningWords.has(word);
+            const isMastered = this.vocabularyManager.masteredWords.has(word);
+            
+            // Update CSS classes based on vocabulary status
+            span.classList.toggle('in-vocabulary', isLearning || isMastered);
+            span.classList.toggle('learning', isLearning);
+            span.classList.toggle('mastered', isMastered);
+        });
     }
 }

@@ -23,12 +23,14 @@ export class VocabularyManager {
      * @returns {boolean} True if the word was added, false if it already exists.
      */
     addWord(word, translation) {
-        if (this.isKnownWord(word)) {
+        const lowerCaseWord = word.toLowerCase();
+        if (this.isKnownWord(lowerCaseWord)) {
             return false;
         }
         
-        this.learningWords.set(word, {
+        this.learningWords.set(lowerCaseWord, {
             translation: translation,
+            displayWord: word,
             addedDate: new Date().toISOString(),
             reviewCount: 0,
             lastReviewed: null
@@ -52,6 +54,7 @@ export class VocabularyManager {
         let wordData;
         if (this.learningWords.has(lowerCaseWord)) {
             wordData = this.learningWords.get(lowerCaseWord);
+            if (!wordData.displayWord) wordData.displayWord = word;
             this.learningWords.delete(lowerCaseWord);
             this.masteredWords.set(lowerCaseWord, wordData);
             this.saveVocabulary();
@@ -61,6 +64,7 @@ export class VocabularyManager {
         // Add new word directly to mastered list
         wordData = {
             translation: translation,
+            displayWord: word,
             addedDate: new Date().toISOString(),
             reviewCount: 0, // New mastered words start with 0 reviews
             lastReviewed: null
@@ -93,13 +97,14 @@ export class VocabularyManager {
      * @returns {boolean} True if the word was removed, false if not found.
      */
     removeWord(word) {
-        if (this.learningWords.has(word)) {
-            this.learningWords.delete(word);
+        const lowerCaseWord = word.toLowerCase();
+        if (this.learningWords.has(lowerCaseWord)) {
+            this.learningWords.delete(lowerCaseWord);
             this.saveVocabulary();
             return true;
         }
-        if (this.masteredWords.has(word)) {
-            this.masteredWords.delete(word);
+        if (this.masteredWords.has(lowerCaseWord)) {
+            this.masteredWords.delete(lowerCaseWord);
             this.saveVocabulary();
             return true;
         }
@@ -112,7 +117,8 @@ export class VocabularyManager {
      * @returns {boolean} True if the word is known.
      */
     isKnownWord(word) {
-        return this.learningWords.has(word) || this.masteredWords.has(word);
+        const lowerCaseWord = word.toLowerCase();
+        return this.learningWords.has(lowerCaseWord) || this.masteredWords.has(lowerCaseWord);
     }
 
     /**
@@ -121,7 +127,7 @@ export class VocabularyManager {
      * @returns {boolean} True if the word is mastered.
      */
     isMasteredWord(word) {
-        return this.masteredWords.has(word);
+        return this.masteredWords.has(word.toLowerCase());
     }
 
     /**
@@ -130,7 +136,8 @@ export class VocabularyManager {
      * @returns {Object|null} Word data or null if not found.
      */
     getWordData(word) {
-        return this.learningWords.get(word) || this.masteredWords.get(word) || null;
+        const lowerCaseWord = word.toLowerCase();
+        return this.learningWords.get(lowerCaseWord) || this.masteredWords.get(lowerCaseWord) || null;
     }
 
     /**
@@ -192,7 +199,7 @@ export class VocabularyManager {
      * @returns {boolean} True if updated, false otherwise.
      */
     updateReviewCount(word) {
-        const wordData = this.learningWords.get(word);
+        const wordData = this.learningWords.get(word.toLowerCase());
         if (wordData) {
             wordData.reviewCount++;
             wordData.lastReviewed = new Date().toISOString();
@@ -200,6 +207,25 @@ export class VocabularyManager {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Normalize vocabulary map keys to lowercase.
+     * @param {Array<[string, Object]>} entries - Map entries from storage/import.
+     * @returns {Map<string, Object>} Normalized map.
+     */
+    normalizeVocabularyMap(entries) {
+        const normalized = new Map();
+        (entries || []).forEach(([word, data]) => {
+            if (typeof word === 'string') {
+                const lowerWord = word.toLowerCase();
+                if (data && typeof data === 'object' && !data.displayWord) {
+                    data.displayWord = word;
+                }
+                normalized.set(lowerWord, data);
+            }
+        });
+        return normalized;
     }
 
     /**
@@ -224,13 +250,13 @@ export class VocabularyManager {
         try {
             // Handle new format (v2.0)
             if (data.version === '2.0' && data.learningWords) {
-                this.learningWords = new Map(data.learningWords || []);
-                this.masteredWords = new Map(data.masteredWords || []);
+                this.learningWords = this.normalizeVocabularyMap(data.learningWords || []);
+                this.masteredWords = this.normalizeVocabularyMap(data.masteredWords || []);
             } 
             // Handle old format (v1.0)
             else if (data.vocabulary && Array.isArray(data.vocabulary)) {
                 // Migrate old data to the new 'learningWords' list
-                this.learningWords = new Map(data.vocabulary);
+                this.learningWords = this.normalizeVocabularyMap(data.vocabulary);
                 this.masteredWords = new Map();
             } else {
                 return false;
@@ -279,8 +305,8 @@ export class VocabularyManager {
             // Check for new format (v2.0)
             if (data.version === '2.0') {
                 return {
-                    learningWords: new Map(data.learningWords || []),
-                    masteredWords: new Map(data.masteredWords || [])
+                    learningWords: this.normalizeVocabularyMap(data.learningWords || []),
+                    masteredWords: this.normalizeVocabularyMap(data.masteredWords || [])
                 };
             }
             
@@ -288,7 +314,7 @@ export class VocabularyManager {
             if (Array.isArray(data)) {
                 console.log('Migrating old vocabulary format to new v2.0 format.');
                 return {
-                    learningWords: new Map(data),
+                    learningWords: this.normalizeVocabularyMap(data),
                     masteredWords: new Map()
                 };
             }
@@ -311,8 +337,11 @@ export class VocabularyManager {
         };
         localStorage.setItem('wordDiscovererVocabulary', JSON.stringify(dataToSave));
         
+        // Fire-and-forget sync to avoid blocking UI
         if (this.syncEnabled && !this.isSyncing) {
-            this.syncToGoogleDrive();
+            this.syncToGoogleDrive().catch(err => {
+                console.error('Background sync failed:', err);
+            });
         }
     }
 

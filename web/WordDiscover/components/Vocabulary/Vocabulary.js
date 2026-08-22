@@ -78,7 +78,7 @@ export class VocabularyComponent {
             vocabItem.className = 'vocab-item';
             vocabItem.innerHTML = `
                 <div>
-                    <div class="vocab-word">${word}</div>
+                    <div class="vocab-word">${data.displayWord || word}</div>
                     <div class="vocab-translation">${data.translation}</div>
                     <div class="vocab-meta">Added: ${new Date(data.addedDate).toLocaleDateString()}</div>
                 </div>
