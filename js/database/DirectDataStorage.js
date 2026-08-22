@@ -284,6 +284,6 @@ export class DirectDataStorage {
      * Check if database is loaded
      */
     isDatabaseLoaded() {
-        return this.isInitialized && this._wordDatabase.isDatabaseLoaded();
+        return this.isInitialized && this.queryService !== null;
     }
 }
