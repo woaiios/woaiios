@@ -4,7 +4,7 @@
  * Provides offline support and cache management
  */
 
-const CACHE_VERSION = 'v2.0.0';
+const CACHE_VERSION = 'v2.0.1';
 const CACHE_NAME = `word-discoverer-${CACHE_VERSION}`;
 
 // 需要缓存的静态资源 (Static assets to cache)

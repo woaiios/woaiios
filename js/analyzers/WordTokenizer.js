@@ -90,7 +90,16 @@ export class WordTokenizer {
      * @returns {Array<string>} Array of parts (words and delimiters)
      */
     splitTextByWords(text) {
-        // Split the text by word boundaries, keeping the delimiters
+        // Use the same Intl.Segmenter segmentation as extractWords for display.
+        if (this.tokenizer && this.tokenizer.segment) {
+            const parts = [];
+            for (const segment of this.tokenizer.segment(text)) {
+                parts.push(segment.segment);
+            }
+            return parts;
+        }
+
+        // Fallback for browsers without Intl.Segmenter.
         return text.split(/(\b[a-zA-Z-]+\b)/);
     }
 
@@ -100,6 +109,7 @@ export class WordTokenizer {
      * @returns {boolean} True if part is a word
      */
     isWord(part) {
-        return /\b[a-zA-Z-]+\b/.test(part);
+        // Match extractWords: only pure Latin words longer than one character.
+        return /^[a-zA-Z]+$/.test(part) && part.length > 1;
     }
 }
