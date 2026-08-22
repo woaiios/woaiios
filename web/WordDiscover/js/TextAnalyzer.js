@@ -20,7 +20,8 @@ export class TextAnalyzer {
     async loadDictionaries() {
         try {
             // Load the JSON dictionary
-            const dictResponse = await fetch('./eng-zho.json');
+            // Use force-cache: if the browser already has this large dictionary in HTTP cache, do not re-download it.
+            const dictResponse = await fetch('./eng-zho.json', { cache: 'force-cache' });
             if (dictResponse.ok) {
                 this.dictionary = await dictResponse.json();
                 console.log('JSON dictionary loaded successfully');
