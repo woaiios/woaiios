@@ -305,19 +305,18 @@ export class TextAnalyzer {
     processTextForDisplay(originalText, analysis) {
         const highlightedMap = new Map(analysis.highlightedWords.map(item => [item.word.toLowerCase(), item]));
 
-        // Split the text by word boundaries, keeping the delimiters.
-        const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
+        // Use the same tokenization as extractWords so the displayed spans match the statistics.
+        const processSegment = (segment) => {
+            const lowerCasePart = segment.toLowerCase();
 
-        return parts.map(part => {
-            const lowerCasePart = part.toLowerCase();
-            // Check if the part is a word and not just a delimiter.
-            if (!/\b[a-zA-Z-]+\b/.test(lowerCasePart)) {
-                return part; // Return delimiters as is.
+            // Match extractWords: word-like, pure Latin letters, and longer than one character.
+            if (!/^[a-zA-Z]+$/.test(lowerCasePart) || lowerCasePart.length <= 1) {
+                return segment; // Return delimiters, punctuation, and contractions as-is.
             }
 
             const highlightedInfo = highlightedMap.get(lowerCasePart);
-            // Use the original part for translation to preserve casing
-            const translation = this.getTranslation(part);
+            // Use the original casing for translation lookup.
+            const translation = this.getTranslation(segment);
             let classes = 'word-span';
 
             if (highlightedInfo) {
@@ -332,8 +331,20 @@ export class TextAnalyzer {
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
 
-            return `<span class="${classes}" data-word="${part}" data-translation="${escapedTranslation}">${part}</span>`;
-        }).join('');
+            return `<span class="${classes}" data-word="${segment}" data-translation="${escapedTranslation}">${segment}</span>`;
+        };
+
+        if (this.tokenizer && this.tokenizer.segment) {
+            const parts = [];
+            for (const part of this.tokenizer.segment(originalText)) {
+                parts.push(processSegment(part.segment));
+            }
+            return parts.join('');
+        }
+
+        // Fallback for browsers without Intl.Segmenter.
+        const parts = originalText.split(/(\b[a-zA-Z-]+\b)/);
+        return parts.map(part => processSegment(part)).join('');
     }
 
     /**
