@@ -228,4 +228,13 @@ class WordDiscoverer {
 
 document.addEventListener('DOMContentLoaded', () => {
     window.wordDiscoverer = new WordDiscoverer();
+
+    // Register service worker for offline/PWA caching (especially the large dictionary).
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch((error) => {
+                console.error('Service worker registration failed:', error);
+            });
+        });
+    }
 });
