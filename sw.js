@@ -4,7 +4,7 @@
  * Provides offline support and cache management
  */
 
-const CACHE_VERSION = 'v2.0.0';
+const CACHE_VERSION = 'v2.0.1';
 const CACHE_NAME = `word-discoverer-${CACHE_VERSION}`;
 
 // 需要缓存的静态资源 (Static assets to cache)
@@ -16,7 +16,8 @@ const STATIC_ASSETS = [
   './css/components.css',
   './css/ecdict-styles.css',
   './css/pronunciation-checker.css',
-  './js/WordDatabase.js',
+  './js/database/DirectDataStorage.js',
+  './js/database/WordDatabase.js',
   './js/TextAnalyzer.js',
   './js/VocabularyManager.js',
   './js/SettingsManager.js',
