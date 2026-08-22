@@ -67,7 +67,7 @@ export class TextAnalyzer {
         }
         
         if (!this.dataStorage.isDatabaseLoaded()) {
-            return `<div class="word-info"><p>数据库未加载</p></div>`;
+            return '';
         }
         
         let wordInfo = await this.dataStorage.queryWord(lowerWord);

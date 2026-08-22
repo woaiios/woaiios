@@ -79,7 +79,7 @@ export class AnalyzedTextComponent extends Component {
      * @param {string} translation - 翻译 (Translation)
      * @param {Event} event - 点击事件对象 (Click event object)
      */
-    showWordModal(word, translation, event) {
+    async showWordModal(word, translation, event) {
         this.currentWord = word;
         this.currentTranslation = translation;
         
@@ -93,12 +93,17 @@ export class AnalyzedTextComponent extends Component {
         // 设置模态框内容 (Set modal content)
         modalTitle.textContent = word;
         // 检查翻译是否包含HTML标签 (Check if translation contains HTML tags)
-        if (translation.includes('<') && translation.includes('>')) {
-            // 如果是HTML，使用innerHTML渲染 (If it's HTML, use innerHTML to render)
-            modalTranslation.innerHTML = translation;
+        if (translation) {
+            if (translation.includes('<') && translation.includes('>')) {
+                // 如果是HTML，使用innerHTML渲染 (If it's HTML, use innerHTML to render)
+                modalTranslation.innerHTML = translation;
+            } else {
+                // 如果是纯文本，使用textContent (If it's plain text, use textContent)
+                modalTranslation.textContent = translation;
+            }
         } else {
-            // 如果是纯文本，使用textContent (If it's plain text, use textContent)
-            modalTranslation.textContent = translation;
+            // 非高亮单词通常没有预取翻译，先显示加载状态 (Non-highlighted words usually have no prefetched translation)
+            modalTranslation.textContent = '正在加载翻译...';
         }
         
         // 清空操作按钮容器 (Clear action buttons container)
@@ -121,7 +126,7 @@ export class AnalyzedTextComponent extends Component {
             masterBtn.textContent = 'Mark as Mastered';
             masterBtn.className = 'btn btn-primary';
             masterBtn.onclick = () => {
-                this.handleWordMaster(word, translation);
+                this.handleWordMaster(word, this.currentTranslation);
                 this.closeWordModal();
             };
             modalActions.appendChild(masterBtn);
@@ -131,7 +136,7 @@ export class AnalyzedTextComponent extends Component {
             addToLearningBtn.textContent = 'Add to Learning List';
             addToLearningBtn.className = 'btn btn-primary';
             addToLearningBtn.onclick = () => {
-                this.handleWordAddToLearning(word, translation);
+                this.handleWordAddToLearning(word, this.currentTranslation);
                 this.closeWordModal();
             };
             modalActions.appendChild(addToLearningBtn);
@@ -140,7 +145,7 @@ export class AnalyzedTextComponent extends Component {
             addToMasteredBtn.textContent = 'Add to Mastered List';
             addToMasteredBtn.className = 'btn btn-secondary';
             addToMasteredBtn.onclick = () => {
-                this.handleWordMaster(word, translation);
+                this.handleWordMaster(word, this.currentTranslation);
                 this.closeWordModal();
             };
             modalActions.appendChild(addToMasteredBtn);
@@ -162,6 +167,42 @@ export class AnalyzedTextComponent extends Component {
                 this.closeWordModal();
             }
         };
+        
+        // 非高亮单词没有预取翻译时，打开后再按需查询 (Fetch translation on demand for non-highlighted words)
+        if (!translation) {
+            await this.loadTranslationForModal(word, modal, modalTranslation);
+        }
+    }
+    
+    /**
+     * 按需加载单词翻译 - Load translation on demand
+     * @param {string} word - 单词 (Word)
+     * @param {HTMLElement} modal - 模态框元素 (Modal element)
+     * @param {HTMLElement} modalTranslation - 翻译容器 (Translation element)
+     */
+    async loadTranslationForModal(word, modal, modalTranslation) {
+        try {
+            const fetchedTranslation = await this.app.textAnalyzer.getTranslation(word);
+            
+            // 用户已经切换单词/关闭弹窗时，不更新旧内容 (Don't update if user switched words or closed the modal)
+            if (this.currentWord !== word || !modal.classList.contains('show')) {
+                return;
+            }
+            
+            this.currentTranslation = fetchedTranslation;
+            if (fetchedTranslation) {
+                if (fetchedTranslation.includes('<') && fetchedTranslation.includes('>')) {
+                    modalTranslation.innerHTML = fetchedTranslation;
+                } else {
+                    modalTranslation.textContent = fetchedTranslation;
+                }
+            } else {
+                modalTranslation.textContent = '数据库未加载，请稍后重试';
+            }
+        } catch (error) {
+            console.error('Failed to load translation:', error);
+            modalTranslation.textContent = '翻译加载失败，请重试';
+        }
     }
 
     /**
