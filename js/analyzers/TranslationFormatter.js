@@ -2,6 +2,76 @@
  * TranslationFormatter Module
  * Handles translation formatting and HTML generation
  */
+
+// Simple local context-sense rules for common ambiguous words.
+// Each rule has:
+// - keywords: words that hint at this sense when they appear nearby
+// - chinese: the Chinese annotation to use for that sense
+const SENSE_RULES = {
+    bank: [
+        { keywords: ['money', 'account', 'loan', 'deposit', 'credit', 'financial', 'cash', 'save', 'withdraw', 'investment', 'finance'], chinese: '银行' },
+        { keywords: ['river', 'water', 'lake', 'canal', 'shore', 'coast', 'mud', 'sand', 'bridge', 'stream', 'sea'], chinese: '岸/堤' },
+        { keywords: ['blood', 'donate', 'organ', 'tissue', 'sperm'], chinese: '库' }
+    ],
+    right: [
+        { keywords: ['left', 'turn', 'side', 'direction', 'go', 'move', 'walk'], chinese: '右边' },
+        { keywords: ['wrong', 'correct', 'answer', 'true', 'false', 'mistake'], chinese: '正确' },
+        { keywords: ['law', 'legal', 'vote', 'property', 'human'], chinese: '权利' }
+    ],
+    light: [
+        { keywords: ['lamp', 'bulb', 'bright', 'sun', 'dark', 'shadow', 'illuminate'], chinese: '光/灯' },
+        { keywords: ['heavy', 'weight', 'small', 'easy', 'basic'], chinese: '轻的' }
+    ],
+    current: [
+        { keywords: ['electric', 'charge', 'wire', 'battery', 'voltage', 'circuit', 'flow'], chinese: '电流' },
+        { keywords: ['now', 'today', 'present', 'recent', 'news', 'situation', 'latest'], chinese: '当前的' }
+    ],
+    set: [
+        { keywords: ['collection', 'group', 'series', 'tools', 'data'], chinese: '集合/组' },
+        { keywords: ['put', 'place', 'position', 'arrange', 'table'], chinese: '放置/设置' }
+    ],
+    run: [
+        { keywords: ['race', 'jog', 'sprint', 'track', 'marathon', 'fast'], chinese: '跑' },
+        { keywords: ['program', 'software', 'code', 'server', 'command', 'script'], chinese: '运行' },
+        { keywords: ['management', 'business', 'company', 'organization'], chinese: '经营' }
+    ],
+    spring: [
+        { keywords: ['season', 'weather', 'bloom', 'flower', 'warm'], chinese: '春天' },
+        { keywords: ['jump', 'leap', 'bounce', 'coil'], chinese: '弹跳' },
+        { keywords: ['water', 'source', 'well'], chinese: '泉' }
+    ],
+    charge: [
+        { keywords: ['electric', 'battery', 'power', 'voltage', 'circuit', 'phone'], chinese: '充电/电荷' },
+        { keywords: ['money', 'pay', 'fee', 'cost', 'price'], chinese: '费用' },
+        { keywords: ['accuse', 'crime', 'police', 'court', 'law'], chinese: '指控' }
+    ],
+    match: [
+        { keywords: ['game', 'play', 'team', 'score', 'competition', 'sport'], chinese: '比赛' },
+        { keywords: ['fire', 'burn', 'light', 'cigarette'], chinese: '火柴' },
+        { keywords: ['same', 'equal', 'pair', 'compare', 'fit'], chinese: '匹配/相配' }
+    ],
+    kind: [
+        { keywords: ['type', 'sort', 'category', 'variety', 'class'], chinese: '种类' },
+        { keywords: ['nice', 'friendly', 'caring', 'gentle', 'warm'], chinese: '亲切的' }
+    ],
+    mean: [
+        { keywords: ['average', 'middle', 'median', 'number'], chinese: '平均' },
+        { keywords: ['intend', 'say', 'meaning', 'refers', 'signify'], chinese: '意思是' }
+    ],
+    sound: [
+        { keywords: ['noise', 'hear', 'music', 'voice', 'loud'], chinese: '声音' },
+        { keywords: ['healthy', 'stable', 'solid', 'safe'], chinese: '健康的/合理的' }
+    ],
+    fine: [
+        { keywords: ['okay', 'good', 'well', 'acceptable'], chinese: '好的' },
+        { keywords: ['penalty', 'pay', 'court', 'money'], chinese: '罚款' }
+    ],
+    watch: [
+        { keywords: ['clock', 'time', 'hour', 'wrist'], chinese: '手表' },
+        { keywords: ['see', 'look', 'observe', 'focus', 'attention'], chinese: '观看/观察' }
+    ]
+};
+
 export class TranslationFormatter {
     constructor(exchangeParser) {
         this.exchangeParser = exchangeParser;
@@ -259,6 +329,41 @@ export class TranslationFormatter {
         
         return '';
     }
+
+    /**
+     * Choose the most likely Chinese sense using local context.
+     * This is a lightweight heuristic; falls back to the first sense.
+     * @param {string} word - The current English word
+     * @param {string} translationHtml - Full translation HTML
+     * @param {string[]} contextWords - Lowercased words near the target word
+     * @returns {string} Chinese sense for inline annotation
+     */
+    selectChineseTranslationForContext(word, translationHtml, contextWords = []) {
+        const lowerWord = word.toLowerCase();
+        const rules = SENSE_RULES[lowerWord];
+        if (rules && contextWords.length > 0) {
+            let bestRule = null;
+            let bestScore = 0;
+            for (const rule of rules) {
+                let score = 0;
+                for (const keyword of rule.keywords) {
+                    if (contextWords.includes(keyword)) {
+                        score += 1;
+                    }
+                }
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestRule = rule;
+                }
+            }
+            if (bestScore > 0 && bestRule) {
+                return bestRule.chinese;
+            }
+        }
+
+        return this.extractFirstChineseTranslation(translationHtml);
+    }
+
 
     /**
      * Escape HTML special characters
