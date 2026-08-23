@@ -172,7 +172,10 @@ export class SettingsManager {
             enableNotifications: true,              // 启用通知 (Enable notifications)
             reviewReminder: true,                   // 复习提醒 (Review reminder)
             reviewInterval: 7,                      // 复习间隔（天）(Review interval in days)
-            googleDriveSync: false                  // Google Drive 同步 (Google Drive sync)
+            googleDriveSync: false,                 // Google Drive 同步 (Google Drive sync)
+            llmSenseEnabled: true,                  // 启用大模型上下文释义精修 (Enable LLM context sense refinement)
+            llmEndpoint: 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions',  // LM Studio API 端点 (LM Studio endpoint via Tailscale Serve)
+            llmModel: 'qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive' // 模型名称 (Model name)
         };
     }
 
@@ -198,7 +201,10 @@ export class SettingsManager {
             fontSize: (val) => ['small', 'medium', 'large'].includes(val),
             enableNotifications: (val) => typeof val === 'boolean',
             reviewReminder: (val) => typeof val === 'boolean',
-            reviewInterval: (val) => typeof val === 'number' && val > 0  // 必须是正数 (Must be positive number)
+            reviewInterval: (val) => typeof val === 'number' && val > 0,  // 必须是正数 (Must be positive number)
+            llmSenseEnabled: (val) => typeof val === 'boolean',  // 必须是布尔值 (Must be boolean)
+            llmEndpoint: (val) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('/')),  // 必须是合法 URL 或路径
+            llmModel: (val) => typeof val === 'string' && val.trim().length > 0  // 必须是非空字符串
         };
 
         const validator = validators[key];
@@ -282,6 +288,21 @@ export class SettingsManager {
                     { value: 'medium', label: 'Medium' },
                     { value: 'large', label: 'Large' }
                 ]
+            },
+            llmSenseEnabled: {
+                type: 'checkbox',
+                label: 'AI Context Sense Refinement',
+                description: 'Use a local LLM (LM Studio) to pick context-fitting Chinese senses'
+            },
+            llmEndpoint: {
+                type: 'text',
+                label: 'LLM API Endpoint',
+                description: 'OpenAI-compatible chat completions URL of LM Studio'
+            },
+            llmModel: {
+                type: 'text',
+                label: 'LLM Model',
+                description: 'Model identifier loaded in LM Studio'
             }
         };
 
@@ -300,7 +321,16 @@ export class SettingsManager {
         if (saved) {
             try {
                 // 与默认设置合并以确保所有键都存在 (Merge with defaults to ensure all keys exist)
-                return { ...defaultSettings, ...saved };
+                const merged = { ...defaultSettings, ...saved };
+
+                // 迁移：旧的直连端点自动升级为 Tailscale HTTPS 端点
+                const LEGACY_ENDPOINT = 'http://localhost:1234/v1/chat/completions';
+                if (merged.llmEndpoint === LEGACY_ENDPOINT) {
+                    merged.llmEndpoint = defaultSettings.llmEndpoint;
+                    this.saveSettings();
+                }
+
+                return merged;
             } catch (error) {
                 console.error('Error loading settings:', error);
             }

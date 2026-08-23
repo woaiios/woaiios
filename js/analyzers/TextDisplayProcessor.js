@@ -96,7 +96,7 @@ export class TextDisplayProcessor {
 
         const chineseRt = escapedChinese || '&nbsp;';
 
-        return `<span class="${containerClasses}" data-word="${part}" data-translation="${escapedTranslation}">` +
+        return `<span class="${containerClasses}" data-word="${part}" data-token-index="${index}" data-translation="${escapedTranslation}">` +
                `<ruby class="over"><rt>${phoneticAnnotation}</rt></ruby>` +
                `<span class="base">${part}</span>` +
                `<ruby class="under"><rt>${chineseRt}</rt></ruby>` +

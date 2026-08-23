@@ -26,7 +26,17 @@ export default defineConfig(({ command }) => ({
   server: {
     port: 3000,
     open: true,
-    cors: true
+    cors: true,
+    // Proxy LM Studio local API to avoid browser CORS restrictions.
+    // The app falls back to /lm-studio/v1/chat/completions when direct
+    // access to http://localhost:1234 is blocked by CORS.
+    proxy: {
+      '/lm-studio': {
+        target: 'http://localhost:1234',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/lm-studio/, '')
+      }
+    }
   },
   
   // Build configuration

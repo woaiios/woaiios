@@ -59,6 +59,32 @@ export class SettingsComponent {
             });
         }
 
+        // LLM sense refinement settings
+        const llmSenseEnabled = document.getElementById('llmSenseEnabled');
+        if (llmSenseEnabled) {
+            llmSenseEnabled.addEventListener('change', async (e) => {
+                await this.settingsManager.setSetting('llmSenseEnabled', e.target.checked);
+            });
+        }
+
+        const llmEndpoint = document.getElementById('llmEndpoint');
+        if (llmEndpoint) {
+            llmEndpoint.addEventListener('change', async (e) => {
+                const value = e.target.value.trim();
+                if (!value) return; // Keep previous value when emptied
+                await this.settingsManager.setSetting('llmEndpoint', value);
+            });
+        }
+
+        const llmModel = document.getElementById('llmModel');
+        if (llmModel) {
+            llmModel.addEventListener('change', async (e) => {
+                const value = e.target.value.trim();
+                if (!value) return; // Keep previous value when emptied
+                await this.settingsManager.setSetting('llmModel', value);
+            });
+        }
+
         // Data Management
         const exportSettingsBtn = document.getElementById('exportSettingsBtn');
         if (exportSettingsBtn) {
@@ -129,6 +155,21 @@ export class SettingsComponent {
                         <option value="difficult">Difficult Words</option>
                         <option value="all">All Words</option>
                     </select>
+                </div>
+            </div>
+            <div class="settings-section">
+                <h3>AI Context Sense Refinement</h3>
+                <div class="setting-item">
+                    <label for="llmSenseEnabled">Enable (LM Studio):</label>
+                    <input type="checkbox" id="llmSenseEnabled">
+                </div>
+                <div class="setting-item">
+                    <label for="llmEndpoint">API Endpoint:</label>
+                    <input type="text" id="llmEndpoint" placeholder="http://localhost:1234/v1/chat/completions">
+                </div>
+                <div class="setting-item">
+                    <label for="llmModel">Model:</label>
+                    <input type="text" id="llmModel" placeholder="qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive">
                 </div>
             </div>
             <div class="settings-section">
@@ -241,12 +282,14 @@ export class SettingsComponent {
         Object.entries(settings).forEach(([key, value]) => {
             const element = document.getElementById(key);
             if (element) {
-                if (element.type === 'range') {
+                if (element.type === 'checkbox') {
+                    element.checked = !!value;
+                } else if (element.type === 'range') {
                     element.value = value;
                     const displayElement = document.getElementById(key + 'Value');
                     if (displayElement) displayElement.textContent = Math.round(value * 100) + '%';
                 } else {
-                    element.value = value;
+                    element.value = value ?? '';
                 }
             }
         });

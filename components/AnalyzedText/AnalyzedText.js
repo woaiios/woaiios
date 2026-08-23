@@ -11,6 +11,7 @@
  */
 import { Component } from '../Component.js';
 import { NotificationManager } from '../../js/modules/NotificationManager.js';
+import { LLMSenseSelector } from '../../js/analyzers/LLMSenseSelector.js';
 
 export class AnalyzedTextComponent extends Component {
     /**
@@ -24,6 +25,7 @@ export class AnalyzedTextComponent extends Component {
         this.app = null;
         this.currentWord = null;  // 当前操作的单词 (Current word being operated on)
         this.currentTranslation = null;  // 当前单词的翻译 (Translation of current word)
+        this.llmSenseSelector = new LLMSenseSelector();  // LLM 上下文释义选择器 (LLM context sense selector)
     }
 
     /**
@@ -252,5 +254,144 @@ export class AnalyzedTextComponent extends Component {
             this.app.updateCounts();
         }
         await this.app.analyzeText();
+    }
+
+    /**
+     * 用本地大模型结合上下文精修高亮单词的中文释义 (Refine Chinese senses with local LLM)
+     * 先展示词典首个释义，随后异步替换为更贴合语境的释义 (Show dictionary sense first, refine asynchronously)
+     */
+    async refineTranslationsWithLLM() {
+        try {
+            const settingsManager = this.app?.settingsManager;
+            if (settingsManager?.waitForInit) {
+                await settingsManager.waitForInit();
+            }
+            if (settingsManager && settingsManager.getSetting('llmSenseEnabled') === false) {
+                return;
+            }
+
+            // 应用最新端点/模型配置 (Apply latest endpoint/model settings)
+            this.llmSenseSelector.configure({
+                endpoint: settingsManager?.getSetting('llmEndpoint'),
+                model: settingsManager?.getSetting('llmModel')
+            });
+
+            const occurrences = this.collectHighlightedOccurrences();
+            if (!occurrences.length || this.llmSenseSelector.disabled) return;
+
+            const payload = occurrences.map((occ, i) => ({
+                id: i,
+                word: occ.word,
+                context: occ.context,
+                dictionarySenses: this.extractDictionarySenses(occ.element)
+            }));
+
+            const results = await this.llmSenseSelector.selectSenses(payload);
+
+            let updated = 0;
+            results.forEach((gloss, id) => {
+                const occ = occurrences[id];
+                if (!occ || !gloss) return;
+                // 用户可能已重新分析文本，校验元素仍在文档中 (Skip if re-analyzed meanwhile)
+                if (!occ.element.isConnected) return;
+                const rt = occ.element.querySelector('ruby.under rt');
+                if (rt && rt.textContent !== gloss) {
+                    rt.textContent = gloss;
+                    updated += 1;
+                }
+            });
+            if (updated > 0) {
+                console.log(`✅ LLM refined ${updated} word sense(s) by context`);
+            }
+        } catch (error) {
+            console.warn('⚠️ LLM sense refinement skipped:', error.message);
+        }
+    }
+
+    /**
+     * 收集所有高亮单词及其所在句子上下文 (Collect highlighted words with sentence context)
+     *
+     * 渲染后的 DOM 子节点顺序与原文分词顺序一致：文本节点 + 词 span。
+     * 通过顺序遍历重建原文（span 取 .base 文本），从而得到每个词在原文中的精确偏移，
+     * 再向两侧扩展到句子边界作为上下文窗口。
+     *
+     * @returns {Array<{element:HTMLElement, word:string, context:string}>}
+     */
+    collectHighlightedOccurrences() {
+        const occurrences = [];
+        let text = '';
+        const positions = [];
+
+        for (const node of this.element.childNodes) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                text += node.textContent;
+                continue;
+            }
+            if (node.nodeType !== Node.ELEMENT_NODE || !node.classList.contains('word-span')) {
+                continue;
+            }
+            const base = node.querySelector('.base');
+            const wordText = base ? base.textContent : node.dataset.word || '';
+            positions.push({ element: node, start: text.length, end: text.length + wordText.length });
+            text += wordText;
+        }
+
+        for (const pos of positions) {
+            occurrences.push({
+                element: pos.element,
+                word: pos.element.dataset.word,
+                context: this.extractSentenceContext(text, pos.start, pos.end)
+            });
+        }
+        return occurrences;
+    }
+
+    /**
+     * 提取包含指定区间的句子上下文 (Extract sentence containing [start, end))
+     * @param {string} text - 重建的完整原文 (Rebuilt full text)
+     * @param {number} start - 目标词起始偏移 (Word start offset)
+     * @param {number} end - 目标词结束偏移 (Word end offset)
+     * @returns {string} 句子上下文 (Sentence context)
+     */
+    extractSentenceContext(text, start, end, maxWindow = 200) {
+        const boundaryRegex = /[.!?。！？\n]["')】」”]*\s/;
+        // 向前找句子开始 (Find sentence start backwards)
+        let sentStart = 0;
+        for (let i = start - 1; i >= 0 && start - i < maxWindow; i--) {
+            if (boundaryRegex.test(text.slice(i, i + 2))) {
+                sentStart = i + 1;
+                break;
+            }
+        }
+        // 向后找句子结束 (Find sentence end forwards)
+        let sentEnd = Math.min(text.length, start + maxWindow);
+        for (let i = Math.max(end, start + 1); i < Math.min(text.length, start + maxWindow); i++) {
+            if (/[.!?。！？]/.test(text[i])) {
+                sentEnd = i + 1;
+                break;
+            }
+        }
+        return text.slice(sentStart, sentEnd).trim();
+    }
+
+    /**
+     * 从词条 HTML 中提取全部中文释义候选 (Extract candidate senses from translation HTML)
+     * @param {HTMLElement} element - 词元素 (Word element with data-translation)
+     * @returns {string} 以分号连接的释义串 (Semicolon-joined senses)
+     */
+    extractDictionarySenses(element) {
+        const html = element.dataset.translation;
+        if (!html) return '';
+        try {
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const parts = [];
+            doc.querySelectorAll('.translation-compact p, .translation p').forEach(p => {
+                const t = p.textContent.trim();
+                if (t && !parts.includes(t)) parts.push(t);
+            });
+            return parts.join('; ');
+        } catch {
+            return '';
+        }
     }
 }

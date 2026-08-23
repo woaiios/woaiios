@@ -121,7 +121,10 @@ class WordDiscoverer {
             const processedText = await this.textAnalyzer.processTextForDisplay(text, analysis);
             // 渲染分析结果 (Render analysis results)
             this.analyzedTextComponent.render(processedText);
-            
+
+            // 异步用本地大模型结合上下文精修中文释义 (Asynchronously refine Chinese senses with local LLM)
+            this.analyzedTextComponent.refineTranslationsWithLLM();
+
             // 显示结果区域 (Show result sections)
             UIRenderer.showAnalysisResults();
             
