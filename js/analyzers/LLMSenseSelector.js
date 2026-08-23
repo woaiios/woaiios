@@ -178,53 +178,54 @@ export class LLMSenseSelector {
 
     /**
      * 调用 OpenAI 兼容接口 (Call OpenAI-compatible chat completions)
+     * 使用 response_format json_schema 结构化输出（LM Studio 支持）：
+     * 语法约束生成，保证返回纯 JSON，无需处理思考散文。
+     * 旧版服务端不支持时自动去掉该参数重试一次。
      */
     async chat(prompt) {
         const candidates = [this.workingEndpoint, this.endpoint, LLMSenseSelector.PROXY_ENDPOINT]
             .filter(Boolean)
             .filter((value, index, arr) => arr.indexOf(value) === index);
 
+        const buildBody = (withSchema) => {
+            const body = {
+                model: this.model,
+                messages: [{ role: 'user', content: prompt }],
+                temperature: this.temperature,
+                // Structured output: grammar-constrained, always valid JSON
+                response_format: {
+                    type: 'json_schema',
+                    json_schema: {
+                        name: 'chinese_glosses',
+                        strict: true,
+                        schema: {
+                            type: 'object',
+                            properties: {
+                                glosses: { type: 'array', items: { type: 'string' } }
+                            },
+                            required: ['glosses']
+                        }
+                    }
+                },
+                // Reasoning models may think at length before answering —
+                // give them room or the JSON gets truncated
+                max_tokens: 6000,
+                stream: false,
+                // Disable thinking mode for reasoning models (qwen3.x)
+                chat_template_kwargs: { enable_thinking: false }
+            };
+            if (!withSchema) delete body.response_format;
+            return body;
+        };
+
         let lastError = null;
         for (const endpoint of candidates) {
             try {
-                // AbortController is missing on old WebKit (iOS 12) — fall back
-                // to a Promise.race timeout so requests still time out cleanly
-                const fetchOpts = {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        model: this.model,
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: this.temperature,
-                        // Reasoning models may think at length before answering —
-                        // give them room or the JSON gets truncated
-                        max_tokens: 6000,
-                        stream: false,
-                        // Disable thinking mode for reasoning models (qwen3.x)
-                        chat_template_kwargs: { enable_thinking: false }
-                    })
-                };
-
-                let timeoutReject;
-                const timeoutPromise = new Promise((_, rej) => {
-                    timeoutReject = rej;
-                });
-                const timer = setTimeout(() => timeoutReject(new Error('LLM request timed out')), this.timeoutMs);
-
-                if (typeof AbortController !== 'undefined') {
-                    const controller = new AbortController();
-                    fetchOpts.signal = controller.signal;
-                    setTimeout(() => controller.abort(), this.timeoutMs);
-                }
-
-                let response;
-                try {
-                    response = await Promise.race([
-                        fetch(endpoint, fetchOpts),
-                        timeoutPromise
-                    ]);
-                } finally {
-                    clearTimeout(timer);
+                let response = await this.doFetch(endpoint, buildBody(true));
+                // Older LM Studio / OpenAI-compat servers reject response_format
+                if (!response.ok && (response.status === 400 || response.status === 422)) {
+                    console.log('[LLM] response_format rejected, retrying without schema');
+                    response = await this.doFetch(endpoint, buildBody(false));
                 }
                 if (!response.ok) {
                     throw new Error(`LM Studio HTTP ${response.status} from ${endpoint}`);
@@ -251,12 +252,51 @@ export class LLMSenseSelector {
     }
 
     /**
+     * 带超时的 fetch（兼容无 AbortController 的旧 WebKit）
+     */
+    async doFetch(endpoint, bodyObj) {
+        const fetchOpts = {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(bodyObj)
+        };
+
+        let timeoutReject;
+        const timeoutPromise = new Promise((_, rej) => { timeoutReject = rej; });
+        const timer = setTimeout(() => timeoutReject(new Error('LLM request timed out')), this.timeoutMs);
+
+        if (typeof AbortController !== 'undefined') {
+            const controller = new AbortController();
+            fetchOpts.signal = controller.signal;
+            setTimeout(() => controller.abort(), this.timeoutMs);
+        }
+
+        try {
+            return await Promise.race([fetch(endpoint, fetchOpts), timeoutPromise]);
+        } finally {
+            clearTimeout(timer);
+        }
+    }
+
+    /**
      * 从模型输出中提取释义数组 (Extract positional gloss array)
      * 期望形如 ["银行", "岸"]；容忍思考散文、代码围栏、前后杂文本。
      */
     parseSenseArray(text, expectedLen) {
         if (!text) return [];
-        const cleaned = String(text)
+        const raw = String(text).trim();
+
+        // Fast path: structured output — payload IS valid JSON,
+        // either {"glosses":[...]} or a bare [...]
+        try {
+            const direct = JSON.parse(raw);
+            if (Array.isArray(direct)) return direct.filter(v => typeof v === 'string');
+            if (direct && Array.isArray(direct.glosses)) {
+                return direct.glosses.filter(v => typeof v === 'string');
+            }
+        } catch { /* fall through to tolerant parsing */ }
+
+        const cleaned = raw
             .replace(/<think>[\s\S]*?<\/think>/gi, '')
             .replace(/```(?:json)?/gi, '');
 

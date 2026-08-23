@@ -309,7 +309,8 @@ export class AnalyzedTextComponent extends Component {
     }
 
     /**
-     * 收集所有高亮单词及其所在句子上下文 (Collect highlighted words with sentence context)
+     * 收集所有高亮单词及其所在句子上下文（仅高亮词，非全部单词）
+     * (Collect HIGHLIGHTED words only, with sentence context)
      *
      * 渲染后的 DOM 子节点顺序与原文分词顺序一致：文本节点 + 词 span。
      * 通过顺序遍历重建原文（span 取 .base 文本），从而得到每个词在原文中的精确偏移，
@@ -327,7 +328,10 @@ export class AnalyzedTextComponent extends Component {
                 text += node.textContent;
                 continue;
             }
-            if (node.nodeType !== Node.ELEMENT_NODE || !node.classList.contains('word-span')) {
+            // Only highlighted spans need LLM refinement
+            if (node.nodeType !== Node.ELEMENT_NODE ||
+                !node.classList.contains('word-span') ||
+                !node.classList.contains('highlight')) {
                 continue;
             }
             const base = node.querySelector('.base');
