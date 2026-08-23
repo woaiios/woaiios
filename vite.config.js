@@ -52,6 +52,9 @@ export default defineConfig(({ command }) => ({
     sourcemap: false,
     // Minify output
     minify: 'terser',
+    // es2015 for old-WebKit devices (e.g. iOS 12 Safari on iPhone 6):
+    // transpiles optional chaining / nullish coalescing etc.
+    target: 'es2015',
     // Copy static assets manually
     copyPublicDir: true,
     // Configure rollup options

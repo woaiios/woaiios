@@ -164,6 +164,7 @@ export class LLMSenseSelector {
             'Rules:',
             '- The gloss must reflect the meaning in THAT sentence, not just the first dictionary sense.',
             '- Very short: 1-6 Chinese characters preferred, 10 max. Chinese only, no pinyin/English/POS.',
+            '- Use the natural full Chinese word for the concept (e.g. a "neon sign" context -> 霓虹灯, not the element 氖 or bare transliteration 霓虹).',
             '- Output ONLY a JSON array of glosses in the SAME ORDER as the entries, nothing else.',
             '- Example output format: ["银行", "岸"]'
         ].join('\n');
@@ -186,26 +187,42 @@ export class LLMSenseSelector {
         let lastError = null;
         for (const endpoint of candidates) {
             try {
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+                // AbortController is missing on old WebKit (iOS 12) — fall back
+                // to a Promise.race timeout so requests still time out cleanly
+                const fetchOpts = {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        model: this.model,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: this.temperature,
+                        // Reasoning models may think at length before answering —
+                        // give them room or the JSON gets truncated
+                        max_tokens: 6000,
+                        stream: false,
+                        // Disable thinking mode for reasoning models (qwen3.x)
+                        chat_template_kwargs: { enable_thinking: false }
+                    })
+                };
+
+                let timeoutReject;
+                const timeoutPromise = new Promise((_, rej) => {
+                    timeoutReject = rej;
+                });
+                const timer = setTimeout(() => timeoutReject(new Error('LLM request timed out')), this.timeoutMs);
+
+                if (typeof AbortController !== 'undefined') {
+                    const controller = new AbortController();
+                    fetchOpts.signal = controller.signal;
+                    setTimeout(() => controller.abort(), this.timeoutMs);
+                }
+
                 let response;
                 try {
-                    response = await fetch(endpoint, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            model: this.model,
-                            messages: [{ role: 'user', content: prompt }],
-                            temperature: this.temperature,
-                            // Reasoning models may think at length before answering —
-                            // give them room or the JSON gets truncated
-                            max_tokens: 6000,
-                            stream: false,
-                            // Disable thinking mode for reasoning models (qwen3.x)
-                            chat_template_kwargs: { enable_thinking: false }
-                        }),
-                        signal: controller.signal
-                    });
+                    response = await Promise.race([
+                        fetch(endpoint, fetchOpts),
+                        timeoutPromise
+                    ]);
                 } finally {
                     clearTimeout(timer);
                 }
