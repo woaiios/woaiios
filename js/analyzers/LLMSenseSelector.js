@@ -110,38 +110,57 @@ export class LLMSenseSelector {
     async requestChunk(chunk, results, deduped) {
         const prompt = this.buildPrompt(chunk);
         let glosses = this.parseSenseArray(await this.chat(prompt), chunk.length);
-        let matched = this.collectGlosses(glosses, chunk, results, deduped);
 
-        // One nudge retry when the model rambled instead of answering
-        if (matched === 0) {
+        // Degenerate-response guard: models sometimes just echo the few-shot
+        // example values for every entry. Detect and force a real answer.
+        if (this.isExampleEcho(glosses)) {
+            console.warn('[LLM] example-echo detected, retrying');
+            glosses = [];
+        }
+
+        if (this.countUsable(glosses, chunk) === 0) {
             glosses = this.parseSenseArray(
-                await this.chat(prompt + '\n/no_think\nAnswer with ONLY the JSON array now.'),
+                await this.chat(prompt + '\n/no_think\nAnswer with ONLY the JSON array now. Each gloss must be a DIFFERENT word-specific translation.'),
                 chunk.length
             );
-            matched = this.collectGlosses(glosses, chunk, results, deduped);
+            if (this.isExampleEcho(glosses)) glosses = [];
         }
-        if (matched === 0) {
+
+        if (this.countUsable(glosses, chunk) === 0) {
             throw new Error('Model returned no usable senses');
         }
-    }
 
-    /**
-     * 按位置回填释义并计数 (Assign positional glosses; return match count)
-     */
-    collectGlosses(glosses, chunk, results, deduped) {
-        let matched = 0;
+        // Validated — commit to cache & results
         chunk.forEach((item, idx) => {
             const clean = this.sanitizeGloss(glosses[idx]);
             if (!clean) return;
-            matched += 1;
-
             const key = this.cacheKey(item.word, item.context);
             this.cache.set(key, clean);
             for (const dup of deduped.get(key)) {
                 results.set(dup.id, clean);
             }
         });
-        return matched;
+    }
+
+    /**
+     * 统计能通过清洗校验的释义数量 (Count positionally-valid glosses)
+     */
+    countUsable(glosses, chunk) {
+        let n = 0;
+        chunk.forEach((item, idx) => {
+            if (this.sanitizeGloss(glosses[idx])) n += 1;
+        });
+        return n;
+    }
+
+    /**
+     * 检测模型是否只是复制了提示词中的示例释义
+     * (Detect lazy echo of prompt example values)
+     */
+    isExampleEcho(glosses) {
+        const ECHO_SET = new Set(['银行', '岸']);
+        const usable = glosses.filter(g => g && g.trim());
+        return usable.length >= 2 && usable.every(g => ECHO_SET.has(g.trim()));
     }
 
     /**
@@ -157,7 +176,7 @@ export class LLMSenseSelector {
 
         return [
             'You are a professional English-Chinese lexicographer.',
-            'For each entry below, determine what the word means IN ITS SENTENCE and give ONE concise Chinese gloss.',
+            'For each numbered entry below, determine what the word means IN ITS SENTENCE and give ONE concise Chinese gloss.',
             '',
             lines.join('\n'),
             '',
@@ -165,8 +184,8 @@ export class LLMSenseSelector {
             '- The gloss must reflect the meaning in THAT sentence, not just the first dictionary sense.',
             '- Very short: 1-6 Chinese characters preferred, 10 max. Chinese only, no pinyin/English/POS.',
             '- Use the natural full Chinese word for the concept (e.g. a "neon sign" context -> 霓虹灯, not the element 氖 or bare transliteration 霓虹).',
-            '- Output ONLY a JSON array of glosses in the SAME ORDER as the entries, nothing else.',
-            '- Example output format: ["银行", "岸"]'
+            '- Every gloss must be specific to ITS OWN word. Never reuse the same gloss for unrelated words.',
+            '- Output ONLY the JSON array of glosses in entry order. No analysis, no explanations.'
         ].join('\n');
     }
 
