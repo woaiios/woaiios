@@ -24,7 +24,15 @@ const manifestDest = resolve(__dirname, '../dist/manifest.json');
 
 try {
     copyFileSync(swSource, swDest);
-    console.log('✓ Copied sw.js to dist/');
+    // Stamp CACHE_VERSION with build time so every deploy gets a fresh cache
+    const buildTag = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12); // YYYYMMDDHHmm
+    let swContent = readFileSync(swDest, 'utf-8');
+    swContent = swContent.replace(
+        /const CACHE_VERSION = ['"][^'"]*['"];/,
+        `const CACHE_VERSION = 'v2.0.1-build.${buildTag}';`
+    );
+    writeFileSync(swDest, swContent);
+    console.log(`✓ Copied sw.js to dist/ (cache version: v2.0.1-build.${buildTag})`);
 } catch (error) {
     console.error('✗ Failed to copy sw.js:', error.message);
     process.exit(1);

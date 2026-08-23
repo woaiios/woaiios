@@ -85,6 +85,7 @@ class WordDiscoverer {
     async initialize() {
         this.eventHandlers.addAll();
         this.updateCounts();
+        this.renderBuildTime();
         
         // 初始化数据库加载进度管理
         this.databaseProgress.initialize();
@@ -96,6 +97,23 @@ class WordDiscoverer {
         this.databaseProgress.hideAfterFirstLoad();
         
         console.log('WordDiscoverer initialized successfully');
+    }
+
+    /**
+     * 在页脚显示构建时间戳（精确到分钟，按访问者本地时区渲染）
+     * - Display build timestamp in the footer (minute precision, viewer's local timezone)
+     */
+    renderBuildTime() {
+        const el = document.getElementById('buildTime');
+        if (!el) return;
+        if (typeof __BUILD_TIME__ === 'undefined') return; // dev 模式无注入 (No injection in dev)
+
+        const t = new Date(__BUILD_TIME__);
+        if (isNaN(t.getTime())) return;
+
+        const pad = (n) => String(n).padStart(2, '0');
+        const stamp = `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())} ${pad(t.getHours())}:${pad(t.getMinutes())}`;
+        el.textContent = ` · Build ${stamp}`;
     }
 
     /**

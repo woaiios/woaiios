@@ -7,7 +7,12 @@ export default defineConfig(({ command }) => ({
   // Base public path
   // Use /woaiios/ for both dev and build to ensure consistent paths
   base: '/woaiios/',
-  
+
+  // Build timestamp injected into the bundle (footer display)
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString())
+  },
+
   // Public directory for static assets
   publicDir: 'public',
   
