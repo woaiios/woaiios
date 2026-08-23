@@ -80,6 +80,32 @@ if (existsSync(chunksSource)) {
             }
         }
         
+        // PWA slim mode: ship only the first chunk (high-frequency words)
+        const KEEP_CHUNKS = 1;
+        const slimMetadata = JSON.parse(readFileSync(resolve(chunksDest, 'metadata.json'), 'utf-8'));
+        if (slimMetadata.totalChunks > KEEP_CHUNKS) {
+            const removed = slimMetadata.chunks.filter(c => c.chunkNumber > KEEP_CHUNKS);
+            for (const c of removed) {
+                const f = resolve(chunksDest, c.filename);
+                if (existsSync(f)) {
+                    // A local dev/preview server may hold the file open — never
+                    // let one locked file abort the whole slimming pass
+                    try {
+                        unlinkSync(f);
+                        console.log(`  ✓ Removed chunk file: ${c.filename}`);
+                    } catch (e) {
+                        console.warn(`  ⚠ Could not remove ${c.filename}: ${e.message}`);
+                    }
+                }
+            }
+            slimMetadata.chunks = slimMetadata.chunks.filter(c => c.chunkNumber <= KEEP_CHUNKS);
+            slimMetadata.totalChunks = slimMetadata.chunks.length;
+            slimMetadata.totalWords = slimMetadata.chunks.reduce((s, c) => s + c.wordCount, 0);
+            slimMetadata.totalBytes = slimMetadata.chunks.reduce((s, c) => s + c.sizeBytes, 0);
+            writeFileSync(resolve(chunksDest, 'metadata.json'), JSON.stringify(slimMetadata, null, 2));
+            console.log(`  ✓ Slimmed dictionary to ${slimMetadata.totalChunks} chunk (${slimMetadata.totalWords.toLocaleString()} words)`);
+        }
+
         // Count and log chunk sizes
         const metadataPath = resolve(chunksDest, 'metadata.json');
         if (existsSync(metadataPath)) {

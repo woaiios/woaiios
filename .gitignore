@@ -64,3 +64,8 @@ test-*.html
 !test-query-optimization.html
 !test-offline.html
 !test-baseline-alignment.html
+
+# Playwright persistent profile / local E2E artifacts
+.pw-profile/
+raw-llm-out.json
+raw-view.txt

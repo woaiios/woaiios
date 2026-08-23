@@ -16,8 +16,10 @@ export class LLMSenseSelector {
     constructor(options = {}) {
         this.endpoint = options.endpoint || LLMSenseSelector.DEFAULT_ENDPOINT;
         this.model = options.model || LLMSenseSelector.DEFAULT_MODEL;
-        this.timeoutMs = options.timeoutMs ?? 90000;
-        this.maxBatchSize = options.maxBatchSize ?? 10;
+        this.timeoutMs = options.timeoutMs ?? 150000;
+        // Small batches keep reasoning-mode models (qwen3.x) compliant — large
+        // prompts trigger endless prose "thinking" that truncates before JSON
+        this.maxBatchSize = options.maxBatchSize ?? 2;
         this.temperature = options.temperature ?? 0.1;
         this.maxContextChars = options.maxContextChars ?? 160;
 
@@ -68,45 +70,55 @@ export class LLMSenseSelector {
             deduped.get(key).push(item);
         }
 
-        // 3. Request in chunks, sequentially (local LLM handles one at a time best)
+        // 3. Request chunks with limited parallelism (LM Studio queues internally;
+        //    wall-clock ≈ slowest chunk instead of the sum)
         const entries = [...deduped.values()];
+        const chunkGroups = [];
         for (let i = 0; i < entries.length; i += this.maxBatchSize) {
             if (this.disabled) break;
-            const chunk = entries.slice(i, i + this.maxBatchSize).map(list => list[0]);
-            try {
-                await this.requestChunk(chunk, results, deduped);
-                this.consecutiveFailures = 0;
-            } catch (error) {
-                this.consecutiveFailures += 1;
-                console.warn('⚠️ LLM sense selection failed:', error.message);
-                if (this.consecutiveFailures >= 2) {
-                    this.disabled = true;
-                    console.warn('⚠️ LLM sense selector disabled for this session (service unavailable?)');
+            chunkGroups.push(entries.slice(i, i + this.maxBatchSize).map(list => list[0]));
+        }
+
+        this.consecutiveFailures = 0;
+        let next = 0;
+        const CONCURRENCY = Math.min(3, chunkGroups.length);
+        const worker = async () => {
+            while (next < chunkGroups.length && !this.disabled) {
+                const group = chunkGroups[next++];
+                try {
+                    await this.requestChunk(group, results, deduped);
+                    this.consecutiveFailures = 0;
+                } catch (error) {
+                    this.consecutiveFailures += 1;
+                    console.warn('⚠️ LLM sense selection failed:', error.message);
+                    if (this.consecutiveFailures >= 4) {
+                        this.disabled = true;
+                        console.warn('⚠️ LLM sense selector disabled for this session (service unavailable?)');
+                    }
                 }
             }
-        }
+        };
+        await Promise.all(Array.from({ length: CONCURRENCY }, worker));
         return results;
     }
 
     /**
      * 发送一批词条给模型并解析结果 (Send one chunk and parse)
+     * 模型按 "Entry N"（分片内位置）应答，这里严格按位置回填到原始词条，
+     * 不信任模型复述的编号。(Map strictly by position — never trust echoed ids)
      */
     async requestChunk(chunk, results, deduped) {
-        const content = await this.chat(this.buildPrompt(chunk));
-        const parsed = this.parseSenseMap(content);
+        const prompt = this.buildPrompt(chunk);
+        let glosses = this.parseSenseArray(await this.chat(prompt), chunk.length);
+        let matched = this.collectGlosses(glosses, chunk, results, deduped);
 
-        let matched = 0;
-        for (const item of chunk) {
-            const gloss = parsed[String(item.id)] ?? parsed[item.id];
-            const clean = this.sanitizeGloss(gloss);
-            if (!clean) continue;
-            matched += 1;
-
-            const key = this.cacheKey(item.word, item.context);
-            this.cache.set(key, clean);
-            for (const dup of deduped.get(key)) {
-                results.set(dup.id, clean);
-            }
+        // One nudge retry when the model rambled instead of answering
+        if (matched === 0) {
+            glosses = this.parseSenseArray(
+                await this.chat(prompt + '\n/no_think\nAnswer with ONLY the JSON array now.'),
+                chunk.length
+            );
+            matched = this.collectGlosses(glosses, chunk, results, deduped);
         }
         if (matched === 0) {
             throw new Error('Model returned no usable senses');
@@ -114,28 +126,46 @@ export class LLMSenseSelector {
     }
 
     /**
+     * 按位置回填释义并计数 (Assign positional glosses; return match count)
+     */
+    collectGlosses(glosses, chunk, results, deduped) {
+        let matched = 0;
+        chunk.forEach((item, idx) => {
+            const clean = this.sanitizeGloss(glosses[idx]);
+            if (!clean) return;
+            matched += 1;
+
+            const key = this.cacheKey(item.word, item.context);
+            this.cache.set(key, clean);
+            for (const dup of deduped.get(key)) {
+                results.set(dup.id, clean);
+            }
+        });
+        return matched;
+    }
+
+    /**
      * 构造消歧提示词 (Build disambiguation prompt)
+     * 输出协议：与词条顺序一致的 JSON 字符串数组（位置式，无编号，防错位）
      */
     buildPrompt(chunk) {
-        const lines = chunk.map((item, idx) => {
-            const n = idx + 1;
+        const lines = chunk.map((item) => {
             const context = this.truncateContext(item.context);
             const senses = (item.dictionarySenses || '无词典释义').replace(/\s+/g, ' ').slice(0, 300);
-            return `Entry ${n}: word "${item.word}"\nSentence: ${context}\nDictionary senses: ${senses}`;
+            return `- "${item.word}" | sentence: ${context} | senses: ${senses}`;
         });
 
         return [
             'You are a professional English-Chinese lexicographer.',
-            'For each entry below, determine the meaning the English word carries IN THE GIVEN SENTENCE,',
-            'then choose or write the single most fitting concise Chinese gloss.',
+            'For each entry below, determine what the word means IN ITS SENTENCE and give ONE concise Chinese gloss.',
             '',
-            lines.join('\n\n'),
+            lines.join('\n'),
             '',
             'Rules:',
-            '- The gloss must match the meaning in that sentence, not just the first dictionary sense.',
-            '- Keep it very short: 1-6 Chinese characters preferred, at most 10.',
-            '- No pinyin, no English, no explanations, no part-of-speech tags.',
-            '- Respond with ONLY a JSON object mapping entry numbers to glosses, like {"1": "银行", "2": "岸"}.'
+            '- The gloss must reflect the meaning in THAT sentence, not just the first dictionary sense.',
+            '- Very short: 1-6 Chinese characters preferred, 10 max. Chinese only, no pinyin/English/POS.',
+            '- Output ONLY a JSON array of glosses in the SAME ORDER as the entries, nothing else.',
+            '- Example output format: ["银行", "岸"]'
         ].join('\n');
     }
 
@@ -167,10 +197,11 @@ export class LLMSenseSelector {
                             model: this.model,
                             messages: [{ role: 'user', content: prompt }],
                             temperature: this.temperature,
-                            max_tokens: 1000,
+                            // Reasoning models may think at length before answering —
+                            // give them room or the JSON gets truncated
+                            max_tokens: 6000,
                             stream: false,
-                            // Disable thinking mode for reasoning models (qwen3.x) so
-                            // tokens are spent on the actual answer, not hidden reasoning
+                            // Disable thinking mode for reasoning models (qwen3.x)
                             chat_template_kwargs: { enable_thinking: false }
                         }),
                         signal: controller.signal
@@ -182,8 +213,16 @@ export class LLMSenseSelector {
                     throw new Error(`LM Studio HTTP ${response.status} from ${endpoint}`);
                 }
                 const data = await response.json();
-                const content = data?.choices?.[0]?.message?.content;
-                if (!content) throw new Error('Empty completion');
+                const message = data?.choices?.[0]?.message;
+                let content = message?.content;
+                // Reasoning models may burn all tokens on hidden thinking and
+                // leave `content` empty; fall back to parsing the reasoning text
+                if (!content && message?.reasoning_content) {
+                    content = message.reasoning_content;
+                }
+                if (!content) {
+                    throw new Error(`Empty completion (${data?.choices?.[0]?.finish_reason || 'unknown'})`);
+                }
                 this.workingEndpoint = endpoint;
                 return content;
             } catch (error) {
@@ -195,29 +234,37 @@ export class LLMSenseSelector {
     }
 
     /**
-     * 从模型输出中提取 {序号: 释义} 映射 (Robust JSON extraction)
+     * 从模型输出中提取释义数组 (Extract positional gloss array)
+     * 期望形如 ["银行", "岸"]；容忍思考散文、代码围栏、前后杂文本。
      */
-    parseSenseMap(text) {
-        if (!text) return {};
-        // Strip qwen-style thinking blocks and markdown fences
-        let cleaned = String(text)
+    parseSenseArray(text, expectedLen) {
+        if (!text) return [];
+        const cleaned = String(text)
             .replace(/<think>[\s\S]*?<\/think>/gi, '')
             .replace(/```(?:json)?/gi, '');
 
-        const start = cleaned.indexOf('{');
-        const end = cleaned.lastIndexOf('}');
-        if (start === -1 || end === -1 || end <= start) return {};
-
-        try {
-            const obj = JSON.parse(cleaned.slice(start, end + 1));
-            const map = {};
-            for (const [key, value] of Object.entries(obj)) {
-                if (typeof value === 'string') map[key] = value;
-            }
-            return map;
-        } catch {
-            return {};
+        // Try every [...] block from LAST to FIRST (models may draft early arrays
+        // while thinking; the final one is the answer)
+        const blocks = [];
+        const opens = [];
+        for (let i = 0; i < cleaned.length; i++) {
+            if (cleaned[i] === '[') opens.push(i);
+            else if (cleaned[i] === ']' && opens.length) blocks.push([opens.pop(), i]);
         }
+
+        const candidates = blocks.sort((a, b) => b[0] - a[0]); // latest opening first
+        for (const [s, e] of candidates) {
+            try {
+                const arr = JSON.parse(cleaned.slice(s, e + 1));
+                if (Array.isArray(arr)) {
+                    const glosses = arr.filter(v => typeof v === 'string');
+                    if (glosses.length > 0) return glosses;
+                }
+            } catch { /* try next */ }
+        }
+        // Fallback: quoted CJK strings in order
+        const quoted = cleaned.match(/"([^"]*[\u4e00-\u9fff][^"]*)"/g) || [];
+        return quoted.map(q => q.slice(1, -1)).slice(0, expectedLen || quoted.length);
     }
 
     /**

@@ -156,21 +156,27 @@ export class ProgressiveDatabaseLoader {
         if (!this.isInitialized) {
             await this.initialize();
         }
-        
+
         console.log(`📚 Loading ${count} priority chunks...`);
-        
+
         for (let i = 1; i <= Math.min(count, this.metadata.totalChunks); i++) {
             await this.loadChunk(i);
         }
-        
+
         // Continue loading remaining chunks in background
         if (count < this.metadata.totalChunks) {
             // Use setTimeout to ensure it runs asynchronously in the background
             setTimeout(() => {
                 this.loadRemainingChunksInBackground(count + 1);
             }, 100);
+        } else {
+            // Everything the build ships has been loaded (e.g. slimmed PWA builds)
+            this.emit('complete', {
+                totalChunks: this.metadata.totalChunks,
+                totalWords: this.metadata.totalWords
+            });
         }
-        
+
         return true;
     }
 

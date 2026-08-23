@@ -79,54 +79,51 @@ export class DirectDataStorage {
         // Import NotificationManager dynamically to avoid circular dependency
         const { NotificationManager } = await import('../modules/NotificationManager.js');
         
-        // Set up listener for new chunk loads
+        // Set up listener for new chunk loads and import them.
+        // NOTE: completion is tracked HERE (after actual IndexedDB inserts),
+        // not on the loader's 'complete' event, which fires when the worker
+        // has PARSED chunks — potentially long before inserts finish.
         if (this._wordDatabase.progressiveLoader) {
             console.log('✅ Chunk load listeners registered');
-            
+            let importedChunks = 0;
             this._wordDatabase.progressiveLoader.on('chunkLoaded', async (data) => {
                 console.log(`🔔 chunkLoaded event received: chunk ${data.chunkNumber}`);
-                
+
                 // Check if chunk data is provided
                 if (!data.chunkWords || data.chunkWords.length === 0) {
                     console.warn(`⚠️ No chunk data for chunk ${data.chunkNumber}`);
                     return;
                 }
-                
+
                 const rows = data.chunkWords;
                 console.log(`📥 Importing chunk ${data.chunkNumber}: ${rows.length.toLocaleString()} words...`);
-                
+
                 const startTime = Date.now();
-                
-                // chunkWords is already an array of word objects (JSON format)
-                // No need to convert from SQL row format
-                
+
                 // Insert entire chunk in one batch
                 await this.indexedDB.insertWordsBatch(rows);
-                
+
                 const duration = Date.now() - startTime;
                 console.log(`✅ Chunk ${data.chunkNumber} imported in ${(duration/1000).toFixed(2)}s`);
-                
+
+                importedChunks += 1;
+
                 // Show notification after chunk import completed
-                const totalChunks = this._wordDatabase.progressiveLoader.metadata.totalChunks;
+                const loaderMeta = this._wordDatabase.progressiveLoader.metadata;
                 NotificationManager.show(
-                    `📚 Chunk ${data.chunkNumber}/${totalChunks} loaded (${rows.length.toLocaleString()} words)`,
+                    `📚 Chunk ${data.chunkNumber}/${loaderMeta.totalChunks} loaded (${rows.length.toLocaleString()} words)`,
                     'info'
                 );
-            });
 
-            // Listen for completion
-            this._wordDatabase.progressiveLoader.on('complete', async () => {
-                await this._markImportComplete(
-                    this._wordDatabase.progressiveLoader.metadata.totalWords
-                );
-                
-                // Show completion notification
-                const totalWords = this._wordDatabase.progressiveLoader.metadata.totalWords;
-                NotificationManager.show(
-                    `✨ All dictionary data loaded! ${totalWords.toLocaleString()} words available.`,
-                    'success'
-                );
-                console.log('✅ All chunks imported to IndexedDB');
+                // Mark import complete only when every chunk is physically stored
+                if (importedChunks >= loaderMeta.totalChunks) {
+                    await this._markImportComplete(loaderMeta.totalWords);
+                    NotificationManager.show(
+                        `✨ Dictionary ready! ${loaderMeta.totalWords.toLocaleString()} words available.`,
+                        'success'
+                    );
+                    console.log('✅ All chunks imported to IndexedDB');
+                }
             });
         } else {
             console.warn('⚠️ Progressive loader not available');
@@ -236,11 +233,18 @@ export class DirectDataStorage {
      * Delegate methods to WordDatabase
      */
     async findByLemma(word) {
-        return await this._wordDatabase.findByLemma(word);
+        // Refactored WordDatabase may not implement lemma lookup — degrade gracefully
+        if (typeof this._wordDatabase?.findByLemma === 'function') {
+            return await this._wordDatabase.findByLemma(word);
+        }
+        return null;
     }
 
     async fuzzyMatch(word, limit = 10) {
-        return this._wordDatabase.fuzzyMatch(word, limit);
+        if (typeof this._wordDatabase?.fuzzyMatch === 'function') {
+            return this._wordDatabase.fuzzyMatch(word, limit);
+        }
+        return [];
     }
 
     /**
