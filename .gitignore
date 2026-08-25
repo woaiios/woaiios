@@ -69,3 +69,26 @@ test-*.html
 .pw-profile/
 raw-llm-out.json
 raw-view.txt
+
+# WorkBuddy agent data (local only)
+.workbuddy/
+
+# Local debug/scratch scripts & session artifacts
+test-dinnima*.cjs
+test-llm-sense.cjs
+test-pwa-slim.cjs
+console-log-output.json
+tests/api-*.cjs
+tests/api-*.sh
+tests/cap-out.txt
+tests/capture-*.cjs
+tests/captured-prompts.json
+tests/diag-*.cjs
+tests/dinniman-*.png
+tests/e2e-*.cjs
+tests/e2e-*.png
+tests/e2e-*.json
+tests/llm-prompt-analysis.md
+tests/llm_resp.json
+tests/lmstudio-prompt.*
+tests/unit-llmsense.*

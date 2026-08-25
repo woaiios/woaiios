@@ -286,7 +286,9 @@ export class AnalyzedTextComponent extends Component {
                 dictionarySenses: this.extractDictionarySenses(occ.element)
             }));
 
-            const results = await this.llmSenseSelector.selectSenses(payload);
+            const results = await this.llmSenseSelector.selectSenses(payload, {
+                backgroundText: this.getSourceText()
+            });
 
             let updated = 0;
             results.forEach((gloss, id) => {
@@ -305,6 +307,20 @@ export class AnalyzedTextComponent extends Component {
             }
         } catch (error) {
             console.warn('⚠️ LLM sense refinement skipped:', error.message);
+        }
+    }
+
+    /**
+     * 获取当前原文整段文本（用作 LLM 背景信息，扩大上下文窗口）
+     * (Get full source passage for LLM background context)
+     * @returns {string}
+     */
+    getSourceText() {
+        try {
+            const ta = document.getElementById('textInput');
+            return ta ? ta.value : '';
+        } catch {
+            return '';
         }
     }
 

@@ -160,16 +160,16 @@ export class SettingsComponent {
             <div class="settings-section">
                 <h3>AI Context Sense Refinement</h3>
                 <div class="setting-item">
-                    <label for="llmSenseEnabled">Enable (LM Studio):</label>
+                    <label for="llmSenseEnabled">Enable (hy-mt2-1.8b):</label>
                     <input type="checkbox" id="llmSenseEnabled">
                 </div>
                 <div class="setting-item">
                     <label for="llmEndpoint">API Endpoint:</label>
-                    <input type="text" id="llmEndpoint" placeholder="http://localhost:1234/v1/chat/completions">
+                    <input type="text" id="llmEndpoint" placeholder="https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions">
                 </div>
                 <div class="setting-item">
                     <label for="llmModel">Model:</label>
-                    <input type="text" id="llmModel" placeholder="qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive">
+                    <input type="text" id="llmModel" placeholder="hy-mt2-1.8b">
                 </div>
             </div>
             <div class="settings-section">

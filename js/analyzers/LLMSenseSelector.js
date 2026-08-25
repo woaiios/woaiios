@@ -1,27 +1,40 @@
 /**
  * LLMSenseSelector Module
- * 借助本地大模型（LM Studio, OpenAI 兼容 API）结合上下文为单词挑选最贴切的中文释义
+ * 借助翻译大模型（hy-mt2-1.8b，经 OpenAI 兼容 API 远程端点提供）结合上下文为单词挑选最贴切的中文释义
  *
+ * 模型: tencent/Hy-MT2-1.8B (默认权重路径见 LLMSenseSelector.DEFAULT_WEIGHT_PATH)
  * 工作方式 (How it works):
- * - 将多个待消歧的词条打包成批，一次请求完成 (Batch multiple words into one request)
- * - 要求模型只返回严格 JSON: {"1": "银行", ...} (Strict JSON output)
+ * - 将多个待消歧的词条打包成批（默认 20 个/批），一次请求完成 (Batch words per request)
+ * - 采用 Hy-MT2 结构化翻译风格：【背景信息】= 整段原文，【待翻译文本】= 词表
+ * - 要求模型只返回词锚定 JSON: {"glosses":[{"word":"...","gloss":"..."},...]}，
+ *   按 word 对齐防止漏项错位 (Word-anchored JSON output, aligned by word)
  * - 内置缓存与熔断：失败后自动降级到本地启发式结果 (Cache + circuit breaker fallback)
  */
 export class LLMSenseSelector {
     static DEFAULT_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
     // Vite dev server proxy path (see vite.config.js) used as CORS-free fallback
     static PROXY_ENDPOINT = '/lm-studio/v1/chat/completions';
-    static DEFAULT_MODEL = 'qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive';
+    static DEFAULT_MODEL = 'hy-mt2-1.8b';
+    // HuggingFace 仓库 / 本地权重路径（推理服务端应加载此权重并暴露为 DEFAULT_MODEL）
+    static DEFAULT_WEIGHT_PATH = 'tencent/Hy-MT2-1.8B';
 
     constructor(options = {}) {
         this.endpoint = options.endpoint || LLMSenseSelector.DEFAULT_ENDPOINT;
         this.model = options.model || LLMSenseSelector.DEFAULT_MODEL;
+        this.weightPath = options.weightPath || LLMSenseSelector.DEFAULT_WEIGHT_PATH;
         this.timeoutMs = options.timeoutMs ?? 150000;
-        // Small batches keep reasoning-mode models (qwen3.x) compliant — large
-        // prompts trigger endless prose "thinking" that truncates before JSON
-        this.maxBatchSize = options.maxBatchSize ?? 2;
-        this.temperature = options.temperature ?? 0.1;
-        this.maxContextChars = options.maxContextChars ?? 160;
+        // Larger batches (20) keep request count low and let the model disambiguate
+        // each word inside one shared context window instead of per-pair isolation.
+        this.maxBatchSize = options.maxBatchSize ?? 20;
+        // Hy-MT2-1.8B recommended generation params (see model card):
+        // temperature 0.7, top_p 0.6, top_k 20, repetition_penalty 1.05
+        this.temperature = options.temperature ?? 0.7;
+        this.topP = options.topP ?? 0.6;
+        this.topK = options.topK ?? 20;
+        this.repetitionPenalty = options.repetitionPenalty ?? 1.05;
+        // Per-entry nearby-sentence hint (kept short); the full passage is sent
+        // separately as backgroundText so the model gets the whole context.
+        this.maxContextChars = options.maxContextChars ?? 200;
 
         this.cache = new Map();          // key: word::context -> chinese gloss
         this.workingEndpoint = null;     // endpoint that last succeeded (sticky)
@@ -45,7 +58,8 @@ export class LLMSenseSelector {
      * @param {Array<{id:number|string, word:string, context:string, dictionarySenses:string}>} items
      * @returns {Promise<Map<string, string>>} id -> 中文释义
      */
-    async selectSenses(items) {
+    async selectSenses(items, { backgroundText } = {}) {
+        this.backgroundText = backgroundText || this.backgroundText || '';
         const results = new Map();
         if (!items?.length || this.disabled) return results;
 
@@ -70,8 +84,8 @@ export class LLMSenseSelector {
             deduped.get(key).push(item);
         }
 
-        // 3. Request chunks with limited parallelism (LM Studio queues internally;
-        //    wall-clock ≈ slowest chunk instead of the sum)
+        // 3. Request chunks with limited parallelism (推理服务会并发处理各 chunk；
+        //    wall-clock ≈ 最慢的一个而非总和)
         const entries = [...deduped.values()];
         const chunkGroups = [];
         for (let i = 0; i < entries.length; i += this.maxBatchSize) {
@@ -86,7 +100,7 @@ export class LLMSenseSelector {
             while (next < chunkGroups.length && !this.disabled) {
                 const group = chunkGroups[next++];
                 try {
-                    await this.requestChunk(group, results, deduped);
+                    await this.requestChunk(group, results, deduped, this.backgroundText);
                     this.consecutiveFailures = 0;
                 } catch (error) {
                     this.consecutiveFailures += 1;
@@ -107,9 +121,9 @@ export class LLMSenseSelector {
      * 模型按 "Entry N"（分片内位置）应答，这里严格按位置回填到原始词条，
      * 不信任模型复述的编号。(Map strictly by position — never trust echoed ids)
      */
-    async requestChunk(chunk, results, deduped) {
-        const prompt = this.buildPrompt(chunk);
-        let glosses = this.parseSenseArray(await this.chat(prompt), chunk.length);
+    async requestChunk(chunk, results, deduped, backgroundText) {
+        const prompt = this.buildPrompt(chunk, backgroundText);
+        let glosses = this.alignGlosses(this.parseGlossEntries(await this.chat(prompt)), chunk);
 
         // Degenerate-response guard: models sometimes just echo the few-shot
         // example values for every entry. Detect and force a real answer.
@@ -118,10 +132,10 @@ export class LLMSenseSelector {
             glosses = [];
         }
 
-        if (this.countUsable(glosses, chunk) === 0) {
-            glosses = this.parseSenseArray(
-                await this.chat(prompt + '\n/no_think\nAnswer with ONLY the JSON array now. Each gloss must be a DIFFERENT word-specific translation.'),
-                chunk.length
+        if (this.countUsable(glosses, chunk) < chunk.length) {
+            glosses = this.alignGlosses(
+                this.parseGlossEntries(await this.chat(prompt + '\n请重新输出，必须返回严格的 {"glosses":[{"word":"...","gloss":"..."},...]} JSON 对象：每个词条一个元素，word 原样复制该英文单词，gloss 是其中文释义；不要遗漏、合并词条，也不要任何解释、思考标记或额外字段。')),
+                chunk
             );
             if (this.isExampleEcho(glosses)) glosses = [];
         }
@@ -143,6 +157,76 @@ export class LLMSenseSelector {
     }
 
     /**
+     * 解析词锚定结果 (Parse word-anchored gloss entries)
+     * 期望形如 {"glosses":[{"word":"supposed","gloss":"应该"},...]}；
+     * 容忍思考散文、代码围栏、前后杂文本；纯字符串数组则回退为无锚定条目。
+     */
+    parseGlossEntries(text) {
+        if (!text) return [];
+        const raw = String(text).trim();
+
+        const tryExtract = (obj) => {
+            const arr = Array.isArray(obj) ? obj : (obj && Array.isArray(obj.glosses) ? obj.glosses : null);
+            if (!arr) return null;
+            const entries = arr.map((e) => {
+                if (e && typeof e === 'object' && typeof e.gloss === 'string') {
+                    return { word: String(e.word || '').trim().toLowerCase(), gloss: e.gloss };
+                }
+                if (typeof e === 'string') return { word: '', gloss: e };
+                return null;
+            }).filter(Boolean);
+            return entries.length ? entries : null;
+        };
+
+        // Fast path: payload IS valid JSON
+        try {
+            const direct = tryExtract(JSON.parse(raw));
+            if (direct) return direct;
+        } catch { /* fall through to tolerant parsing */ }
+
+        const cleaned = raw
+            .replace(/<think>[\s\S]*?<\/think>/gi, '')
+            .replace(/```(?:json)?/gi, '');
+
+        // Try every {...}/[...] block from LAST to FIRST (the final one is the answer)
+        const blocks = [];
+        const opens = [];
+        for (let i = 0; i < cleaned.length; i++) {
+            if (cleaned[i] === '{' || cleaned[i] === '[') opens.push(i);
+            else if ((cleaned[i] === '}' || cleaned[i] === ']') && opens.length) blocks.push([opens.pop(), i]);
+        }
+        const candidates = blocks.sort((a, b) => b[0] - a[0]);
+        for (const [s, e] of candidates) {
+            try {
+                const out = tryExtract(JSON.parse(cleaned.slice(s, e + 1)));
+                if (out) return out;
+            } catch { /* try next */ }
+        }
+        // Fallback: positional quoted CJK strings
+        return this.parseSenseArray(raw, 0).map((g) => ({ word: '', gloss: g }));
+    }
+
+    /**
+     * 按单词锚定对齐释义 (Align glosses by word anchor)
+     * 只信 word 匹配（大小写不敏感）；匹配不上的词条留空（走重试或保留词典义），
+     * 绝不按位置硬填，避免 1.8B 模型漏项导致整体错位。
+     */
+    alignGlosses(entries, chunk) {
+        const out = new Array(chunk.length).fill('');
+        if (!entries?.length) return out;
+        const byWord = new Map();
+        for (const e of entries) {
+            if (e.word && e.gloss && !byWord.has(e.word)) byWord.set(e.word, e.gloss);
+        }
+        chunk.forEach((item, idx) => {
+            const w = (item.word || '').toLowerCase();
+            const g = byWord.get(w);
+            if (g) out[idx] = g;
+        });
+        return out;
+    }
+
+    /**
      * 统计能通过清洗校验的释义数量 (Count positionally-valid glosses)
      */
     countUsable(glosses, chunk) {
@@ -158,34 +242,43 @@ export class LLMSenseSelector {
      * (Detect lazy echo of prompt example values)
      */
     isExampleEcho(glosses) {
-        const ECHO_SET = new Set(['银行', '岸']);
+        const ECHO_SET = new Set(['银行', '岸', '应该', '霓虹灯']);
         const usable = glosses.filter(g => g && g.trim());
         return usable.length >= 2 && usable.every(g => ECHO_SET.has(g.trim()));
     }
 
     /**
-     * 构造消歧提示词 (Build disambiguation prompt)
-     * 输出协议：与词条顺序一致的 JSON 字符串数组（位置式，无编号，防错位）
+     * 构造翻译/消歧提示词 (Build translation & disambiguation prompt)
+     * 采用 Hy-MT2-1.8B 推荐的结构化数据翻译风格：
+     *   - 【背景信息】= 整段原文（扩大上下文，供模型理解句子间语境）
+     *   - 【待翻译文本】= 本批次待消歧的英文词表（保持顺序，结构锁定为 JSON）
+     * 输出协议与 chat() 中的 json_schema 一致：{"glosses":[...]}，
+     * glosses 是与词条顺序严格一致的字符串数组（位置式，防错位）。
+     * 源语言 = 英语，目标语言 = 中文。
      */
-    buildPrompt(chunk) {
-        const lines = chunk.map((item) => {
-            const context = this.truncateContext(item.context);
-            const senses = (item.dictionarySenses || '无词典释义').replace(/\s+/g, ' ').slice(0, 300);
-            return `- "${item.word}" | sentence: ${context} | senses: ${senses}`;
-        });
+    buildPrompt(chunk, backgroundText = '') {
+        const wordLines = chunk.map((item, i) => {
+            const ctx = this.truncateContext(item.context);
+            let line = `- 词条${i + 1} "${item.word}"`;
+            if (ctx) line += ` （附近小句：${ctx}）`;
+            return line;
+        }).join('\n');
+
+        const bg = (backgroundText && backgroundText.trim()) ? backgroundText.trim() : '';
+        const bgBlock = bg ? `【背景信息】\n${bg}\n\n` : '';
 
         return [
-            'You are a professional English-Chinese lexicographer.',
-            'For each numbered entry below, determine what the word means IN ITS SENTENCE and give ONE concise Chinese gloss.',
+            '请结合【背景信息】将【待翻译文本】中列出的英文单词，翻译为其在语境中最贴切的中文短释义。',
+            '注意**只需要输出翻译后的结果，不要额外解释**。',
+            '严格约束：',
+            '1. 结构锁定：必须返回 JSON 对象 {"glosses":[{"word":"...","gloss":"..."},...]}，glosses 数组与【待翻译文本】的词条一一对应：word 必须原样复制对应词条的英文单词，gloss 是该词的中文短释义。',
+            '2. 选择性翻译：gloss 仅给出面向读者可见的中文释义，1-6 个汉字，最多不超过 10 个汉字；不要遗漏或合并任何词条。',
+            '3. 禁止修改：word 字段只放原英文单词；不要输出英文释义、拼音、词性标注或任何解释文字。',
+            '4. 短语整体释义：若单词属于短语动词或固定搭配（如 be supposed to、look at、pitch black、sort of），gloss 应给出该搭配在句中的整体含义，而非单词字面义。',
             '',
-            lines.join('\n'),
+            bgBlock + '【待翻译文本】\n' + wordLines,
             '',
-            'Rules:',
-            '- The gloss must reflect the meaning in THAT sentence, not just the first dictionary sense.',
-            '- Very short: 1-6 Chinese characters preferred, 10 max. Chinese only, no pinyin/English/POS.',
-            '- Use the natural full Chinese word for the concept (e.g. a "neon sign" context -> 霓虹灯, not the element 氖 or bare transliteration 霓虹).',
-            '- Every gloss must be specific to ITS OWN word. Never reuse the same gloss for unrelated words.',
-            '- Output ONLY the JSON array of glosses in entry order. No analysis, no explanations.'
+            '示例（仅示意结构，不要照搬内容）：{"glosses":[{"word":"supposed","gloss":"应该"},{"word":"neon","gloss":"霓虹灯"}]}'
         ].join('\n');
     }
 
@@ -195,12 +288,12 @@ export class LLMSenseSelector {
         return text.slice(0, this.maxContextChars) + '…';
     }
 
-    /**
-     * 调用 OpenAI 兼容接口 (Call OpenAI-compatible chat completions)
-     * 使用 response_format json_schema 结构化输出（LM Studio 支持）：
-     * 语法约束生成，保证返回纯 JSON，无需处理思考散文。
-     * 旧版服务端不支持时自动去掉该参数重试一次。
-     */
+        /**
+         * 调用 OpenAI 兼容接口 (Call OpenAI-compatible chat completions)
+         * 使用 response_format json_schema 结构化输出（OpenAI 兼容推理服务支持）：
+         * 语法约束生成，保证返回纯 JSON 数组，便于直接解析。
+         * 不兼容的服务端（返回 400/422）会自动去掉该参数重试一次。
+         */
     async chat(prompt) {
         const candidates = [this.workingEndpoint, this.endpoint, LLMSenseSelector.PROXY_ENDPOINT]
             .filter(Boolean)
@@ -210,8 +303,15 @@ export class LLMSenseSelector {
             const body = {
                 model: this.model,
                 messages: [{ role: 'user', content: prompt }],
+                // Hy-MT2-1.8B recommended generation params (see model card):
+                // temperature 0.7, top_p 0.6, top_k 20, repetition_penalty 1.05
                 temperature: this.temperature,
-                // Structured output: grammar-constrained, always valid JSON
+                top_p: this.topP,
+                top_k: this.topK,
+                repetition_penalty: this.repetitionPenalty,
+                // Structured output: grammar-constrained, always valid JSON.
+                // Entries are word-anchored {"word","gloss"} objects so alignment
+                // survives occasional dropped/merged entries from the 1.8B model.
                 response_format: {
                     type: 'json_schema',
                     json_schema: {
@@ -220,18 +320,30 @@ export class LLMSenseSelector {
                         schema: {
                             type: 'object',
                             properties: {
-                                glosses: { type: 'array', items: { type: 'string' } }
+                                glosses: {
+                                    type: 'array',
+                                    items: {
+                                        type: 'object',
+                                        properties: {
+                                            word: { type: 'string' },
+                                            gloss: { type: 'string' }
+                                        },
+                                        required: ['word', 'gloss'],
+                                        additionalProperties: false
+                                    }
+                                }
                             },
-                            required: ['glosses']
+                            required: ['glosses'],
+                            additionalProperties: false
                         }
                     }
                 },
-                // Reasoning models may think at length before answering —
-                // give them room or the JSON gets truncated
-                max_tokens: 6000,
-                stream: false,
-                // Disable thinking mode for reasoning models (qwen3.x)
-                chat_template_kwargs: { enable_thinking: false }
+                // 1.8B translation model: cap output and let it finish
+                max_tokens: 4096,
+                // Context length budget (per Hy-MT2-1.8B): allow the large
+                // background passage without truncating the model's window.
+                max_model_len: 262144,
+                stream: false
             };
             if (!withSchema) delete body.response_format;
             return body;
@@ -241,13 +353,13 @@ export class LLMSenseSelector {
         for (const endpoint of candidates) {
             try {
                 let response = await this.doFetch(endpoint, buildBody(true));
-                // Older LM Studio / OpenAI-compat servers reject response_format
+                // Older / incompatible OpenAI-compat servers reject response_format
                 if (!response.ok && (response.status === 400 || response.status === 422)) {
                     console.log('[LLM] response_format rejected, retrying without schema');
                     response = await this.doFetch(endpoint, buildBody(false));
                 }
                 if (!response.ok) {
-                    throw new Error(`LM Studio HTTP ${response.status} from ${endpoint}`);
+                    throw new Error(`LLM HTTP ${response.status} from ${endpoint}`);
                 }
                 const data = await response.json();
                 const message = data?.choices?.[0]?.message;

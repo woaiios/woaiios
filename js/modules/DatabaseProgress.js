@@ -18,6 +18,8 @@ export class DatabaseProgress {
             chunks: document.getElementById('dbProgressChunks'),
             message: document.getElementById('dbLoadingMessage')
         };
+        // 仅首次加载阶段允许显示遮罩；后台分块加载不得再次弹出遮罩
+        this.initialLoadDone = false;
     }
 
     /**
@@ -26,12 +28,15 @@ export class DatabaseProgress {
     initialize() {
         // 设置进度回调 - 更新加载进度条
         this.dataStorage.setProgressCallback((data) => {
-            // 只有在真正需要加载时才显示进度条
-            this.elements.overlay.classList.add('show');
-            
+            // 进度回调会随后台分块（chunk 2..N）反复触发，
+            // 一旦首批加载完成（initialLoadDone=true）就绝不再显示遮罩
+            if (!this.initialLoadDone) {
+                this.elements.overlay.classList.add('show');
+            }
+
             this.elements.progressBar.style.width = `${data.percentage.toFixed(1)}%`;
             this.elements.percentage.textContent = `${data.percentage.toFixed(1)}%`;
-            
+
             // 在消息中显示缓存状态
             let message = data.message || 'Loading...';
             if (data.fromCache === true) {
@@ -43,21 +48,28 @@ export class DatabaseProgress {
             }
             this.elements.message.textContent = message;
         });
-        
+
         // 设置分块加载完成回调
-        if (this.dataStorage._wordDatabase?.progressiveLoader) {
-            this.dataStorage._wordDatabase.progressiveLoader.on('chunkLoaded', (data) => {
+        const loader = this.dataStorage._wordDatabase?.progressiveLoader;
+        if (loader) {
+            loader.on('chunkLoaded', (data) => {
                 const cacheStatus = data.fromCache ? ' (cached)' : '';
                 this.elements.chunks.textContent = `${data.loaded}/${data.total} chunks${cacheStatus}`;
             });
-            
+
             // 所有分块加载完成后隐藏遮罩
-            this.dataStorage._wordDatabase.progressiveLoader.on('complete', () => {
-                setTimeout(() => {
-                    this.elements.overlay.classList.remove('show');
-                }, 1000);
+            loader.on('complete', () => {
+                this.hideOverlay();
             });
         }
+    }
+
+    /**
+     * 隐藏加载遮罩 - Hide the db-loading overlay
+     */
+    hideOverlay() {
+        this.initialLoadDone = true;
+        this.elements.overlay.classList.remove('show');
     }
 
     /**
@@ -65,8 +77,10 @@ export class DatabaseProgress {
      * 应用已可用 (App is usable)
      */
     hideAfterFirstLoad() {
-        setTimeout(() => {
-            this.elements.overlay.classList.remove('show');
-        }, 500);
+        // 给首屏进度条一个轻微的收尾停顿，然后隐藏
+        setTimeout(() => this.hideOverlay(), 500);
+        // 兜底：即便 complete 事件未触发，也在合理超时后强制移除遮罩，
+        // 避免界面元素残留（例如离线/缓存场景下 complete 不可达）
+        setTimeout(() => this.hideOverlay(), 15000);
     }
 }

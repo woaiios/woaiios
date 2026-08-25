@@ -174,8 +174,8 @@ export class SettingsManager {
             reviewInterval: 7,                      // 复习间隔（天）(Review interval in days)
             googleDriveSync: false,                 // Google Drive 同步 (Google Drive sync)
             llmSenseEnabled: true,                  // 启用大模型上下文释义精修 (Enable LLM context sense refinement)
-            llmEndpoint: 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions',  // LM Studio API 端点 (LM Studio endpoint via Tailscale Serve)
-            llmModel: 'qwen3.5-35b-a3b-uncensored-hauhaucs-aggressive' // 模型名称 (Model name)
+            llmEndpoint: 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions',  // LM Studio 端点 (LM Studio endpoint via Tailscale Serve)
+            llmModel: 'hy-mt2-1.8b' // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
         };
     }
 
@@ -292,17 +292,17 @@ export class SettingsManager {
             llmSenseEnabled: {
                 type: 'checkbox',
                 label: 'AI Context Sense Refinement',
-                description: 'Use a local LLM (LM Studio) to pick context-fitting Chinese senses'
+                description: 'Use a translation LLM (hy-mt2-1.8b via remote OpenAI-compatible API) to pick context-fitting Chinese senses'
             },
             llmEndpoint: {
                 type: 'text',
                 label: 'LLM API Endpoint',
-                description: 'OpenAI-compatible chat completions URL of LM Studio'
+                description: 'OpenAI-compatible chat completions URL (remote Tailscale endpoint)'
             },
             llmModel: {
                 type: 'text',
                 label: 'LLM Model',
-                description: 'Model identifier loaded in LM Studio'
+                description: 'Model identifier (served-model-name) of hy-mt2-1.8b'
             }
         };
 

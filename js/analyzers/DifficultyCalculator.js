@@ -60,8 +60,8 @@ export class DifficultyCalculator {
             };
         }
 
-        let level = 'expert';
-        let score = 100;
+        let level = 'common';
+        let score = 0;
         const tag = wordInfo.tag || '';
 
         // Oxford 3000 core vocabulary
@@ -104,6 +104,9 @@ export class DifficultyCalculator {
             level = 'intermediate';
             score = 55;
         }
+        // 没有可识别的难度信号（无 collins/oxford/bnc/考试标签）的词典词，
+        // 不再默认为 expert：绝大多数普通词因此被错误高亮。改为 common/0，
+        // 仅在确有元数据表明其偏难时才升级为高亮等级。
 
         return {
             level: level,

@@ -55,8 +55,8 @@ export class DifficultyAnalyzer {
         // 3. Tag (exam levels)
         // 4. Word frequency (BNC)
 
-        let level = 'expert';
-        let score = 100;
+        let level = 'common';
+        let score = 0;
         const tag = wordInfo.tag || '';
         let hasMetadata = false;
 
@@ -108,6 +108,8 @@ export class DifficultyAnalyzer {
             score = 55;
             hasMetadata = true;
         }
+        // 没有可识别难度信号的词典词默认 common/0（不再为 expert），
+        // 避免绝大多数普通词被误判为“超难”而被高亮。
 
         return {
             level,
