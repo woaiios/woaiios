@@ -26,6 +26,7 @@ export class GoogleDriveManager {
         this.isSignedIn = false;     // 用户是否已登录 (Whether user is signed in)
         this.accessToken = null;     // OAuth 访问令牌 (OAuth access token)
         this.fileId = null;          // Google Drive 中词汇文件的 ID (ID of vocabulary file in Google Drive)
+        this.glossFileId = null;      // Google Drive 中释义缓存文件的 ID (ID of gloss cache file in Google Drive)
         this.gapiLoaded = false;     // GAPI 客户端是否已加载 (Whether GAPI client is loaded)
 
         // 持久化连接状态 (Persisted connection state)
@@ -77,6 +78,10 @@ export class GoogleDriveManager {
             await this._initializeGoogleAPIClient();
             // 查找或创建词汇文件 (Find or create vocabulary file)
             await this.findOrCreateVocabularyFile();
+            // 查找或创建释义缓存文件（失败不影响登录）(Find or create gloss cache file, best-effort)
+            await this.findOrCreateGlossCacheFile().catch((error) => {
+                console.warn('⚠️ Gloss cache file lookup failed:', error);
+            });
             // 持久化连接状态，刷新后可静默恢复 (Persist connection state for silent restore)
             this.wasConnected = true;
             await this._savePersisted({ connected: true });
@@ -104,6 +109,7 @@ export class GoogleDriveManager {
             this.isSignedIn = false;
             this.accessToken = null;
             this.fileId = null;
+            this.glossFileId = null;
             this.wasConnected = false;
             this.restoreFailed = false;
             await this._savePersisted({ connected: false });
@@ -160,26 +166,11 @@ export class GoogleDriveManager {
             if (!this.isSignedIn || !this.fileId) {
                 throw new Error('Not signed in or file not found');
             }
-            // 将数据转换为 JSON 格式 (Convert data to JSON format)
-            const jsonData = JSON.stringify(vocabularyData, null, 2);
-            // 使用 PATCH 方法更新文件内容 (Use PATCH method to update file content)
-            await gapi.client.request({
-                path: `/upload/drive/v3/files/${this.fileId}`,
-                method: 'PATCH',
-                params: { uploadType: 'media' },
-                headers: { 'Content-Type': 'application/json' },
-                body: jsonData
-            });
-            console.log('Vocabulary uploaded successfully to Google Drive');
-            return true;
+            const success = await this._uploadFileContent(this.fileId, vocabularyData);
+            if (success) console.log('Vocabulary uploaded successfully to Google Drive');
+            return success;
         } catch (error) {
             console.error('Error uploading vocabulary:', error);
-            // 如果遇到 403 错误，尝试刷新令牌后重试 (If 403 error, try refreshing token and retry)
-            if (error.status === 403) {
-                console.log('Attempting to refresh access token...');
-                await this.refreshAccessToken();
-                return this.uploadVocabulary(vocabularyData); // Retry
-            }
             return false;
         }
     }
@@ -193,16 +184,9 @@ export class GoogleDriveManager {
             throw new Error('Not signed in or file not found');
         }
         try {
-            // 获取文件内容 (Get file content)
-            const response = await gapi.client.drive.files.get({
-                fileId: this.fileId,
-                alt: 'media'  // 获取文件内容而不是元数据 (Get file content instead of metadata)
-            });
-            if (response.body) {
-                console.log('Vocabulary downloaded successfully from Google Drive');
-                return JSON.parse(response.body);
-            }
-            return null;
+            const data = await this._downloadFileContent(this.fileId);
+            if (data) console.log('Vocabulary downloaded successfully from Google Drive');
+            return data;
         } catch (error) {
             console.error('Error downloading vocabulary:', error);
             return null;
@@ -458,11 +442,12 @@ export class GoogleDriveManager {
     /**
      * 在指定空间查找文件 - Find file in specified space
      * @param {string} space - 搜索空间 ('drive' 或 'appDataFolder') (Search space: 'drive' or 'appDataFolder')
+     * @param {string} [name='WordDiscoverer_Vocabulary.json'] - 文件名 (File name)
      * @returns {Promise<Object|null>} 文件对象或 null (File object or null)
      */
-    async _findFileInSpace(space) {
+    async _findFileInSpace(space, name = 'WordDiscoverer_Vocabulary.json') {
         const response = await gapi.client.drive.files.list({
-            q: "name='WordDiscoverer_Vocabulary.json' and trashed=false",  // 查询条件 (Query condition)
+            q: `name='${name}' and trashed=false`,  // 查询条件 (Query condition)
             spaces: space,
             fields: 'files(id, name)'  // 只返回 ID 和名称字段 (Only return id and name fields)
         });
@@ -471,15 +456,187 @@ export class GoogleDriveManager {
 
     /**
      * 创建新文件 - Create new file
-     * 在用户 Drive 根目录创建词汇文件 (Create vocabulary file in user's Drive root directory)
+     * 在用户 Drive 根目录创建文件 (Create file in user's Drive root directory)
+     * @param {string} [name='WordDiscoverer_Vocabulary.json'] - 文件名 (File name)
      * @returns {Promise<string>} 新文件的 ID (ID of new file)
      */
-    async _createFile() {
+    async _createFile(name = 'WordDiscoverer_Vocabulary.json') {
         const response = await gapi.client.drive.files.create({
-            resource: { name: 'WordDiscoverer_Vocabulary.json', parents: ['root'] },
+            resource: { name: name, parents: ['root'] },
             fields: 'id'
         });
         return response.result.id;
+    }
+
+    /**
+     * 通用文件内容上传 - Upload JSON content to a Drive file
+     * @param {string} fileId - 目标文件 ID (Target file ID)
+     * @param {Object} data - 要序列化上传的数据 (Data to serialize and upload)
+     * @returns {Promise<boolean>} 是否成功 (Whether upload succeeded)
+     * @private
+     */
+    async _uploadFileContent(fileId, data) {
+        try {
+            if (!this.isSignedIn || !fileId) {
+                throw new Error('Not signed in or file not found');
+            }
+            const jsonData = JSON.stringify(data, null, 2);
+            await gapi.client.request({
+                path: `/upload/drive/v3/files/${fileId}`,
+                method: 'PATCH',
+                params: { uploadType: 'media' },
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonData
+            });
+            return true;
+        } catch (error) {
+            // 如果遇到 403 错误，尝试刷新令牌后重试 (If 403 error, refresh token and retry)
+            if (error.status === 403) {
+                console.log('Attempting to refresh access token...');
+                await this.refreshAccessToken();
+                return this._uploadFileContent(fileId, data); // Retry
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * 通用文件内容下载 - Download and parse JSON content from a Drive file
+     * @param {string} fileId - 源文件 ID (Source file ID)
+     * @returns {Promise<Object|null>} 解析后的对象或 null (Parsed object or null)
+     * @private
+     */
+    async _downloadFileContent(fileId) {
+        if (!this.isSignedIn || !fileId) {
+            throw new Error('Not signed in or file not found');
+        }
+        const response = await gapi.client.drive.files.get({
+            fileId: fileId,
+            alt: 'media'  // 获取文件内容而不是元数据 (Get file content instead of metadata)
+        });
+        if (response.body) {
+            return JSON.parse(response.body);
+        }
+        return null;
+    }
+
+    // ==================== 释义缓存同步 (Gloss Cache Sync) ====================
+
+    /**
+     * 查找或创建释义缓存文件 - Find or create the gloss cache file
+     * 文件名: WordDiscoverer_GlossCache.json (File name: WordDiscoverer_GlossCache.json)
+     * @returns {Promise<string|null>} 文件 ID (File ID)
+     */
+    async findOrCreateGlossCacheFile() {
+        try {
+            let file = await this._findFileInSpace('drive', 'WordDiscoverer_GlossCache.json');
+            if (file) {
+                this.glossFileId = file.id;
+                return this.glossFileId;
+            }
+
+            file = await this._findFileInSpace('appDataFolder', 'WordDiscoverer_GlossCache.json');
+            if (file) {
+                this.glossFileId = file.id;
+                console.warn('Found gloss cache file in hidden appDataFolder.');
+                return this.glossFileId;
+            }
+
+            this.glossFileId = await this._createFile('WordDiscoverer_GlossCache.json');
+            console.log('Created new gloss cache file in root directory:', this.glossFileId);
+            return this.glossFileId;
+        } catch (error) {
+            console.error('Error finding/creating gloss cache file:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 上传释义缓存到 Google Drive - Upload gloss cache to Google Drive
+     * @param {Object} cacheData - 缓存数据对象 (Cache data object)
+     * @returns {Promise<boolean>} 是否上传成功 (Whether upload succeeded)
+     */
+    async uploadGlossCache(cacheData) {
+        try {
+            if (!this.glossFileId) {
+                await this.findOrCreateGlossCacheFile();
+            }
+            const success = await this._uploadFileContent(this.glossFileId, cacheData);
+            if (success) console.log('Gloss cache uploaded successfully to Google Drive');
+            return success;
+        } catch (error) {
+            console.error('Error uploading gloss cache:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 从 Google Drive 下载释义缓存 - Download gloss cache from Google Drive
+     * @returns {Promise<Object|null>} 缓存数据对象或 null (Cache data object or null)
+     */
+    async downloadGlossCache() {
+        if (!this.glossFileId) {
+            await this.findOrCreateGlossCacheFile();
+        }
+        if (!this.glossFileId) return null;
+        try {
+            return await this._downloadFileContent(this.glossFileId);
+        } catch (error) {
+            console.error('Error downloading gloss cache:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 同步释义缓存 - Sync gloss cache
+     * 双向 union 合并：本地 + 远程条目取并集，冲突保留时间戳更新的
+     * (Two-way union merge: union of entries, conflicts resolved by newest timestamp)
+     * @param {Object} localData - 本地缓存数据 (Local cache data)
+     * @returns {Promise<Object>} 同步结果 (Sync result)
+     */
+    async syncGlossCache(localData) {
+        if (!this.isSignedIn) {
+            return { success: false, error: 'Not signed in to Google' };
+        }
+        try {
+            const remoteData = await this.downloadGlossCache();
+            if (!remoteData || !Array.isArray(remoteData.entries)) {
+                // 没有远程数据，直接上传本地缓存 (No remote data, upload local directly)
+                const uploadSuccess = await this.uploadGlossCache(localData);
+                return { success: uploadSuccess, action: 'upload', data: localData };
+            }
+
+            const merged = this._mergeGlossCaches(localData, remoteData);
+            const uploadSuccess = await this.uploadGlossCache(merged);
+            return uploadSuccess
+                ? { success: true, action: 'merge', data: merged }
+                : { success: false, action: 'merge_fail', data: localData, error: 'Failed to upload merged gloss cache' };
+        } catch (error) {
+            console.error('Error syncing gloss cache:', error);
+            return { success: false, error: error.message };
+        }
+    }
+
+    /**
+     * 合并释义缓存 - Merge gloss caches (union, newest wins)
+     * @param {Object} localData - 本地数据 (Local data)
+     * @param {Object} remoteData - 远程数据 (Remote data)
+     * @returns {Object} 合并后的数据 (Merged data)
+     * @private
+     */
+    _mergeGlossCaches(localData, remoteData) {
+        const merged = new Map(remoteData.entries || []);
+        for (const [key, value] of (localData.entries || [])) {
+            const existing = merged.get(key);
+            if (!existing || (Number(value?.t) || 0) > (Number(existing?.t) || 0)) {
+                merged.set(key, value);
+            }
+        }
+        return {
+            version: '1.0',
+            updatedAt: new Date().toISOString(),
+            entries: Array.from(merged.entries())
+        };
     }
 
     /**

@@ -8,8 +8,10 @@
  * - 采用 Hy-MT2 结构化翻译风格：【背景信息】= 整段原文，【待翻译文本】= 词表
  * - 要求模型只返回词锚定 JSON: {"glosses":[{"word":"...","gloss":"..."},...]}，
  *   按 word 对齐防止漏项错位 (Word-anchored JSON output, aligned by word)
- * - 内置缓存与熔断：失败后自动降级到本地启发式结果 (Cache + circuit breaker fallback)
+ * - 缓存为 GlossCache 单例（localStorage 持久化 + Google Drive 同步），失败后自动降级到本地启发式结果
  */
+import { glossCache } from './GlossCache.js';
+
 export class LLMSenseSelector {
     static DEFAULT_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
     // Vite dev server proxy path (see vite.config.js) used as CORS-free fallback
@@ -36,7 +38,10 @@ export class LLMSenseSelector {
         // separately as backgroundText so the model gets the whole context.
         this.maxContextChars = options.maxContextChars ?? 200;
 
-        this.cache = new Map();          // key: word::context -> chinese gloss
+        // 释义缓存（GlossCache 单例）：key = word::context，跨刷新持久化，
+        // 并由 VocabularyManager 同步到 Google Drive。同一 key 的 get/set
+        // 语义与普通 Map 一致。
+        this.cache = options.cache || glossCache;   // key: word::context -> chinese gloss
         this.workingEndpoint = null;     // endpoint that last succeeded (sticky)
         this.consecutiveFailures = 0;
         this.disabled = false;           // circuit breaker
@@ -62,6 +67,12 @@ export class LLMSenseSelector {
         this.backgroundText = backgroundText || this.backgroundText || '';
         const results = new Map();
         if (!items?.length || this.disabled) return results;
+
+        // 确保持久化缓存已从 localStorage 加载完成，避免刚启动时误判未命中
+        // (Ensure the persistent cache finished loading from localStorage)
+        if (typeof this.cache.waitForLoad === 'function') {
+            await this.cache.waitForLoad();
+        }
 
         // 1. Serve cache hits directly
         const pending = [];

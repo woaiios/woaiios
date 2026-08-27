@@ -4,6 +4,7 @@
  */
 import { GoogleDriveManager } from './GoogleDriveManager.js';
 import { storageHelper } from './StorageHelper.js';
+import { glossCache } from './analyzers/GlossCache.js';
 
 export class VocabularyManager {
     constructor() {
@@ -17,6 +18,12 @@ export class VocabularyManager {
         this.lastSyncTime = null;
         this.isSyncing = false;
         this.googleDriveSyncKey = 'wordDiscovererGoogleDriveSync';  // 同步开关持久化键 (Persisted sync toggle key)
+        this.glossSyncDebounceMs = 30000;  // 释义缓存防抖同步间隔 (Gloss cache sync debounce)
+        this._glossSyncTimer = null;
+
+        // LLM 释义缓存出现新条目时防抖触发云端同步
+        // (Debounced cloud sync when new LLM gloss cache entries appear)
+        glossCache.onDirty = () => this._scheduleGlossCacheSync();
 
         // Initialize async - load vocabulary in background
         this.initialize();
@@ -429,6 +436,10 @@ export class VocabularyManager {
     async disableGoogleDriveSync() {
         try {
             this.syncEnabled = false;
+            if (this._glossSyncTimer) {
+                clearTimeout(this._glossSyncTimer);
+                this._glossSyncTimer = null;
+            }
             await this._persistGoogleDriveSync();
             await this.googleDriveManager.signOut();
             console.log('Google Drive sync disabled');
@@ -520,6 +531,13 @@ export class VocabularyManager {
                 
                 this.lastSyncTime = new Date().toISOString();
                 await this._persistGoogleDriveSync();
+
+                // 释义缓存与词汇本一起同步（union 合并，失败不影响词汇同步结果）
+                // (Sync gloss cache along with vocabulary; failures are non-fatal)
+                this._syncGlossCache().catch((error) => {
+                    console.warn('⚠️ Gloss cache sync failed:', error);
+                });
+
                 return true;
             } else {
                 console.error('Sync failed:', syncResult.error);
@@ -530,6 +548,53 @@ export class VocabularyManager {
             return false;
         } finally {
             this.isSyncing = false;
+        }
+    }
+
+    /**
+     * 防抖调度释义缓存同步 - Schedule debounced gloss cache sync
+     * LLM 批量返回释义时会连续写缓存，这里等安静 30 秒后一次性同步，
+     * 避免每个新释义都打一次 Drive API。
+     * @private
+     */
+    _scheduleGlossCacheSync() {
+        if (!this.syncEnabled || !this.googleDriveManager.isSignedIn) return;
+        if (this._glossSyncTimer) return;
+        this._glossSyncTimer = setTimeout(() => {
+            this._glossSyncTimer = null;
+            this._syncGlossCache().catch((error) => {
+                console.warn('⚠️ Gloss cache sync failed:', error);
+            });
+        }, this.glossSyncDebounceMs);
+    }
+
+    /**
+     * 同步 LLM 释义缓存到 Google Drive - Sync LLM gloss cache to Google Drive
+     * 远程条目通过 union 合并回流本地，实现跨设备共享。
+     * @returns {Promise<boolean>} 是否成功
+     */
+    async _syncGlossCache() {
+        if (!this.syncEnabled || !this.googleDriveManager.isSignedIn) {
+            return false;
+        }
+        try {
+            await glossCache.waitForLoad();
+            const result = await this.googleDriveManager.syncGlossCache(glossCache.exportData());
+            if (result.success) {
+                if (result.action === 'merge' && result.data) {
+                    // 合并远程缓存回流本地（新增条目立即生效，免去重复请求）
+                    glossCache.importData(result.data);
+                    console.log('Gloss cache merged with Google Drive,', glossCache.size, 'entries');
+                } else {
+                    console.log('Gloss cache uploaded to Google Drive,', glossCache.size, 'entries');
+                }
+                return true;
+            }
+            console.warn('⚠️ Gloss cache sync failed:', result.error);
+            return false;
+        } catch (error) {
+            console.error('Error syncing gloss cache:', error);
+            return false;
         }
     }
 
