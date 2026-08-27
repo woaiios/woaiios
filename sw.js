@@ -4,37 +4,16 @@
  * Provides offline support and cache management
  */
 
-const CACHE_VERSION = 'v2.0.1';
+const CACHE_VERSION = 'v2.0.2';
 const CACHE_NAME = `word-discoverer-${CACHE_VERSION}`;
 
 // 需要缓存的静态资源 (Static assets to cache)
+// 注意：Vite 构建后源码会被合并成带 hash 的 dist/assets/*.js|css，
+// 因此这里只预缓存确定存在的入口，其余资源（含 wasm、SQLite 分片）
+// 由运行时 fetch 处理器按需 cacheFirst/networkFirst 缓存，保证首装即激活。
 const STATIC_ASSETS = [
   './',
   './index.html',
-  './app.js',
-  './css/main.css',
-  './css/components.css',
-  './css/ecdict-styles.css',
-  './css/pronunciation-checker.css',
-  './js/database/DirectDataStorage.js',
-  './js/database/WordDatabase.js',
-  './js/TextAnalyzer.js',
-  './js/VocabularyManager.js',
-  './js/SettingsManager.js',
-  './js/TranslationService.js',
-  './js/GoogleDriveManager.js',
-  './components/Component.js',
-  './components/Vocabulary/Vocabulary.js',
-  './components/Settings/Settings.js',
-  './components/AnalyzedText/AnalyzedText.js',
-  './components/PronunciationChecker/PronunciationChecker.js',
-  './components/Modal/Modal.js',
-];
-
-// 数据库和字典文件 (Database and dictionary files)
-const DATABASE_ASSETS = [
-  './public/eng-zho.json',
-  './public/eng_dict.txt',
 ];
 
 // 外部资源 (External resources)
@@ -50,20 +29,24 @@ self.addEventListener('install', (event) => {
   console.log('[Service Worker] Installing...');
   
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => {
-        console.log('[Service Worker] Caching static assets');
-        // 缓存静态资源 (Cache static assets)
-        return cache.addAll([...STATIC_ASSETS, ...EXTERNAL_RESOURCES]);
-      })
-      .then(() => {
-        console.log('[Service Worker] Static assets cached successfully');
-        // 强制激活新的 service worker (Force activation of new service worker)
-        return self.skipWaiting();
-      })
-      .catch((error) => {
-        console.error('[Service Worker] Failed to cache assets:', error);
-      })
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // 逐个缓存：单个资源 404 不应中断整个预缓存流程 (Resilient per-asset caching)
+      const targets = [...STATIC_ASSETS, ...EXTERNAL_RESOURCES];
+      await Promise.all(
+        targets.map(async (url) => {
+          try {
+            await cache.add(url);
+            console.log('[Service Worker] Cached:', url);
+          } catch (err) {
+            console.warn('[Service Worker] Skip caching (not found / offline):', url);
+          }
+        })
+      );
+      // 无论预缓存是否完整，都立即激活，接管页面 (Always activate immediately)
+      await self.skipWaiting();
+      console.log('[Service Worker] Installed, skipWaiting sent');
+    })()
   );
 });
 
@@ -245,7 +228,7 @@ function isDatabaseAsset(url) {
  * @returns {boolean}
  */
 function isStaticAsset(url) {
-  const staticExtensions = ['.js', '.css', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
+  const staticExtensions = ['.js', '.css', '.wasm', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.woff', '.woff2', '.ttf', '.eot'];
   return staticExtensions.some(ext => url.pathname.endsWith(ext));
 }
 
