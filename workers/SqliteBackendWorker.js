@@ -295,12 +295,87 @@ async function handleQueryWord({ word }) {
     return { word, data };
 }
 
+/**
+ * 批量查询优化：按 chunk 分组 + IN 批量查询。
+ * 原实现：逐词串行 queryOne → N 词 × M chunk 次 SQLite 调用
+ * 新实现：逐 chunk IN 批量 → M chunk 次 SQLite 调用（每词命中即移出集合）
+ */
+const BATCH_SIZE = 200; // IN 子句每批参数上限（SQLite 默认 SQLITE_MAX_VARIABLE_NUMBER=999，保守取 200）
+
 async function handleQueryWordsBatch({ words }) {
-    const results = [];
+    if (!metadata || !words || words.length === 0) return [];
+
+    const resultMap = new Map(); // lower -> { word, data }
+    const unresolved = new Map(); // lower -> originalWord
+
     for (const w of words) {
-        results.push({ word: w, data: await queryOne(String(w).toLowerCase()) });
+        const lower = String(w).toLowerCase();
+        unresolved.set(lower, w);
     }
-    return results;
+
+    // 第一轮：在已加载分片中按 chunk 批量查询
+    for (let n = 1; n <= metadata.totalChunks && unresolved.size > 0; n++) {
+        const entry = dbMap.get(n);
+        if (!entry) continue;
+        const found = await batchQueryInChunk(entry, n, unresolved, resultMap);
+        if (found) touchLRU(n);
+    }
+
+    // 第二轮：未命中的词，按需加载后续分片继续查
+    for (let n = 1; n <= metadata.totalChunks && unresolved.size > 0; n++) {
+        if (dbMap.has(n)) continue;
+        if (!(await ensureChunkLoaded(n))) continue;
+        const entry = dbMap.get(n);
+        if (!entry) continue;
+        const found = await batchQueryInChunk(entry, n, unresolved, resultMap);
+        if (found) touchLRU(n);
+    }
+
+    // 组装结果（保持原始顺序）
+    return words.map(w => {
+        const lower = String(w).toLowerCase();
+        const found = resultMap.get(lower);
+        return { word: w, data: found ? found.data : null };
+    });
+}
+
+/**
+ * 在单个 chunk 中用 IN 子句批量查询未解决的词。
+ * 命中的词从 unresolved 中移除并写入 resultMap。
+ * @returns {boolean} 是否有词被命中
+ */
+async function batchQueryInChunk(entry, chunkNumber, unresolved, resultMap) {
+    const keys = [...unresolved.keys()];
+    if (keys.length === 0) return false;
+
+    let found = false;
+
+    // 分批查询（SQLite 参数上限）
+    for (let i = 0; i < keys.length; i += BATCH_SIZE) {
+        const batch = keys.slice(i, i + BATCH_SIZE);
+        if (batch.length === 0) continue;
+
+        const placeholders = batch.map(() => '?').join(',');
+        const sql = `SELECT word, phonetic, definition, translation, pos, collins, oxford,
+                            tag, bnc, frq, exchange, detail, audio
+                     FROM words WHERE word_lower IN (${placeholders})`;
+        const stmt = entry.db.prepare(sql);
+        stmt.bind(batch);
+
+        while (stmt.step()) {
+            const row = stmt.getAsObject();
+            const wordLower = (row.word || '').toLowerCase();
+            const originalWord = unresolved.get(wordLower);
+            if (originalWord) {
+                resultMap.set(wordLower, { word: originalWord, data: row });
+                unresolved.delete(wordLower);
+                found = true;
+            }
+        }
+        stmt.free();
+    }
+
+    return found;
 }
 
 self.onmessage = async (event) => {
