@@ -186,6 +186,32 @@ export class DirectDataStorage {
         return this.isInitialized && this.loadedChunks.size > 0;
     }
 
+    /**
+     * 全部分片是否已加载完成（可精确查任意词，无需回退等待）
+     */
+    isDatabaseFullyLoaded() {
+        return this.isInitialized && !!this.metadata && this.loadedChunks.size >= this.metadata.totalChunks;
+    }
+
+    /**
+     * 等待全部分片加载完成。用于按需查询（点击非高亮词）时，
+     * 若目标词所在分片尚未加载，先等待再查，避免误报"未找到释义"。
+     * @param {number} timeout ms
+     * @returns {Promise<boolean>} 是否在超时前完成
+     */
+    whenFullyLoaded(timeout = 30000) {
+        return new Promise((resolve) => {
+            if (this.isDatabaseFullyLoaded()) return resolve(true);
+            const start = Date.now();
+            const tick = () => {
+                if (this.isDatabaseFullyLoaded()) return resolve(true);
+                if (Date.now() - start > timeout) return resolve(false);
+                setTimeout(tick, 300);
+            };
+            tick();
+        });
+    }
+
     async queryWordsBatch(words) {
         if (!this.isInitialized) return [];
         return await this.queryService.queryWordsBatch(words);

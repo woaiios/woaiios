@@ -183,27 +183,41 @@ export class AnalyzedTextComponent extends Component {
      * @param {HTMLElement} modalTranslation - 翻译容器 (Translation element)
      */
     async loadTranslationForModal(word, modal, modalTranslation) {
-        try {
-            const fetchedTranslation = await this.app.textAnalyzer.getTranslation(word);
-            
-            // 用户已经切换单词/关闭弹窗时，不更新旧内容 (Don't update if user switched words or closed the modal)
-            if (this.currentWord !== word || !modal.classList.contains('show')) {
-                return;
+        const fetchOnce = async () => {
+            try {
+                return await this.app.textAnalyzer.getTranslation(word);
+            } catch (error) {
+                console.error('Failed to load translation:', error);
+                return null;
             }
-            
-            this.currentTranslation = fetchedTranslation;
-            if (fetchedTranslation) {
-                if (fetchedTranslation.includes('<') && fetchedTranslation.includes('>')) {
-                    modalTranslation.innerHTML = fetchedTranslation;
-                } else {
-                    modalTranslation.textContent = fetchedTranslation;
-                }
+        };
+
+        let fetchedTranslation = await fetchOnce();
+
+        // 首查未命中且分片尚未全部加载：目标词所在分片可能还没就绪，
+        // 等待加载完成再查一次，避免误报"未找到释义" (retry after chunks load)
+        if (!fetchedTranslation) {
+            const ds = this.app?.dataStorage;
+            if (ds && typeof ds.isDatabaseFullyLoaded === 'function' && !ds.isDatabaseFullyLoaded()) {
+                await ds.whenFullyLoaded?.(30000);
+                fetchedTranslation = await fetchOnce();
+            }
+        }
+
+        // 用户已经切换单词/关闭弹窗时，不更新旧内容 (Don't update if user switched words or closed the modal)
+        if (this.currentWord !== word || !modal.classList.contains('show')) {
+            return;
+        }
+
+        this.currentTranslation = fetchedTranslation;
+        if (fetchedTranslation) {
+            if (fetchedTranslation.includes('<') && fetchedTranslation.includes('>')) {
+                modalTranslation.innerHTML = fetchedTranslation;
             } else {
-                modalTranslation.textContent = '数据库未加载，请稍后重试';
+                modalTranslation.textContent = fetchedTranslation;
             }
-        } catch (error) {
-            console.error('Failed to load translation:', error);
-            modalTranslation.textContent = '翻译加载失败，请重试';
+        } else {
+            modalTranslation.textContent = '数据库未加载，请稍后重试';
         }
     }
 

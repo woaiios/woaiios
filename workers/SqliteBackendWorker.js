@@ -112,12 +112,23 @@ function buildInflections(db) {
         const row = sel.getAsObject();
         const ex = row.exchange;
         if (!ex) continue;
+        const headLower = row.word.toLowerCase();
         for (const pair of ex.split('/')) {
             const idx = pair.indexOf(':');
             if (idx < 0) continue;
+            const type = pair.slice(0, idx);          // p/d/i/3/r/t/s/0/1
             const val = pair.slice(idx + 1).trim().toLowerCase();
-            if (!val || val === row.word.toLowerCase()) continue; // 跳过空值/与原词相同
-            ins.run([val, row.word]);
+            if (!val || val === headLower) continue;   // 跳过空值/与原词相同
+            if (type === '0') {
+                // 0: 原形标记 —— 本行词(row.word)是变形，val 才是原型
+                // 例如 carpeted 行 exchange="0:carpet/1:v" => inflections(carpeted -> carpet)
+                ins.run([headLower, val]);
+            } else if (type.length === 1 && 'pdi3rts'.includes(type)) {
+                // 普通变形类型 —— val 是变形，row.word 是原型
+                // 例如 shelf 行 exchange="s:shelves" => inflections(shelves -> shelf)
+                ins.run([val, headLower]);
+            }
+            // 1: 是词性标记(如 v/n)，不是词形，忽略
         }
     }
     sel.reset();
