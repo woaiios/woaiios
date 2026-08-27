@@ -92,3 +92,4 @@ tests/llm-prompt-analysis.md
 tests/llm_resp.json
 tests/lmstudio-prompt.*
 tests/unit-llmsense.*
+scripts/keep-awake-status.txt

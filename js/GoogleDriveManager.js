@@ -11,6 +11,8 @@
  * 
  * @class GoogleDriveManager
  */
+import { storageHelper } from './StorageHelper.js';
+
 export class GoogleDriveManager {
     /**
      * 构造函数 - Constructor
@@ -25,6 +27,16 @@ export class GoogleDriveManager {
         this.accessToken = null;     // OAuth 访问令牌 (OAuth access token)
         this.fileId = null;          // Google Drive 中词汇文件的 ID (ID of vocabulary file in Google Drive)
         this.gapiLoaded = false;     // GAPI 客户端是否已加载 (Whether GAPI client is loaded)
+
+        // 持久化连接状态 (Persisted connection state)
+        // wasConnected: 用户曾成功连接过 Google Drive（刷新后用于静默恢复）
+        // isRestoring:  后台静默重连进行中
+        // restoreFailed: 最近一次静默恢复失败（需要用户手动重新连接）
+        this.persistKey = 'wordDiscovererGoogleDrive';
+        this.wasConnected = false;
+        this.isRestoring = false;
+        this.restoreFailed = false;
+        this.onAuthStateChange = null;  // UI 刷新回调 (UI refresh callback)
     }
 
     /**
@@ -65,6 +77,10 @@ export class GoogleDriveManager {
             await this._initializeGoogleAPIClient();
             // 查找或创建词汇文件 (Find or create vocabulary file)
             await this.findOrCreateVocabularyFile();
+            // 持久化连接状态，刷新后可静默恢复 (Persist connection state for silent restore)
+            this.wasConnected = true;
+            await this._savePersisted({ connected: true });
+            this._notifyAuthStateChange();
             console.log('Successfully signed in to Google');
             return true;
         } catch (error) {
@@ -88,6 +104,10 @@ export class GoogleDriveManager {
             this.isSignedIn = false;
             this.accessToken = null;
             this.fileId = null;
+            this.wasConnected = false;
+            this.restoreFailed = false;
+            await this._savePersisted({ connected: false });
+            this._notifyAuthStateChange();
             console.log('Successfully signed out from Google');
             return true;
         } catch (error) {
@@ -224,11 +244,55 @@ export class GoogleDriveManager {
     }
 
     /**
+     * 恢复上次会话 - Restore previous session
+     * 应用启动时调用：如果用户之前连接过 Google Drive，尝试静默重新登录 (prompt='none')
+     * (Called at app startup: silently re-sign-in if user previously connected)
+     * @returns {Promise<boolean>} 是否恢复成功 (Whether restore succeeded)
+     */
+    async restoreSession() {
+        await this._loadPersisted();
+        if (!this.wasConnected) {
+            return false;
+        }
+
+        this.isRestoring = true;
+        this.restoreFailed = false;
+        this._notifyAuthStateChange();
+        console.log('🔄 Restoring Google Drive session (silent sign-in)...');
+
+        try {
+            // 静默登录，不显示弹窗 (Silent sign-in without popup)
+            const success = await this.signIn(true);
+            this.restoreFailed = !success;
+            if (success) {
+                console.log('✅ Google Drive session restored');
+            } else {
+                console.warn('⚠️ Silent Google Drive restore failed, manual reconnect required');
+            }
+            return success;
+        } catch (error) {
+            console.warn('⚠️ Google Drive restore error:', error);
+            this.restoreFailed = true;
+            return false;
+        } finally {
+            this.isRestoring = false;
+            this._notifyAuthStateChange();
+        }
+    }
+
+    /**
      * 获取认证状态 - Get authentication status
      * @returns {Object} 包含初始化、登录和文件状态的对象 (Object containing init, sign-in, and file status)
      */
     getAuthStatus() {
-        return { isInitialized: this.isInitialized, isSignedIn: this.isSignedIn, hasFile: !!this.fileId };
+        return {
+            isInitialized: this.isInitialized,
+            isSignedIn: this.isSignedIn,
+            hasFile: !!this.fileId,
+            wasConnected: this.wasConnected,
+            isRestoring: this.isRestoring,
+            restoreFailed: this.restoreFailed
+        };
     }
 
     /**
@@ -256,6 +320,46 @@ export class GoogleDriveManager {
     }
 
     // ==================== 私有辅助方法 (Private Helper Methods) ====================
+
+    /**
+     * 读取持久化的连接状态 (Load persisted connection state)
+     * @returns {Promise<Object>} 持久化状态对象 (Persisted state object)
+     * @private
+     */
+    async _loadPersisted() {
+        const persisted = await storageHelper.getItem(this.persistKey);
+        this._persisted = persisted && typeof persisted === 'object' ? persisted : {};
+        this.wasConnected = this._persisted.connected === true;
+        return this._persisted;
+    }
+
+    /**
+     * 保存持久化的连接状态 (Save persisted connection state)
+     * @param {Object} patch - 要合并的字段 (Fields to merge)
+     * @returns {Promise<boolean>} 是否保存成功 (Whether save succeeded)
+     * @private
+     */
+    async _savePersisted(patch) {
+        if (!this._persisted) {
+            await this._loadPersisted();
+        }
+        this._persisted = { ...this._persisted, ...patch };
+        return storageHelper.setItem(this.persistKey, this._persisted);
+    }
+
+    /**
+     * 通知 UI 认证状态变化 (Notify UI of auth state change)
+     * @private
+     */
+    _notifyAuthStateChange() {
+        if (typeof this.onAuthStateChange === 'function') {
+            try {
+                this.onAuthStateChange();
+            } catch (error) {
+                console.error('Error in auth state change callback:', error);
+            }
+        }
+    }
 
     /**
      * 获取访问令牌 - Get access token

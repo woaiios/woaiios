@@ -10,6 +10,13 @@ export class SettingsComponent {
         this.app = null;
         this.userInfo = null;
         this.lastSyncTime = null;
+        // 面板打开时刷新 Google Drive 区域（后台静默重连完成时触发）
+        // (Refresh Google Drive section when background silent restore completes)
+        this._onGoogleDriveAuthChange = () => {
+            if (document.getElementById('google-drive-section')) {
+                this.updateGoogleDriveStatus();
+            }
+        };
     }
 
     setApp(app) {
@@ -17,6 +24,8 @@ export class SettingsComponent {
     }
 
     open() {
+        // 订阅后台恢复状态变化（如静默重连完成）(Subscribe to background restore state changes)
+        this.googleDriveManager.onAuthStateChange = this._onGoogleDriveAuthChange;
         this.modal.open(this.renderContent());
         this.loadSettingsToUI();
         this.addEventListeners(); // Now the elements exist, we can attach event listeners
@@ -190,7 +199,20 @@ export class SettingsComponent {
 
     renderGoogleDriveUI() {
         const authStatus = this.googleDriveManager.getAuthStatus();
-        
+
+        // 后台正在静默恢复之前的连接 (Background silent restore in progress)
+        if (!authStatus.isSignedIn && (authStatus.isRestoring ||
+            (authStatus.wasConnected && !authStatus.restoreFailed && !authStatus.isInitialized))) {
+            return `
+                <div class="google-drive-status">
+                    <div class="status-indicator">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <span>Reconnecting to Google Drive...</span>
+                    </div>
+                </div>
+            `;
+        }
+
         if (!authStatus.isInitialized) {
             return `
                 <div class="google-drive-status">

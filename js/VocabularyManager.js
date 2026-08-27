@@ -16,11 +16,12 @@ export class VocabularyManager {
         this.syncEnabled = false;
         this.lastSyncTime = null;
         this.isSyncing = false;
-        
+        this.googleDriveSyncKey = 'wordDiscovererGoogleDriveSync';  // 同步开关持久化键 (Persisted sync toggle key)
+
         // Initialize async - load vocabulary in background
         this.initialize();
     }
-    
+
     /**
      * Initialize the vocabulary manager asynchronously
      */
@@ -32,6 +33,12 @@ export class VocabularyManager {
             this.masteredWords = masteredWords;
             this.isLoaded = true;
             console.log('✅ VocabularyManager initialized with', this.learningWords.size, 'learning words and', this.masteredWords.size, 'mastered words');
+
+            // 后台恢复 Google Drive 同步（不阻塞应用启动）
+            // (Restore Google Drive sync in background, non-blocking)
+            this._restoreGoogleDriveSync().catch((error) => {
+                console.warn('⚠️ Google Drive sync restore failed:', error);
+            });
         } catch (error) {
             console.error('Error initializing VocabularyManager:', error);
             this.isLoaded = true; // Continue with empty vocabulary
@@ -400,10 +407,11 @@ export class VocabularyManager {
             const signInSuccess = await this.googleDriveManager.signIn(silent);
             if (signInSuccess) {
                 this.syncEnabled = true;
-                
+                await this._persistGoogleDriveSync();
+
                 // Perform initial sync
                 await this.syncToGoogleDrive();
-                
+
                 console.log('Google Drive sync enabled');
                 return true;
             }
@@ -421,6 +429,7 @@ export class VocabularyManager {
     async disableGoogleDriveSync() {
         try {
             this.syncEnabled = false;
+            await this._persistGoogleDriveSync();
             await this.googleDriveManager.signOut();
             console.log('Google Drive sync disabled');
             return true;
@@ -428,6 +437,50 @@ export class VocabularyManager {
             console.error('Error disabling Google Drive sync:', error);
             return false;
         }
+    }
+
+    /**
+     * Restore Google Drive sync state at startup
+     * Reads the persisted sync toggle; if enabled, silently re-signs-in
+     * and performs the initial sync in the background.
+     * @returns {Promise<boolean>} Whether sync was restored
+     * @private
+     */
+    async _restoreGoogleDriveSync() {
+        const state = await storageHelper.getItem(this.googleDriveSyncKey);
+        if (!state || state.syncEnabled !== true) {
+            return false;
+        }
+
+        // 恢复上次同步时间用于 UI 显示 (Restore last sync time for UI display)
+        this.lastSyncTime = state.lastSyncTime || null;
+        this.syncEnabled = true;
+        console.log('🔄 Google Drive sync enabled in persisted state, restoring session...');
+
+        const restored = await this.googleDriveManager.restoreSession();
+        if (restored) {
+            // 静默恢复成功，执行启动同步 (Silent restore succeeded, perform startup sync)
+            await this.syncToGoogleDrive();
+            return true;
+        }
+
+        // 恢复失败（令牌失效/无 Google 会话），等待用户手动重连
+        // (Restore failed, wait for manual reconnect)
+        this.syncEnabled = false;
+        await this._persistGoogleDriveSync();
+        return false;
+    }
+
+    /**
+     * Persist Google Drive sync toggle and last sync time
+     * @returns {Promise<boolean>} Whether persistence succeeded
+     * @private
+     */
+    async _persistGoogleDriveSync() {
+        return storageHelper.setItem(this.googleDriveSyncKey, {
+            syncEnabled: this.syncEnabled,
+            lastSyncTime: this.lastSyncTime
+        });
     }
 
     /**
@@ -466,6 +519,7 @@ export class VocabularyManager {
                 }
                 
                 this.lastSyncTime = new Date().toISOString();
+                await this._persistGoogleDriveSync();
                 return true;
             } else {
                 console.error('Sync failed:', syncResult.error);
