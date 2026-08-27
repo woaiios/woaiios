@@ -82,11 +82,12 @@ export class VocabularyManager {
     async addWord(word, translation) {
         await this.waitForInit();
         
-        if (this.isKnownWord(word)) {
+        const lowerCaseWord = word.toLowerCase();
+        if (this.isKnownWord(lowerCaseWord)) {
             return false;
         }
         
-        this.learningWords.set(word, {
+        this.learningWords.set(lowerCaseWord, {
             translation: translation,
             addedDate: new Date().toISOString(),
             reviewCount: 0,
@@ -177,7 +178,8 @@ export class VocabularyManager {
      * @returns {boolean} True if the word is known.
      */
     isKnownWord(word) {
-        return this.learningWords.has(word) || this.masteredWords.has(word);
+        const lowerCaseWord = word.toLowerCase();
+        return this.learningWords.has(lowerCaseWord) || this.masteredWords.has(lowerCaseWord);
     }
 
     /**

@@ -74,20 +74,21 @@ export class DirectDataStorage {
         try {
             await this.workerBridge.initialize();
             const metadataUrl = `${import.meta.env.BASE_URL}db-chunks/metadata.json`;
-            this.metadata = await this.workerBridge.sendMessage('init', { metadataUrl });
+            const initResult = await this.workerBridge.sendMessage('init', { metadataUrl });
+            this.metadata = initResult;
+            this.pinnedChunks = initResult.pinnedChunks || 2;
             const baseUrl = `${import.meta.env.BASE_URL}db-chunks/`;
 
-            // 先加载第 1 块（高频词）让应用尽快可用
+            // 先加载第1块（高频词）让应用尽快可用
             await this._loadChunk(1, baseUrl);
 
             this.isInitialized = true;
 
-            // 后台继续加载其余分片（不可见时暂停）
+            // 后台继续加载固定分片（chunk 2 ~ pinnedChunks），其余按需加载
             this._loadRemainingInBackground(2, baseUrl);
             return true;
         } catch (error) {
             console.error('DirectDataStorage init failed:', error);
-            // 即便 Worker 初始化失败，也允许应用继续（只是查不到字典）
             this.isInitialized = true;
             return false;
         }
@@ -127,8 +128,9 @@ export class DirectDataStorage {
     }
 
     async _loadRemainingInBackground(startFrom, baseUrl) {
-        const total = this.metadata.totalChunks;
-        for (let n = startFrom; n <= total; n++) {
+        // 只加载固定分片（pinnedChunks），其余由 Worker 按需加载
+        const endAt = this.pinnedChunks || 2;
+        for (let n = startFrom; n <= endAt; n++) {
             await this._waitWhileHidden();
             try {
                 await this._loadChunk(n, baseUrl);
@@ -137,6 +139,7 @@ export class DirectDataStorage {
             }
             await new Promise(r => setTimeout(r, 100));
         }
+        console.log(`✅ 固定分片加载完成（${endAt}/${this.metadata.totalChunks}），其余按需加载`);
     }
 
     /**
@@ -187,15 +190,16 @@ export class DirectDataStorage {
     }
 
     /**
-     * 全部分片是否已加载完成（可精确查任意词，无需回退等待）
+     * 全部分片是否已加载完成（固定分片加载完毕即可查询任意词，按需加载兜底）
      */
     isDatabaseFullyLoaded() {
-        return this.isInitialized && !!this.metadata && this.loadedChunks.size >= this.metadata.totalChunks;
+        const pinned = this.pinnedChunks || 2;
+        return this.isInitialized && !!this.metadata && this.loadedChunks.size >= pinned;
     }
 
     /**
-     * 等待全部分片加载完成。用于按需查询（点击非高亮词）时，
-     * 若目标词所在分片尚未加载，先等待再查，避免误报"未找到释义"。
+     * 等待固定分片加载完成。查询未命中时 Worker 会按需加载其余分片，
+     * 此方法仅用于确保基础查询能力就绪。
      * @param {number} timeout ms
      * @returns {Promise<boolean>} 是否在超时前完成
      */

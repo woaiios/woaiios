@@ -9,13 +9,20 @@
  *  - Lookups use a B-tree index (word_lower) → O(log n), and the DB lives in
  *    the WASM heap instead of the JS heap.
  *
+ * Memory management (LRU chunk cache):
+ *  - PINNED_CHUNKS: 前 N 个高频分片常驻内存，不参与淘汰
+ *  - MAX_LRU: LRU 缓存容量，存放按需加载的低频分片
+ *  - 查询未命中已加载分片时，自动按序加载后续分片（按需加载）
+ *  - 超出容量时淘汰最近最少使用的非固定分片
+ *
  * Messages (request/response via WorkerBridge protocol: {id,type,payload}):
- *  - init           { metadataUrl }                 -> { totalChunks, totalWords, totalBytes }
+ *  - init           { metadataUrl }                 -> { totalChunks, totalWords, totalBytes, pinnedChunks, maxLru }
  *  - loadChunk      { chunkNumber, baseUrl }        -> { chunkNumber, wordCount, alreadyLoaded }
  *  - queryWord      { word }                        -> { word, data }     (data: row | null)
  *  - queryWordsBatch{ words:[...] }                 -> [{ word, data }]
  *  - findLemma      { form }                        -> { form, lemma, data }
  *                                                   (data: lemma 行 | null；基于 exchange 反向索引)
+ *  - getLoadedChunks                                -> { loaded: number[], pinned: number[] }
  *
  * 每个分片在 loadChunk 时，从 words.exchange 列反向建一张 inflections(变形词->原型)
  * 索引表，用于把 stood / dotted / photographs 这类变形词精确解析回原型（不使用启发式猜测）。
@@ -25,11 +32,17 @@ import initSqlJs from 'sql.js';
 import sqlWasmUrl from 'sql.js/dist/sql-wasm.wasm?url';
 import pako from 'pako';
 
+const PINNED_CHUNKS = 2;   // 前2个高频分片（chunk 1、2）常驻内存
+const MAX_LRU = 2;         // LRU 缓存容量（额外可加载的分片数）
+const MAX_LOADED = PINNED_CHUNKS + MAX_LRU; // 同时在内存中的最大分片数 = 4
+
 let SQL = null;
 let metadata = null;
 const dbMap = new Map(); // chunkNumber -> { db, stmt, count }
 let totalBytes = 0;
 let loadedBytes = 0;
+let storedBaseUrl = '';    // 保存 baseUrl 供按需加载使用
+const lruOrder = [];       // LRU 顺序（最近使用的在末尾）
 
 async function ensureSql() {
     if (!SQL) {
@@ -43,10 +56,59 @@ function gunzip(buf) {
     try {
         return pako.ungzip(u8).buffer;
     } catch {
-        // 服务器可能已自动解压（Content-Encoding: gzip）
         return buf;
     }
 }
+
+/* ============ LRU 缓存管理 ============ */
+
+function isPinned(chunkNumber) {
+    return chunkNumber <= PINNED_CHUNKS;
+}
+
+function touchLRU(chunkNumber) {
+    const idx = lruOrder.indexOf(chunkNumber);
+    if (idx !== -1) lruOrder.splice(idx, 1);
+    lruOrder.push(chunkNumber);
+}
+
+function evictLRU() {
+    const evictable = lruOrder.filter(n => !isPinned(n));
+    if (evictable.length === 0) return null;
+    const victim = evictable[0];
+    const entry = dbMap.get(victim);
+    if (entry) {
+        entry.stmt.free();
+        entry.db.close();
+        dbMap.delete(victim);
+    }
+    lruOrder.splice(lruOrder.indexOf(victim), 1);
+    console.log(`[Worker] 🗑️  Evicted chunk ${victim} (LRU)`);
+    return victim;
+}
+
+function ensureCapacity() {
+    if (dbMap.size < MAX_LOADED) return null;
+    return evictLRU();
+}
+
+/* ============ 按需加载 ============ */
+
+async function ensureChunkLoaded(chunkNumber) {
+    if (dbMap.has(chunkNumber)) {
+        touchLRU(chunkNumber);
+        return true;
+    }
+    if (!metadata || !storedBaseUrl) return false;
+    try {
+        await handleLoadChunk({ chunkNumber, baseUrl: storedBaseUrl });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+/* ============ 处理函数 ============ */
 
 async function handleInit({ metadataUrl }) {
     const res = await fetch(metadataUrl);
@@ -54,23 +116,32 @@ async function handleInit({ metadataUrl }) {
     metadata = await res.json();
     totalBytes = metadata.chunks.reduce((s, c) => s + (c.sizeBytes || 0), 0);
     loadedBytes = 0;
+    // 从 metadataUrl 推导 baseUrl（去掉文件名）
+    storedBaseUrl = metadataUrl.replace(/[^/]*$/, '');
     return {
         totalChunks: metadata.totalChunks,
         totalWords: metadata.totalWords,
-        totalBytes
+        totalBytes,
+        pinnedChunks: PINNED_CHUNKS,
+        maxLru: MAX_LRU
     };
 }
 
 async function handleLoadChunk({ chunkNumber, baseUrl }) {
     if (!metadata) throw new Error('worker not initialized');
+    if (baseUrl) storedBaseUrl = baseUrl;
 
     const existing = dbMap.get(chunkNumber);
     if (existing) {
+        touchLRU(chunkNumber);
         return { chunkNumber, alreadyLoaded: true, wordCount: existing.count };
     }
 
     const info = metadata.chunks.find(c => c.chunkNumber === chunkNumber);
     if (!info) throw new Error(`chunk ${chunkNumber} not in metadata`);
+
+    // 超出容量时淘汰 LRU 分片
+    const evicted = ensureCapacity();
 
     const res = await fetch(`${baseUrl}${info.filename}`);
     if (!res.ok) throw new Error(`chunk ${chunkNumber} fetch ${res.status}`);
@@ -86,12 +157,14 @@ async function handleLoadChunk({ chunkNumber, baseUrl }) {
     buildInflections(db);
 
     dbMap.set(chunkNumber, { db, stmt, count: info.wordCount });
+    touchLRU(chunkNumber);
     loadedBytes += info.sizeBytes || 0;
 
     return {
         chunkNumber,
         wordCount: info.wordCount,
         alreadyLoaded: false,
+        evicted,
         progress: { loadedBytes, totalBytes, percentage: totalBytes ? (loadedBytes / totalBytes) * 100 : 0 }
     };
 }
@@ -137,10 +210,13 @@ function buildInflections(db) {
 }
 
 /**
- * 在所有已加载分片里按词频顺序查找（先命中高频 chunk）
+ * 在已加载分片里按词频顺序查找；未命中时按需加载后续分片直到找到或遍历完毕。
+ * 高频词在 chunk 1（常驻），绝大多数查询 1 次命中即返回。
  */
-function queryOne(lower) {
+async function queryOne(lower) {
     if (!metadata) return null;
+
+    // 第一轮：在已加载分片中查找
     for (let n = 1; n <= metadata.totalChunks; n++) {
         const entry = dbMap.get(n);
         if (!entry) continue;
@@ -148,17 +224,39 @@ function queryOne(lower) {
         let row = null;
         if (entry.stmt.step()) row = entry.stmt.getAsObject();
         entry.stmt.reset();
-        if (row) return row;
+        if (row) {
+            touchLRU(n);
+            return row;
+        }
+    }
+
+    // 第二轮：未命中，按需加载未加载的分片继续查找
+    for (let n = 1; n <= metadata.totalChunks; n++) {
+        if (dbMap.has(n)) continue;
+        if (!(await ensureChunkLoaded(n))) continue;
+        const entry = dbMap.get(n);
+        if (!entry) continue;
+        entry.stmt.bind([lower]);
+        let row = null;
+        if (entry.stmt.step()) row = entry.stmt.getAsObject();
+        entry.stmt.reset();
+        if (row) {
+            touchLRU(n);
+            return row;
+        }
     }
     return null;
 }
 
 /**
  * 反查变形词的原型：在 inflections 表中精确匹配，命中后顺带返回原型词行。
+ * 支持按需加载：已加载分片未命中时，自动加载后续分片。
  */
-function findLemma(form) {
+async function findLemma(form) {
     const f = String(form || '').toLowerCase();
     if (!metadata || !f) return { form: f, lemma: null, data: null };
+
+    // 第一轮：在已加载分片中查找
     for (let n = 1; n <= metadata.totalChunks; n++) {
         const entry = dbMap.get(n);
         if (!entry) continue;
@@ -168,19 +266,41 @@ function findLemma(form) {
         if (st.step()) lemma = st.getAsObject().lemma;
         st.free();
         if (lemma) {
-            return { form: f, lemma, data: queryOne(lemma.toLowerCase()) };
+            touchLRU(n);
+            return { form: f, lemma, data: await queryOne(lemma.toLowerCase()) };
+        }
+    }
+
+    // 第二轮：按需加载未加载的分片
+    for (let n = 1; n <= metadata.totalChunks; n++) {
+        if (dbMap.has(n)) continue;
+        if (!(await ensureChunkLoaded(n))) continue;
+        const entry = dbMap.get(n);
+        if (!entry) continue;
+        const st = entry.db.prepare(`SELECT lemma FROM inflections WHERE form = ? LIMIT 1`);
+        st.bind([f]);
+        let lemma = null;
+        if (st.step()) lemma = st.getAsObject().lemma;
+        st.free();
+        if (lemma) {
+            touchLRU(n);
+            return { form: f, lemma, data: await queryOne(lemma.toLowerCase()) };
         }
     }
     return { form: f, lemma: null, data: null };
 }
 
-function handleQueryWord({ word }) {
-    const data = queryOne(String(word).toLowerCase());
+async function handleQueryWord({ word }) {
+    const data = await queryOne(String(word).toLowerCase());
     return { word, data };
 }
 
-function handleQueryWordsBatch({ words }) {
-    return words.map(w => ({ word: w, data: queryOne(String(w).toLowerCase()) }));
+async function handleQueryWordsBatch({ words }) {
+    const results = [];
+    for (const w of words) {
+        results.push({ word: w, data: await queryOne(String(w).toLowerCase()) });
+    }
+    return results;
 }
 
 self.onmessage = async (event) => {
@@ -196,13 +316,21 @@ self.onmessage = async (event) => {
                 result = await handleLoadChunk(payload);
                 break;
             case 'queryWord':
-                result = handleQueryWord(payload);
+                result = await handleQueryWord(payload);
                 break;
             case 'queryWordsBatch':
-                result = handleQueryWordsBatch(payload);
+                result = await handleQueryWordsBatch(payload);
                 break;
             case 'findLemma':
-                result = findLemma(payload.form);
+                result = await findLemma(payload.form);
+                break;
+            case 'getLoadedChunks':
+                result = {
+                    loaded: [...dbMap.keys()].sort((a, b) => a - b),
+                    pinned: Array.from({ length: PINNED_CHUNKS }, (_, i) => i + 1),
+                    lruOrder: [...lruOrder],
+                    maxLoaded: MAX_LOADED
+                };
                 break;
             default:
                 throw new Error(`unknown type: ${type}`);
@@ -213,4 +341,4 @@ self.onmessage = async (event) => {
     }
 };
 
-console.log('[SqliteBackendWorker] ready');
+console.log('[SqliteBackendWorker] ready (LRU: pinned=' + PINNED_CHUNKS + ', lru=' + MAX_LRU + ')');
