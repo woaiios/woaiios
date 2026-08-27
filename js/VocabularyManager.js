@@ -477,10 +477,10 @@ export class VocabularyManager {
             return true;
         }
 
-        // 恢复失败（令牌失效/无 Google 会话），等待用户手动重连
-        // (Restore failed, wait for manual reconnect)
-        this.syncEnabled = false;
-        await this._persistGoogleDriveSync();
+        // 恢复失败（令牌失效/无 Google 会话），保留 syncEnabled 状态
+        // 下次刷新时仍会尝试恢复，用户也可手动重连
+        // (Restore failed: keep syncEnabled so next reload will retry; user can also manually reconnect)
+        console.warn('⚠️ Google Drive restore failed, will retry on next load');
         return false;
     }
 

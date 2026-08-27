@@ -376,20 +376,34 @@ export class SettingsComponent {
                 enableBtn.disabled = true;
             }
 
-            // Initialize if needed (check result — failure must not fall through to signIn)
-            if (!this.googleDriveManager.isInitialized) {
-                const ok = await this.googleDriveManager.initialize();
-                if (!ok) throw new Error('Google services unreachable (check network access to google.com)');
-            }
-
-            // Sign in
-            const success = await this.googleDriveManager.signIn();
-            if (success) {
-                NotificationManager.show('Successfully connected to Google Drive!');
-                await this.updateGoogleDriveStatus();
+            // 使用 VocabularyManager 的 enableGoogleDriveSync 确保 syncEnabled 持久化
+            // (Use VocabularyManager.enableGoogleDriveSync to ensure syncEnabled is persisted)
+            const vocabManager = this.app?.vocabularyManager;
+            if (vocabManager) {
+                const success = await vocabManager.enableGoogleDriveSync();
+                if (success) {
+                    NotificationManager.show('Successfully connected to Google Drive!');
+                    await this.updateGoogleDriveStatus();
+                } else {
+                    NotificationManager.show('Failed to connect to Google Drive.', 'error');
+                    this._resetGoogleDriveButton(enableBtn);
+                }
             } else {
-                NotificationManager.show('Failed to connect to Google Drive.', 'error');
-                this._resetGoogleDriveButton(enableBtn);
+                // Fallback: 直接调用 GoogleDriveManager（不走持久化路径）
+                // Initialize if needed (check result — failure must not fall through to signIn)
+                if (!this.googleDriveManager.isInitialized) {
+                    const ok = await this.googleDriveManager.initialize();
+                    if (!ok) throw new Error('Google services unreachable (check network access to google.com)');
+                }
+
+                const success = await this.googleDriveManager.signIn();
+                if (success) {
+                    NotificationManager.show('Successfully connected to Google Drive!');
+                    await this.updateGoogleDriveStatus();
+                } else {
+                    NotificationManager.show('Failed to connect to Google Drive.', 'error');
+                    this._resetGoogleDriveButton(enableBtn);
+                }
             }
         } catch (error) {
             console.error('Error enabling Google Drive:', error);
@@ -455,7 +469,15 @@ export class SettingsComponent {
     
     async onDisconnectGoogleDrive() {
         try {
-            const success = await this.googleDriveManager.signOut();
+            // 使用 VocabularyManager 的 disableGoogleDriveSync 确保 syncEnabled 持久化为 false
+            // (Use VocabularyManager.disableGoogleDriveSync to ensure syncEnabled is persisted as false)
+            const vocabManager = this.app?.vocabularyManager;
+            let success;
+            if (vocabManager) {
+                success = await vocabManager.disableGoogleDriveSync();
+            } else {
+                success = await this.googleDriveManager.signOut();
+            }
             if (success) {
                 this.userInfo = null;
                 this.lastSyncTime = null;
