@@ -5,83 +5,84 @@
   "chunks": [
     {
       "chunkNumber": 1,
-      "filename": "chunk-1.json.gz",
+      "filename": "chunk-1.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 5870312,
+      "sizeBytes": 8123818,
       "offset": 0,
       "priority": 1
     },
     {
       "chunkNumber": 2,
-      "filename": "chunk-2.json.gz",
+      "filename": "chunk-2.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2300291,
+      "sizeBytes": 4247263,
       "offset": 77062,
       "priority": 2
     },
     {
       "chunkNumber": 3,
-      "filename": "chunk-3.json.gz",
+      "filename": "chunk-3.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2326719,
+      "sizeBytes": 4266788,
       "offset": 154124,
       "priority": 3
     },
     {
       "chunkNumber": 4,
-      "filename": "chunk-4.json.gz",
+      "filename": "chunk-4.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2373375,
+      "sizeBytes": 4319949,
       "offset": 231186,
       "priority": 4
     },
     {
       "chunkNumber": 5,
-      "filename": "chunk-5.json.gz",
+      "filename": "chunk-5.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2335465,
+      "sizeBytes": 4304835,
       "offset": 308248,
       "priority": 5
     },
     {
       "chunkNumber": 6,
-      "filename": "chunk-6.json.gz",
+      "filename": "chunk-6.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2312762,
+      "sizeBytes": 4285488,
       "offset": 385310,
       "priority": 6
     },
     {
       "chunkNumber": 7,
-      "filename": "chunk-7.json.gz",
+      "filename": "chunk-7.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2320341,
+      "sizeBytes": 4255878,
       "offset": 462372,
       "priority": 7
     },
     {
       "chunkNumber": 8,
-      "filename": "chunk-8.json.gz",
+      "filename": "chunk-8.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2372633,
+      "sizeBytes": 4305372,
       "offset": 539434,
       "priority": 8
     },
     {
       "chunkNumber": 9,
-      "filename": "chunk-9.json.gz",
+      "filename": "chunk-9.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 2454074,
+      "sizeBytes": 4394205,
       "offset": 616496,
       "priority": 9
     },
     {
       "chunkNumber": 10,
-      "filename": "chunk-10.json.gz",
+      "filename": "chunk-10.db.gz",
       "wordCount": 77053,
-      "sizeBytes": 2526365,
+      "sizeBytes": 4471950,
       "offset": 693558,
       "priority": 10
     }
-  ]
+  ],
+  "totalBytes": 46975546
 }

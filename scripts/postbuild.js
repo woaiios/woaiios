@@ -80,9 +80,9 @@ if (existsSync(chunksSource)) {
             }
         }
         
-        // PWA slim mode: ship only the first chunk (high-frequency words)
-        const KEEP_CHUNKS = 1;
+        // 保留全部分片（完整词典，不精简为单块，避免丢失低频词条）
         const slimMetadata = JSON.parse(readFileSync(resolve(chunksDest, 'metadata.json'), 'utf-8'));
+        const KEEP_CHUNKS = slimMetadata.totalChunks;
         if (slimMetadata.totalChunks > KEEP_CHUNKS) {
             const removed = slimMetadata.chunks.filter(c => c.chunkNumber > KEEP_CHUNKS);
             for (const c of removed) {

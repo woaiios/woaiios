@@ -4,7 +4,7 @@
 
 **在线使用**：<https://woaiios.github.io/woaiios/>（推送 `develop` / `master` 分支后由 GitHub Actions 自动构建发布）
 
-> 词典数据（`public/db-chunks/` 下的 gzip 分片）已包含在仓库中，克隆后无需手动下载任何数据库文件。首次访问时应用会按词频顺序渐进式下载分片并导入浏览器 IndexedDB，之后全部本地运行。
+> 词典数据（`public/db-chunks/` 下的 SQLite 分片 `.db.gz`）已包含在仓库中，克隆后无需手动下载或导入任何数据库文件。首次访问时应用按词频顺序渐进式下载分片，第 1 块（约 7.7 万高频词）就绪即可使用，其余分片在后台加载到 SQLite（WASM），之后全部本地运行，无需 IndexedDB 写入。
 
 ## 功能特性
 
@@ -28,7 +28,7 @@
 - **词频数据** - BNC（英国国家语料库）和现代语料库词频
 
 ### 🔧 高级功能
-- **渐进式加载** - 首个高频词分片（约7.7万词）下载完成即可使用，其余分片后台继续导入
+- **渐进式加载** - 首个高频词分片（约7.7万词）下载完成即可使用，其余分片后台继续加载至 SQLite
 - **离线支持 / PWA** - Service Worker 缓存应用外壳与词典分片，可安装为独立应用，断网可用
 - **内存热词缓存** - 常查词直接命中内存，零数据库开销
 - **导入导出** - 词汇本和设置支持 JSON 导入导出
@@ -62,8 +62,8 @@
 ## 技术架构
 
 - **Vite** - 开发服务器与生产构建
-- **IndexedDB** - 词典分片导入后的持久化存储（`WordDiscovererDirectDB`），只导入一次
-- **Web Worker** - 分片下载、解压（gzip）、解析均在后台线程完成，不阻塞 UI
+- **SQLite (sql.js WASM)** - 词典以预打包的 SQLite 分片（`.db.gz`）随仓库发布，运行时由 Web Worker 加载并用原生 SQL 查询（按 `word_lower` 索引，O(log n)），无逐行导入 IndexedDB 的 CPU 高峰
+- **Web Worker** - 分片下载、解压（gzip）、SQLite 解析/查询均在后台线程完成，不阻塞 UI
 - **CacheManager** - 一万条内存缓存加速热词查询
 - **ES6 模块化** - `js/`（核心逻辑）、`js/database`（存储层）、`js/analyzers`（分析器）、`components/`（UI 组件）分层清晰
 - **Web Speech API** - 浏览器原生语音识别，实现发音检测

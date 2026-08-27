@@ -23,7 +23,9 @@ export default defineConfig(({ command }) => ({
       ext: '.gz',
       threshold: 10240, // Only compress files larger than 10KB
       deleteOriginFile: false,
-      verbose: true
+      verbose: true,
+      // 字典分片已是 .db.gz、wasm 等二进制不可再压，且避免覆盖 ?url 引用
+      filter: /\.(js|mjs|css|html|json|svg|wasm|map|ico|png|ttf|woff2?)$/
     })
   ],
   

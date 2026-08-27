@@ -125,7 +125,8 @@ export class UIRenderer {
     static showAnalysisResults() {
         batchDOMUpdate(() => {
             document.getElementById('analyzedTextSection').style.display = 'block';
-            document.getElementById('statistics').style.display = 'flex';
+            // .statistics is a CSS Grid container; keep display:grid so responsive breakpoints apply
+            document.getElementById('statistics').style.display = 'grid';
             document.getElementById('highlightedWordsList').style.display = 'block';
         });
     }

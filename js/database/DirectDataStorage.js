@@ -1,293 +1,214 @@
 /**
- * DirectDataStorage Module (Refactored)
- * Main data access layer using IndexedDB for fast queries
- * 
- * Architecture:
- * - This is the ONLY data access layer for the application
- * - Uses modular components: CacheManager, IndexedDBAdapter, WordQueryService
- * - External code should NEVER access WordDatabase directly
+ * DirectDataStorage Module
+ * 唯一的数据访问层。底层从「预打包的 SQLite 分片 (.db.gz)」加载字典，
+ * 通过 Web Worker + sql.js 直接做 SQL 查询（按 word_lower 索引，O(log n)）。
+ *
+ * 与旧 IndexedDB 方案相比：
+ *  - 分片在构建期已打包好，运行时只需下载 → 解压 → 打开 SQLite，
+ *    不再有 77 万条逐行写入 IndexedDB 的 CPU 高峰（手机发烫的根因）。
+ *  - 数据驻留在 WASM 堆而非 JS 堆，且可随分片按需加载 / 卸载。
+ *
+ * 对外契约（app.js / DatabaseProgress 依赖）：
+ *  - initialize() / setProgressCallback(cb)
+ *  - queryWord(word) / queryWordsBatch(words)
+ *  - getWordDifficulty(word, level) / getCacheStats() / parseExchange(exchange)
+ *  - _wordDatabase.progressiveLoader 提供 on('chunkLoaded') / on('complete')
  */
-import { WordDatabase } from './WordDatabase.js';
+
+import { WorkerBridge } from '../WorkerBridge.js';
+import SqliteBackendWorker from '../../workers/SqliteBackendWorker.js?worker';
 import { CacheManager } from './CacheManager.js';
-import { IndexedDBAdapter } from './IndexedDBAdapter.js';
 import { WordQueryService } from './WordQueryService.js';
 
 export class DirectDataStorage {
     constructor() {
-        // Components
+        // 内存级热词缓存（查询结果，避免重复 Worker 往返）
         this.cache = new CacheManager(10000);
-        this.indexedDB = new IndexedDBAdapter('WordDiscovererDirectDB', 1);
-        this.queryService = null;
-        
-        // Internal WordDatabase - PRIVATE
-        this._wordDatabase = new WordDatabase();
-        
-        // State
+
+        // SQLite 后端 Worker（加载分片 + 查询共用同一实例）
+        this.workerBridge = new WorkerBridge(SqliteBackendWorker);
+
+        // 查询服务（包装缓存 + Worker 适配器）
+        const sqlAdapter = {
+            queryWord: (word) => this._queryWord(word),
+            queryWordsBatch: (words) => this._queryWordsBatch(words)
+        };
+        this.queryService = new WordQueryService(sqlAdapter, this.cache);
+
+        // 兼容 DatabaseProgress：把自身暴露为 progressiveLoader
+        this._wordDatabase = { progressiveLoader: this };
+
+        // 状态
         this.isInitialized = false;
+        this.metadata = null;
+        this.loadedChunks = new Set();
         this.progressCallback = null;
+        this._listeners = { progress: [], chunkLoaded: [], complete: [] };
+    }
+
+    /* ============ 事件（供 DatabaseProgress 使用） ============ */
+
+    on(event, callback) {
+        if (this._listeners[event]) this._listeners[event].push(callback);
+    }
+
+    _emit(event, data) {
+        (this._listeners[event] || []).forEach(cb => cb(data));
     }
 
     /**
-     * Set progress callback
+     * 设置进度回调
      */
     setProgressCallback(callback) {
         this.progressCallback = callback;
-        this._wordDatabase.setProgressCallback(callback);
     }
 
-    /**
-     * Initialize storage system
-     */
+    _reportProgress(data) {
+        if (this.progressCallback) this.progressCallback(data);
+        this._emit('progress', data);
+    }
+
+    /* ============ 初始化 ============ */
+
     async initialize() {
-        // Initialize IndexedDB
-        await this.indexedDB.initialize();
-        
-        // Create query service with IndexedDB adapter and cache
-        this.queryService = new WordQueryService(this.indexedDB, this.cache);
-        
-        // Check if data already imported
-        const isImported = await this.isDataImported();
-        
-        if (!isImported) {
-            console.log('⚠️ Starting data import from JSON chunks...');
-            
-            // Set up background import listeners FIRST (before loading any chunks)
-            this._setupBackgroundImportListeners();
-            
-            // Initialize and load first chunk (data will be auto-imported via events)
-            await this._wordDatabase.initialize();
-            
-            // Mark as ready after first chunk
+        try {
+            await this.workerBridge.initialize();
+            const metadataUrl = `${import.meta.env.BASE_URL}db-chunks/metadata.json`;
+            this.metadata = await this.workerBridge.sendMessage('init', { metadataUrl });
+            const baseUrl = `${import.meta.env.BASE_URL}db-chunks/`;
+
+            // 先加载第 1 块（高频词）让应用尽快可用
+            await this._loadChunk(1, baseUrl);
+
             this.isInitialized = true;
-            console.log('✅ DirectDataStorage ready (first chunk auto-imported via events)');
-            
-        } else {
-            console.log('✅ DirectDataStorage ready (data already imported)');
+
+            // 后台继续加载其余分片（不可见时暂停）
+            this._loadRemainingInBackground(2, baseUrl);
+            return true;
+        } catch (error) {
+            console.error('DirectDataStorage init failed:', error);
+            // 即便 Worker 初始化失败，也允许应用继续（只是查不到字典）
             this.isInitialized = true;
+            return false;
         }
-        
-        return true;
+    }
+
+    async _loadChunk(chunkNumber, baseUrl) {
+        const result = await this.workerBridge.sendMessage('loadChunk', { chunkNumber, baseUrl });
+        if (result.alreadyLoaded) return result;
+
+        this.loadedChunks.add(chunkNumber);
+        const total = this.metadata.totalChunks;
+        const percentage = this.metadata.totalBytes
+            ? (this.loadedChunks.size / total) * 100
+            : 0;
+
+        this._reportProgress({
+            loaded: this.loadedChunks.size,
+            total,
+            percentage,
+            message: `Loading chunk ${chunkNumber}/${total}`,
+            fromCache: result.fromCache || false
+        });
+
+        this._emit('chunkLoaded', {
+            chunkNumber,
+            loaded: this.loadedChunks.size,
+            total,
+            percentage,
+            wordCount: result.wordCount,
+            fromCache: result.fromCache || false
+        });
+
+        if (this.loadedChunks.size >= total) {
+            this._emit('complete', { totalChunks: total, totalWords: this.metadata.totalWords });
+        }
+        return result;
+    }
+
+    async _loadRemainingInBackground(startFrom, baseUrl) {
+        const total = this.metadata.totalChunks;
+        for (let n = startFrom; n <= total; n++) {
+            await this._waitWhileHidden();
+            try {
+                await this._loadChunk(n, baseUrl);
+            } catch (e) {
+                console.warn(`后台加载 chunk ${n} 失败:`, e.message);
+            }
+            await new Promise(r => setTimeout(r, 100));
+        }
     }
 
     /**
-     * Setup background import listeners
-     * @private
+     * 页面不可见时挂起后台加载，避免锁屏/切后台浪费网络与 CPU
      */
-    async _setupBackgroundImportListeners() {
-        console.log('🔄 Setting up background chunk import listeners...');
-        
-        // Import NotificationManager dynamically to avoid circular dependency
-        const { NotificationManager } = await import('../modules/NotificationManager.js');
-        
-        // Set up listener for new chunk loads and import them.
-        // NOTE: completion is tracked HERE (after actual IndexedDB inserts),
-        // not on the loader's 'complete' event, which fires when the worker
-        // has PARSED chunks — potentially long before inserts finish.
-        if (this._wordDatabase.progressiveLoader) {
-            console.log('✅ Chunk load listeners registered');
-            let importedChunks = 0;
-            this._wordDatabase.progressiveLoader.on('chunkLoaded', async (data) => {
-                console.log(`🔔 chunkLoaded event received: chunk ${data.chunkNumber}`);
-
-                // Check if chunk data is provided
-                if (!data.chunkWords || data.chunkWords.length === 0) {
-                    console.warn(`⚠️ No chunk data for chunk ${data.chunkNumber}`);
-                    return;
+    _waitWhileHidden() {
+        if (typeof document === 'undefined' || !document.hidden) return Promise.resolve();
+        return new Promise(resolve => {
+            const handler = () => {
+                if (!document.hidden) {
+                    document.removeEventListener('visibilitychange', handler);
+                    resolve();
                 }
+            };
+            document.addEventListener('visibilitychange', handler);
+        });
+    }
 
-                const rows = data.chunkWords;
-                console.log(`📥 Importing chunk ${data.chunkNumber}: ${rows.length.toLocaleString()} words...`);
+    /* ============ 查询 ============ */
 
-                const startTime = Date.now();
-
-                // Insert entire chunk in one batch
-                await this.indexedDB.insertWordsBatch(rows);
-
-                const duration = Date.now() - startTime;
-                console.log(`✅ Chunk ${data.chunkNumber} imported in ${(duration/1000).toFixed(2)}s`);
-
-                importedChunks += 1;
-
-                // Show notification after chunk import completed
-                const loaderMeta = this._wordDatabase.progressiveLoader.metadata;
-                NotificationManager.show(
-                    `📚 Chunk ${data.chunkNumber}/${loaderMeta.totalChunks} loaded (${rows.length.toLocaleString()} words)`,
-                    'info'
-                );
-
-                // Mark import complete only when every chunk is physically stored
-                if (importedChunks >= loaderMeta.totalChunks) {
-                    await this._markImportComplete(loaderMeta.totalWords);
-                    NotificationManager.show(
-                        `✨ Dictionary ready! ${loaderMeta.totalWords.toLocaleString()} words available.`,
-                        'success'
-                    );
-                    console.log('✅ All chunks imported to IndexedDB');
-                }
-            });
-        } else {
-            console.warn('⚠️ Progressive loader not available');
+    async _queryWord(word) {
+        try {
+            const { data } = await this.workerBridge.sendMessage('queryWord', { word });
+            return data;
+        } catch {
+            return null;
         }
     }
 
-    /**
-     * Continue importing remaining chunks in background (DEPRECATED - listeners handle this now)
-     * @private
-     */
-    async _importRemainingChunksInBackground() {
-        // This method is no longer needed as listeners are set up before loading starts
-        console.log('ℹ️ Background import listeners already configured');
-    }
-
-    /**
-     * Import rows to IndexedDB
-     * @private
-     */
-    async _importRows(rows, totalRows, showProgress = true) {
-        const BATCH_SIZE = 1000;
-        const YIELD_INTERVAL = 3;
-
-        for (let i = 0; i < rows.length; i += BATCH_SIZE) {
-            const batch = rows.slice(i, i + BATCH_SIZE).map(row => ({
-                word: row[0],
-                phonetic: row[1] || '',
-                definition: row[2] || '',
-                translation: row[3] || '',
-                pos: row[4] || '',
-                collins: parseInt(row[5]) || 0,
-                oxford: row[6] === '1' || row[6] === 1,
-                tag: row[7] || '',
-                bnc: parseInt(row[8]) || 0,
-                frq: parseInt(row[9]) || 0,
-                exchange: row[10] || '',
-                detail: row[11] || ''
-            }));
-
-            await this.indexedDB.insertWordsBatch(batch);
-
-            const imported = Math.min(i + BATCH_SIZE, totalRows);
-            
-            // Progress callback
-            if (showProgress && this.progressCallback) {
-                this.progressCallback({
-                    imported,
-                    total: totalRows,
-                    percentage: (imported / totalRows) * 100,
-                    message: `Importing: ${imported}/${totalRows}`
-                });
-            }
-
-            // Log progress
-            if (showProgress && (imported % 10000 === 0 || imported === totalRows)) {
-                console.log(`📥 Progress: ${imported.toLocaleString()}/${totalRows.toLocaleString()} (${((imported/totalRows)*100).toFixed(1)}%)`);
-            }
-            
-            // Yield to main thread
-            if (i % (BATCH_SIZE * YIELD_INTERVAL) === 0 && i + BATCH_SIZE < rows.length) {
-                await new Promise(resolve => setTimeout(resolve, 0));
-            }
+    async _queryWordsBatch(words) {
+        try {
+            return await this.workerBridge.sendMessage('queryWordsBatch', { words });
+        } catch {
+            return words.map(w => ({ word: w, data: null }));
         }
     }
 
-    /**
-     * Mark import as complete
-     * @private
-     */
-    async _markImportComplete(totalWords) {
-        await this.indexedDB.setMetadata('importComplete', true);
-        await this.indexedDB.setMetadata('importDate', new Date().toISOString());
-        await this.indexedDB.setMetadata('totalWords', totalWords);
-    }
-
-    /**
-     * Query single word
-     */
     async queryWord(word) {
         if (!this.isInitialized) return null;
         return await this.queryService.queryWord(word);
     }
 
     /**
-     * Query multiple words in batch
+     * 数据库是否就绪（首批分片已加载，可查询）
      */
+    isDatabaseLoaded() {
+        return this.isInitialized && this.loadedChunks.size > 0;
+    }
+
     async queryWordsBatch(words) {
         if (!this.isInitialized) return [];
         return await this.queryService.queryWordsBatch(words);
     }
 
-    /**
-     * Get word difficulty
-     */
-    async getWordDifficulty(word) {
-        return await this.queryService.getWordDifficulty(word);
+    async getWordDifficulty(word, difficultyLevel) {
+        return await this.queryService.getWordDifficulty(word, difficultyLevel);
     }
 
-    /**
-     * Parse exchange field
-     */
+    getCacheStats() {
+        return this.cache.getStats();
+    }
+
     parseExchange(exchange) {
         return this.queryService.parseExchange(exchange);
     }
 
     /**
-     * Delegate methods to WordDatabase
-     */
-    async findByLemma(word) {
-        // Refactored WordDatabase may not implement lemma lookup — degrade gracefully
-        if (typeof this._wordDatabase?.findByLemma === 'function') {
-            return await this._wordDatabase.findByLemma(word);
-        }
-        return null;
-    }
-
-    async fuzzyMatch(word, limit = 10) {
-        if (typeof this._wordDatabase?.fuzzyMatch === 'function') {
-            return this._wordDatabase.fuzzyMatch(word, limit);
-        }
-        return [];
-    }
-
-    /**
-     * Get cache statistics
-     */
-    getCacheStats() {
-        return this.cache.getStats();
-    }
-
-    /**
-     * Check if data is imported
-     */
-    async isDataImported() {
-        const result = await this.indexedDB.getMetadata('importComplete');
-        return result === true;
-    }
-
-    /**
-     * Clear all data
-     */
-    async clearData() {
-        await this.indexedDB.clearAll();
-        this.cache.clear();
-        console.log('✅ DirectDataStorage cleared');
-    }
-
-    /**
-     * Close database
+     * 清理 worker
      */
     close() {
-        this.indexedDB.close();
+        this.workerBridge.terminate();
         this.cache.clear();
         this.isInitialized = false;
-        
-        if (this._wordDatabase) {
-            this._wordDatabase.close();
-        }
-    }
-
-    /**
-     * Check if database is loaded
-     */
-    isDatabaseLoaded() {
-        return this.isInitialized && this.queryService !== null;
     }
 }

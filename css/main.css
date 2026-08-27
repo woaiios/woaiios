@@ -136,6 +136,11 @@ body {
     font-size: 0.8rem;
 }
 
+/* Button text label helper (used for hiding text on very small screens while keeping icons) */
+.btn-label {
+    display: inline;
+}
+
 /* Main Content */
 .main {
     padding: 2rem 0;
@@ -847,30 +852,93 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     .container {
         padding: 0 10px;
     }
-    
-    .statistics {
-        grid-template-columns: 1fr;
+
+    /* Header: icon-only buttons on very small screens to avoid cramped text */
+    .header {
+        padding: 0.75rem 0;
     }
-    
+
+    .header-content {
+        gap: 0.5rem;
+    }
+
+    .logo {
+        font-size: 1.25rem;
+    }
+
+    .logo i {
+        font-size: 1.5rem;
+    }
+
+    .header-controls {
+        width: 100%;
+        gap: 0.5rem;
+        justify-content: space-between;
+    }
+
+    .header-controls .btn {
+        flex: 1 1 0;
+        justify-content: center;
+        padding: 0.625rem 0.5rem;
+    }
+
+    .header-controls .btn-label {
+        display: none;
+    }
+
+    /* Main action buttons: fill width side by side */
+    .input-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+    }
+
+    .input-controls .btn {
+        justify-content: center;
+        width: 100%;
+    }
+
+    /* Statistics: 2x2 grid with compact cards */
+    .statistics {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 0.75rem;
+    }
+
+    .stat-card {
+        padding: 1rem 0.5rem;
+        border-radius: 10px;
+    }
+
+    .stat-number {
+        font-size: 1.75rem;
+        line-height: 1;
+        margin-bottom: 0.35rem;
+    }
+
+    .stat-label {
+        font-size: 0.8rem;
+        line-height: 1.2;
+    }
+
     .modal-content {
         width: 95%;
         margin: 1rem;
     }
-    
+
     .sync-controls {
         flex-direction: column;
     }
-    
+
     .sync-controls .btn {
         width: 100%;
     }
-    
+
     /* Further modal adjustments for small screens */
     .modal-content {
         max-height: 80vh;
         width: 98%;
     }
-    
+
     /* 在小屏幕上进一步优化文本显示 */
     .analyzed-text {
         font-size: 0.95rem;
