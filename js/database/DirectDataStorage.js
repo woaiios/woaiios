@@ -20,6 +20,40 @@ import SqliteBackendWorker from '../../workers/SqliteBackendWorker.js?worker';
 import { CacheManager } from './CacheManager.js';
 import { WordQueryService } from './WordQueryService.js';
 
+/**
+ * 简单英文词形还原（lemmatization）启发式。
+ * ECDICT 头词均为原形（lemma），变形形式（rooms / dotted / standing）不在头词表中，
+ * 因此 queryWord 命中失败时，用本函数生成候选原形再回退查询。
+ * @param {string} word
+ * @returns {string[]} 含原词在内的候选原形（去重、保持优先级）
+ */
+function lemmatize(word) {
+    const w = (word || '').toLowerCase();
+    const cands = new Set([w]);
+    const add = (s) => { if (s && s.length > 1) cands.add(s); };
+
+    // 名词复数 / 所有格
+    if (w.endsWith('ies') && w.length > 4) add(w.slice(0, -3) + 'y');      // babies -> baby
+    else if (w.endsWith('sses')) add(w.slice(0, -2));                        // dresses -> dress
+    else if (w.endsWith('ches') || w.endsWith('shes') || w.endsWith('xes') || w.endsWith('zes')) add(w.slice(0, -2)); // boxes -> box
+    else if (w.endsWith('s') && !w.endsWith('ss') && w.length > 3) add(w.slice(0, -1)); // rooms -> room
+
+    // 动词过去式 / 过去分词
+    if (w.endsWith('ied')) add(w.slice(0, -3) + 'y');                       // tried -> try
+    else if (w.endsWith('ed')) { add(w.slice(0, -2)); add(w.slice(0, -1)); } // walked -> walk / added -> add
+
+    // 现在分词 / 动名词
+    if (w.endsWith('ing')) {
+        add(w.slice(0, -3));          // running -> run
+        add(w.slice(0, -3) + 'e');    // making -> make
+    }
+
+    // 副词 -> 形容词
+    if (w.endsWith('ly')) add(w.slice(0, -2));                              // quickly -> quick
+
+    return [...cands];
+}
+
 export class DirectDataStorage {
     constructor() {
         // 内存级热词缓存（查询结果，避免重复 Worker 往返）
@@ -189,6 +223,20 @@ export class DirectDataStorage {
     async queryWordsBatch(words) {
         if (!this.isInitialized) return [];
         return await this.queryService.queryWordsBatch(words);
+    }
+
+    /**
+     * 按词元（原形）回退查找。queryWord 命中失败时，对变形词做简单词形还原后重试。
+     * @param {string} word
+     * @returns {Promise<object|null>} 命中返回行数据，否则 null
+     */
+    async findByLemma(word) {
+        if (!this.isInitialized) return null;
+        for (const cand of lemmatize(word)) {
+            const data = await this._queryWord(cand);
+            if (data) return data;
+        }
+        return null;
     }
 
     async getWordDifficulty(word, difficultyLevel) {
