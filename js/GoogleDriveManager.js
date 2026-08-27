@@ -66,9 +66,29 @@ export class GoogleDriveManager {
      * @returns {Promise<boolean>} 登录是否成功 (Whether sign in succeeded)
      */
     async signIn(silent = false) {
+        // 避免并发触发两次 OAuth 请求（后台静默恢复 + 用户手动点击）(Avoid concurrent OAuth requests)
+        if (this._signInInFlight) {
+            await this._signInInFlight.catch(() => { });
+            if (this.isSignedIn) return true;
+        }
+        this._signInInFlight = this._doSignIn(silent);
+        try {
+            return await this._signInInFlight;
+        } finally {
+            this._signInInFlight = null;
+        }
+    }
+
+    /**
+     * 实际登录流程 - Actual sign-in flow
+     * @param {boolean} silent - 是否静默登录（不显示弹窗）(Whether to sign in silently without popup)
+     * @returns {Promise<boolean>} 登录是否成功 (Whether sign in succeeded)
+     */
+    async _doSignIn(silent) {
         try {
             if (!this.isInitialized) {
-                await this.initialize();
+                const ok = await this.initialize();
+                if (!ok) throw new Error('Google services unreachable (failed to load Google scripts)');
             }
             // 获取访问令牌 (Get access token)
             const tokenResponse = await this._getToken(silent);
@@ -77,9 +97,17 @@ export class GoogleDriveManager {
             // 初始化 GAPI 客户端 (Initialize GAPI client)
             await this._initializeGoogleAPIClient();
             // 查找或创建词汇文件 (Find or create vocabulary file)
-            await this.findOrCreateVocabularyFile();
+            await this._withTimeout(
+                this.findOrCreateVocabularyFile(),
+                30000,
+                'Drive file lookup timed out'
+            );
             // 查找或创建释义缓存文件（失败不影响登录）(Find or create gloss cache file, best-effort)
-            await this.findOrCreateGlossCacheFile().catch((error) => {
+            await this._withTimeout(
+                this.findOrCreateGlossCacheFile(),
+                30000,
+                'Gloss cache file lookup timed out'
+            ).catch((error) => {
                 console.warn('⚠️ Gloss cache file lookup failed:', error);
             });
             // 持久化连接状态，刷新后可静默恢复 (Persist connection state for silent restore)
@@ -353,10 +381,28 @@ export class GoogleDriveManager {
      */
     _getToken(silent = false) {
         return new Promise((resolve, reject) => {
+            if (!window.google?.accounts?.oauth2) {
+                reject(new Error('Google Identity Services not loaded (check network access to google.com)'));
+                return;
+            }
+            // 超时兜底：弹窗被拦截/无响应时 callback 可能永远不触发
+            // (Timeout fallback: callback may never fire if popup is blocked or unresponsive)
+            const timeoutMs = silent ? 20000 : 120000;
+            const timeout = setTimeout(() => {
+                reject(new Error(silent ? 'Silent token request timed out' : 'Sign-in timed out (popup blocked?)'));
+            }, timeoutMs);
             const client = window.google.accounts.oauth2.initTokenClient({
                 client_id: this.clientId,
                 scope: this.scopes,
-                callback: (response) => response.error ? reject(new Error(response.error_description)) : resolve(response),
+                callback: (response) => {
+                    clearTimeout(timeout);
+                    response.error ? reject(new Error(response.error_description || response.error)) : resolve(response);
+                },
+                // 弹窗打开失败等非 OAuth 错误 (Non-OAuth errors like popup failure to open)
+                error_callback: (error) => {
+                    clearTimeout(timeout);
+                    reject(new Error(error?.type || 'popup_failed_to_open'));
+                }
             });
             // prompt='none' 用于静默刷新 (prompt='none' for silent refresh)
             client.requestAccessToken({ prompt: silent ? 'none' : '' });
@@ -414,11 +460,19 @@ export class GoogleDriveManager {
         return new Promise((resolve, reject) => {
             // 如果已经加载，立即返回 (If already loaded, return immediately)
             if (window.gapi && window.gapi.client) return resolve();
+            // 加载超时兜底：script 标签本身没有超时机制 (Load timeout: script tags have no built-in timeout)
+            const timeout = setTimeout(() => reject(new Error('Google API client failed to load (timeout)')), 15000);
             // 动态创建 script 标签加载库 (Dynamically create script tag to load library)
             const script = document.createElement('script');
             script.src = 'https://apis.google.com/js/api.js';
-            script.onload = () => gapi.load('client', resolve);
-            script.onerror = reject;
+            script.onload = () => gapi.load('client', () => {
+                clearTimeout(timeout);
+                resolve();
+            });
+            script.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error('Google API client failed to load (network blocked?)'));
+            };
             document.head.appendChild(script);
         });
     }
@@ -429,14 +483,35 @@ export class GoogleDriveManager {
      * @returns {Promise<void>}
      */
     async _initializeGoogleAPIClient() {
-        await gapi.client.init({
-            discoveryDocs: [
-                'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',  // Drive API v3
-                'https://people.googleapis.com/$discovery/rest?version=v1'      // People API v1
-            ]
-        });
+        // 发现文档拉取无内置超时，网络不通时会无限挂起 (Discovery doc fetch has no timeout; hangs if unreachable)
+        await this._withTimeout(
+            gapi.client.init({
+                discoveryDocs: [
+                    'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',  // Drive API v3
+                    'https://people.googleapis.com/$discovery/rest?version=v1'      // People API v1
+                ]
+            }),
+            15000,
+            'Google API discovery docs timed out (network blocked?)'
+        );
         // 设置访问令牌 (Set access token)
         gapi.client.setToken({ access_token: this.accessToken });
+    }
+
+    /**
+     * 给 Promise 加超时 (Race a promise against a timeout)
+     * @param {Promise} promise - 要限制的 Promise (Promise to limit)
+     * @param {number} ms - 超时毫秒数 (Timeout in milliseconds)
+     * @param {string} label - 超时错误信息 (Timeout error message)
+     * @returns {Promise} 同结果的 Promise 或超时拒绝 (Same-result promise or timeout rejection)
+     * @private
+     */
+    _withTimeout(promise, ms, label) {
+        let timer;
+        const timeout = new Promise((_, reject) => {
+            timer = setTimeout(() => reject(new Error(label || 'Operation timed out')), ms);
+        });
+        return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
     }
 
     /**

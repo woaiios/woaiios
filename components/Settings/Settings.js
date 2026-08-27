@@ -375,12 +375,13 @@ export class SettingsComponent {
                 enableBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
                 enableBtn.disabled = true;
             }
-            
-            // Initialize if needed
+
+            // Initialize if needed (check result — failure must not fall through to signIn)
             if (!this.googleDriveManager.isInitialized) {
-                await this.googleDriveManager.initialize();
+                const ok = await this.googleDriveManager.initialize();
+                if (!ok) throw new Error('Google services unreachable (check network access to google.com)');
             }
-            
+
             // Sign in
             const success = await this.googleDriveManager.signIn();
             if (success) {
@@ -388,19 +389,22 @@ export class SettingsComponent {
                 await this.updateGoogleDriveStatus();
             } else {
                 NotificationManager.show('Failed to connect to Google Drive.', 'error');
-                if (enableBtn) {
-                    enableBtn.innerHTML = '<i class="fab fa-google"></i> Connect to Google Drive';
-                    enableBtn.disabled = false;
-                }
+                this._resetGoogleDriveButton(enableBtn);
             }
         } catch (error) {
             console.error('Error enabling Google Drive:', error);
-            NotificationManager.show('Error connecting to Google Drive.', 'error');
-            const enableBtn = document.getElementById('enableGoogleDriveBtn');
-            if (enableBtn) {
-                enableBtn.innerHTML = '<i class="fab fa-google"></i> Connect to Google Drive';
-                enableBtn.disabled = false;
-            }
+            NotificationManager.show('Error connecting to Google Drive: ' + (error?.message || 'unknown'), 'error');
+            this._resetGoogleDriveButton(document.getElementById('enableGoogleDriveBtn'));
+        }
+    }
+
+    /**
+     * 恢复连接按钮可用状态 (Restore the connect button to clickable state)
+     */
+    _resetGoogleDriveButton(enableBtn) {
+        if (enableBtn) {
+            enableBtn.innerHTML = '<i class="fab fa-google"></i> Connect to Google Drive';
+            enableBtn.disabled = false;
         }
     }
     
