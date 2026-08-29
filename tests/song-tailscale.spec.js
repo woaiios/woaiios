@@ -103,6 +103,10 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
     test.setTimeout(COMPOSE_TIMEOUT_MS);
     const { base } = await getBridge();
 
+    // 先清掉这首歌的缓存，强制真实作曲——否则命中 warm cache 会以 0 秒放行，GPU 不动
+    const purged = await purgeCachedSong(base, SONG_PARAMS);
+    console.log('② 清缓存：', JSON.stringify(purged));
+
     console.log(`— POST ${base}/api/song（${STYLE} · ${DURATION_SEC}s）—`);
     const t0 = Date.now();
     const r = await triggerSong({
@@ -115,6 +119,8 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
     });
     console.log(`生成完成：cached=${r.cached} 用时 ${((Date.now() - t0) / 1000).toFixed(1)}s id=${r.song.id} bytes=${r.song.bytes}`);
 
+    // 必须是真实生成（cached=false），否则门禁等于放行兜底/cache，毫无意义
+    expect(r.cached, '歌曲走的是缓存，并未真实作曲（GPU 未参与）').toBe(false);
     expect(r.song.durationSec).toBe(DURATION_SEC);
     expect(r.song.bytes, '音频字节数异常，可能是兜底占位').toBeGreaterThan(1024 * 100);
 
@@ -139,6 +145,7 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
     const pageErrors = [];
     const consoleErrors = [];
     const apiHits = { song: [], audio: [], health: [] };
+    const songDurationsMs = [];
     const IGNORE = ['tailfbac23', 'lm-studio', '127.0.0.1:1234', 'Worker error'];
 
     page.on('pageerror', (err) => {
@@ -165,6 +172,15 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
       if (p === '/api/song') apiHits.song.push(req.url());
       else if (p.startsWith('/api/audio/')) apiHits.audio.push(req.url());
       else if (p === '/api/health') apiHits.health.push(req.url());
+    });
+    // /api/song 的真实响应耗时：缓存秒回通常 <1s，真实作曲会随 SSE 持续很久
+    page.on('requestfinished', (req) => {
+      try {
+        if (new URL(req.url()).pathname === '/api/song') {
+          const t = req.timing();
+          songDurationsMs.push(Math.round((t.responseEnd || 0) / 1000));
+        }
+      } catch {}
     });
 
     // ---- C. 打开页面，等 SW 接管 + 数据库加载遮罩消失 ----
@@ -234,6 +250,10 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
     for (const u of [...apiHits.song, ...apiHits.audio, ...apiHits.health]) {
       expect(u.startsWith(base), `请求没走 Tailscale URL：${u}`).toBe(true);
     }
+    // 真实作曲：/api/song 不可能在缓存秒回（<1s），必须随 SSE 持续生成
+    const songSec = Math.max(0, ...songDurationsMs);
+    console.log('/api/song 最大响应耗时：', songSec, 's');
+    expect(songSec, `歌曲疑似命中缓存而非真实生成（/api/song 仅耗时 ${songSec}s）`).toBeGreaterThan(30);
 
     // ---- H. 验收：音频时长 > 60 秒 ----
     const info = await page.evaluate(async (timeoutMs) => {
