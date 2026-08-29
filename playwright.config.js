@@ -2,14 +2,16 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'html',
+  timeout: 90000,
   use: {
     baseURL: 'http://localhost:3001',
     trace: 'on-first-retry',
+    actionTimeout: 10000,
   },
 
   projects: [
@@ -20,8 +22,8 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3001',
+    command: 'npm run build && npx vite preview --port 3001 --host 127.0.0.1',
+    url: 'http://localhost:3001/woaiios/',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
   },

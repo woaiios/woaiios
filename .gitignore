@@ -67,6 +67,8 @@ test-*.html
 
 # Playwright persistent profile / local E2E artifacts
 .pw-profile/
+test-results/
+playwright-report/
 raw-llm-out.json
 raw-view.txt
 

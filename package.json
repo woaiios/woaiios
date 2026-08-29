@@ -7,7 +7,10 @@
     "prebuild": "node scripts/prepare-public.js",
     "dev": "npm run prebuild && vite",
     "build": "vite build && node scripts/postbuild.js",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx playwright test --reporter=list",
+    "test:e2e": "npx playwright test tests/e2e-photosynthesis.spec.js --reporter=list",
+    "prepare": "node scripts/install-hooks.js"
   },
   "keywords": [
     "vocabulary",
