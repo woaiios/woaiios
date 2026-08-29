@@ -1,15 +1,15 @@
-﻿#!/bin/sh
-echo 'Running E2E tests before commit...'
-npm run build > /dev/null 2>&1
-if [ $? -ne 0 ]; then
-  echo 'Build failed, commit aborted'
-  exit 1
-fi
-npx playwright test tests/e2e-photosynthesis.spec.js --reporter=list
-STATUS=$?
-if [ $STATUS -ne 0 ]; then
-  echo 'E2E tests failed, commit aborted.'
-  exit 1
-fi
-echo 'E2E tests passed, allowing commit'
-exit 0
+#!/bin/sh
+ echo 'Running E2E tests before commit...'
+ cmd //c npm run build
+ if [ $? -ne 0 ]; then
+   echo 'Build failed, commit aborted'
+   exit 1
+ fi
+ cmd //c npx playwright test tests/e2e-photosynthesis.spec.js --reporter=list
+ STATUS=$?
+ if [ $STATUS -ne 0 ]; then
+   echo 'E2E tests failed, commit aborted.'
+   exit 1
+ fi
+ echo 'E2E tests passed, allowing commit'
+ exit 0
