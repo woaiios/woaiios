@@ -10,6 +10,8 @@
 
 提交前会自动运行 `scripts/githooks/pre-commit`（由 `npm install` 自动安装到 `.git/hooks/`）：依次执行 `npm run build`、`e2e-photosynthesis` 冒烟测试，以及 `tests/song-tailscale.spec.js` 严格门禁——该测试经 Tailscale 通道真实生成歌曲，并断言音频时长 **> 60 秒**，杜绝「连不上就浏览器内兜底」的退化。门禁失败（`exit 1`）会阻止提交；离线或紧急情况可用 `SKIP_SONG_GATE=1 git commit ...` 临时跳过。注意：本机必须 Tailscale 处于 Running 且 ComfyUI GPU 空闲，否则门禁会因真实作曲失败而拦截提交。每次提交都会真实作曲一次（约 1–3 分钟），不命中缓存。
 
+> 说明：pre-commit 中不得再使用 `cmd //c` 包裹命令——Git Bash 下它会静默跳过后续命令，导致门禁假绿灯。
+
 ## 功能特性
 
 ### 🎯 核心功能
