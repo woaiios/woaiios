@@ -8,6 +8,8 @@ export class Component {
         } else {
             this.element = element;
         }
+        // PronunciationChecker 等历史组件使用 this.container，保留别名以兼容
+        this.container = this.element;
     }
 
     addEventListener(selector, event, handler) {

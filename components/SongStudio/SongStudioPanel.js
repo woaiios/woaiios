@@ -249,8 +249,11 @@ export class SongStudioPanel {
      */
     syncFromSentence(sentence) {
         this.sentence = sentence || '';
-        if (!sentence) return;
-        const picked = SongStudio.pickWords(sentence, this.getSuggestedWords?.() || [], 4);
+        const extra = this.getSuggestedWords?.() || [];
+        // 句子为空时也从高亮生词里挑（用户刚分析完还没选句）
+        const source = sentence || extra.join(' ');
+        if (!source) return;
+        const picked = SongStudio.pickWords(source, extra, 4);
         if (picked.length) {
             this.words = picked;
             this.renderWordChips();
