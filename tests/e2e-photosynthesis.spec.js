@@ -171,16 +171,15 @@ test.describe('Photosynthesis E2E', () => {
     await expect(genBtn).toBeEnabled();
     await genBtn.click();
 
-    // 第一段转圈：正在生成歌词（Fallback 7s + 流式，真实模型更久）
+    // 歌词阶段：直接使用原文，流式极快（<2s），转圈可能一闪而过
     const lyricsSpinner = pronModal.locator('#songLyricsSpinner');
-    await expect(lyricsSpinner).toBeVisible({ timeout: 5000 });
-    // 等待歌词出现（兜底 7-10s，真实 15-30s）
-    await expect(pronModal.locator('#songLyrics')).toBeVisible({ timeout: 45000 });
+    // 不强求 spinner 必须可见，直接等待歌词
+    await expect(pronModal.locator('#songLyrics')).toBeVisible({ timeout: 30000 });
     const lyricsText = (await pronModal.locator('#songLyricsBody').textContent())?.trim();
     console.log('lyrics after generate:', lyricsText?.slice(0, 120));
     expect(lyricsText).toBeTruthy();
     expect(lyricsText.length).toBeGreaterThan(10);
-    await expect(lyricsSpinner).toBeHidden({ timeout: 10000 }).catch(() => console.log('lyrics spinner still visible'));
+    await expect(lyricsSpinner).toBeHidden({ timeout: 10000 }).catch(() => {});
 
     // 第二段转圈：正在作曲
     const musicSpinner = pronModal.locator('#songMusicSpinner');

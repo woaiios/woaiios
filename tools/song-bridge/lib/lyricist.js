@@ -80,45 +80,99 @@ function buildUserPrompt({ words, sentence, style, durationSec, reference, route
 
 /**
  * 流式生成并实时分流：caption / lyrics / notes
+ * 支持两种后端：FreeToken(Qwen3) 与 LMStudio(hy-mt2-1.8b)，后者更轻，显存仅 2G
  * @returns {Promise<{raw: string, caption: string, lyrics: string, notes: string, reasoning: string}>}
  */
-async function writeSong({ freetoken, words, sentence, style, durationSec, reference, route, onDelta }) {
+async function writeSong({ freetoken, lmstudio, words, sentence, style, durationSec, reference, route, onDelta }) {
+  // 优先用 LMStudio 的 hy-mt2-1.8b（轻量），回退到 FreeToken
+  const useLMStudio = !!lmstudio;
+  const backend = useLMStudio ? 'lmstudio' : 'freetoken';
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: buildUserPrompt({ words, sentence, style, durationSec, reference, route }) }
   ];
 
   let raw = '';
-  let section = null; // 'caption' | 'lyrics' | 'notes' | null（尚未进入任何块）
+  let section = null;
 
-  const res = await freetoken.chat({
-    messages,
-    maxTokens: 4096,
-    onDelta: ({ type, text }) => {
-      if (type === 'reasoning') {
-        onDelta?.({ type: 'reasoning', text });
-        return;
-      }
-      raw += text;
+  const onTextDelta = (type, text) => {
+    if (type === 'reasoning') { onDelta?.({ type: 'reasoning', text }); return; }
+    raw += text;
+    const lastOpen = lastIndexOfAny(raw, ['<caption>', '<lyrics>', '<notes>']);
+    const lastClose = lastIndexOfAny(raw, ['</caption>', '</lyrics>', '</notes>']);
+    if (lastOpen.idx > lastClose.idx) section = lastOpen.tag.replace(/[<>]/g, '');
+    else if (lastClose.idx >= 0) section = null;
+    if (section && !isPartOfOpeningTag(raw, lastOpen)) onDelta?.({ type: section, text });
+  };
 
-      // 依据累计文本判断当前处于哪个块
-      const lastOpen = lastIndexOfAny(raw, ['<caption>', '<lyrics>', '<notes>']);
-      const lastClose = lastIndexOfAny(raw, ['</caption>', '</lyrics>', '</notes>']);
-      if (lastOpen.idx > lastClose.idx) {
-        section = lastOpen.tag.replace(/[<>]/g, '');
-      } else if (lastClose.idx >= 0) {
-        section = null;
-      }
-
-      // 只把块内部内容推给前端：跳过刚吐出的开始标签本身
-      if (section && !isPartOfOpeningTag(raw, lastOpen)) {
-        onDelta?.({ type: section, text });
-      }
-    }
-  });
+  let res;
+  if (backend === 'lmstudio') {
+    res = await lmstudio.chat({
+      messages,
+      maxTokens: 2048,
+      temperature: 0.8,
+      topP: 0.9,
+      onDelta: ({ type, text }) => onTextDelta(type, text)
+    });
+  } else {
+    res = await freetoken.chat({
+      messages,
+      maxTokens: 4096,
+      onDelta: ({ type, text }) => onTextDelta(type, text)
+    });
+  }
 
   const parsed = parseSong(res.content || raw);
   return { ...parsed, raw: res.content || raw, reasoning: res.reasoning };
+}
+
+// LMStudio 适配：保持与 FreeToken.chat 相同的 onDelta 契约，便于 lyricist 复用
+async function chatViaLMStudio({ lmstudioUrl, model, messages, maxTokens, temperature, topP, onDelta }) {
+  const body = {
+    model: model || 'hy-mt2-1.8b',
+    messages,
+    max_tokens: maxTokens || 2048,
+    temperature: temperature ?? 0.8,
+    top_p: topP ?? 0.9,
+    stream: true
+  };
+  const res = await fetch(`${lmstudioUrl}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok || !res.body) throw new Error(`LMStudio HTTP ${res.status}`);
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '';
+  let content = '';
+  let reasoning = '';
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf('\n')) !== -1) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line.startsWith('data:')) continue;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') break;
+      try {
+        const j = JSON.parse(data);
+        const delta = j.choices?.[0]?.delta || {};
+        if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+          reasoning += delta.reasoning_content;
+          onDelta?.({ type: 'reasoning', text: delta.reasoning_content });
+        }
+        if (typeof delta.content === 'string' && delta.content) {
+          content += delta.content;
+          onDelta?.({ type: 'content', text: delta.content });
+        }
+      } catch {}
+    }
+  }
+  return { content, reasoning };
 }
 
 function lastIndexOfAny(text, tags) {

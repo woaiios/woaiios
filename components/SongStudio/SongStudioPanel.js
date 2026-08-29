@@ -90,7 +90,7 @@ export class SongStudioPanel {
 
                 <div class="song-studio-body" id="songStudioBody">
                     <p class="song-studio-hint">
-                        按主页文本自动作曲：曲风随机、时长按文本长度自动匹配，长文自动拆成多首（每首 ≤5 分钟）。
+                        按主页文本直接作曲：原文即歌词，曲风随机、时长自适应，长文拆多首（≤5min/首）；风格描述由 music-caption-rewriter 模板合成，音频由 ComfyUI MiniMax 3 生成。
                     </p>
 
                     <div class="song-actions">

@@ -151,6 +151,59 @@ const lmstudio = {
       log('[lmstudio] 重新加载失败：', err.message);
       return false;
     }
+  },
+
+  // 轻量作词：直接用 hy-mt2-1.8b（2G 显存，可与 ComfyUI 并存，无需排队）
+  async chat({ messages, maxTokens = 2048, temperature = 0.8, topP = 0.9, onDelta, signal }) {
+    const body = {
+      model: config.lmstudio.model,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+      top_p: topP,
+      stream: true
+    };
+    const res = await fetch(`${config.lmstudio.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: signal || AbortSignal.timeout(120000)
+    });
+    if (!res.ok || !res.body) {
+      const t = await res.text().catch(() => '');
+      throw new Error(`LMStudio HTTP ${res.status} ${t.slice(0, 200)}`);
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let content = '';
+    let reasoning = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf('\n')) !== -1) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line.startsWith('data:')) continue;
+        const data = line.slice(5).trim();
+        if (data === '[DONE]') break;
+        try {
+          const j = JSON.parse(data);
+          const delta = j.choices?.[0]?.delta || {};
+          if (typeof delta.reasoning_content === 'string' && delta.reasoning_content) {
+            reasoning += delta.reasoning_content;
+            onDelta?.({ type: 'reasoning', text: delta.reasoning_content });
+          }
+          if (typeof delta.content === 'string' && delta.content) {
+            content += delta.content;
+            onDelta?.({ type: 'content', text: delta.content });
+          }
+        } catch {}
+      }
+    }
+    return { content, reasoning };
   }
 };
 
@@ -271,8 +324,8 @@ async function generateSong(params, emit) {
     }
   }
 
-  // ---- 阶段 1：本地 27B 写词（需要 GPU） ----
-  emit('stage', { stage: 'lyrics', message: '准备本地大模型…' });
+  // ---- 阶段 1：直接使用原文 + 风格（跳过 LLM 作词，hy-mt2 效果差） ----
+  emit('stage', { stage: 'lyrics', message: '准备歌词（直接使用原文）…' });
 
   let reference = null;
   let route = null;
@@ -290,56 +343,25 @@ async function generateSong(params, emit) {
     log('风格模板检索失败，跳过：', err.message);
   }
 
-  let song;
-  try {
-    song = await scheduler.run('freetoken', async ({ log: slog }) => {
-      slog('请求 GPU 写词');
-      // 快速兜底：若 7 秒内未就绪则走备用模板，避免测试环境长时间等待 40s 权重加载
-      await Promise.race([
-        freetoken.ensureReady((msg) => emit('stage', { stage: 'lyrics', message: msg })),
-        sleep(7000).then(() => { throw new Error('freetoken 启动超时(7s) — 使用备用模板'); })
-      ]);
-      slog('开始生成歌词');
-      emit('stage', { stage: 'lyrics', message: 'Qwen3.8-27B 正在写歌词…' });
-
-      const out = await writeSong({
-        freetoken,
-        words: cleanWords,
-        sentence,
-        style,
-        durationSec: dur,
-        reference,
-        route,
-        onDelta: ({ type, text }) => {
-          if (type === 'caption') emit('caption', { text });
-          else if (type === 'lyrics') emit('lyrics', { text });
-          else if (type === 'notes') emit('notes', { text });
-        }
-      });
-
-      const lyrics = sanitizeLyrics(out.lyrics);
-      const caption = sanitizeCaption(out.caption);
-      if (!lyrics) throw new Error('模型没有产出歌词，请重试');
-      if (!caption) throw new Error('模型没有产出风格描述，请重试');
-      slog(`歌词完成：${lyrics.split('\n').length} 行`);
-      emit('lyrics_done', { lyrics, caption, notes: out.notes || '' });
-      return { lyrics, caption, notes: out.notes || '' };
-    });
-  } catch (err) {
-    log('[fallback] FreeToken 写词失败，使用备用模板：', err.message);
-    emit('stage', { stage: 'lyrics', message: '本地大模型暂不可用，使用备用歌词…' });
-    const fb = fallbackLyrics(sentence || cleanWords.join(' '), style, dur);
-    // 流式推给前端，保持与真实路径一致的事件
-    emit('caption', { text: fb.caption });
-    // 分块推歌词，模拟流式
-    for (const chunk of fb.lyrics.match(/.{1,40}/g) || [fb.lyrics]) {
-      emit('lyrics', { text: chunk });
-      await sleep(20);
-    }
-    if (fb.notes) emit('notes', { text: fb.notes });
-    emit('lyrics_done', fb);
-    song = fb;
+  // 直接以原文作歌词，caption 由风格+参考模板合成（仍用 skill 的词汇与结构）
+  const captionSrc = reference
+    ? `${reference}\n\nStyle hint: ${style} | Duration: ${dur}s | Route: ${route || ''}`
+    : `Global Metadata: ${style}, moderate tempo 80-95 BPM, warm and clear production.\n\nVocal Details: Single warm lead vocal, mid register, clear diction.\n\nArrangement: Intro soft pad, verse sparse, chorus full, bridge stripped, outro fade. Duration ${dur}s.`;
+  const caption = sanitizeCaption(captionSrc);
+  // 原文即歌词：按句切行，保证可唱段落标签
+  const rawLyrics = (sentence || cleanWords.join(' ')).trim();
+  const lyricLines = rawLyrics.split(/(?<=[.!?。！？])\s+/).map(s => s.trim()).filter(Boolean);
+  const lyricsBody = lyricLines.join('\n');
+  const lyrics = sanitizeLyrics(`[Verse]\n${lyricsBody}\n[Chorus]\n${lyricsBody.slice(0, 400)}\n[Outro]\n${lyricLines.slice(-1)[0] || ''}`);
+  const notes = '';
+  emit('caption', { text: caption });
+  // 流式推歌词（模拟，原文字数少，分块快）
+  for (const chunk of lyrics.match(/.{1,40}/g) || [lyrics]) {
+    emit('lyrics', { text: chunk });
+    await sleep(10);
   }
+  emit('lyrics_done', { caption, lyrics, notes });
+  const song = { caption, lyrics, notes };
 
   // ---- 阶段 2：ComfyUI 作曲（同样需要 GPU，调度器会先卸掉 27B） ----
   emit('stage', { stage: 'music', message: '正在把显存交给 ComfyUI…' });
