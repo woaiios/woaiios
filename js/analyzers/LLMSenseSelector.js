@@ -13,18 +13,29 @@
 import { glossCache } from './GlossCache.js';
 
 export class LLMSenseSelector {
-    // 统一调度服务（本地 8787，经 tailscale serve 对外暴露同一端口）
     static DEFAULT_ENDPOINT = 'http://127.0.0.1:8787/api/translate';
-    // 兼容旧直连与 Vite 代理，作为候选回退
     static LEGACY_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
     static PROXY_ENDPOINT = '/lm-studio/v1/chat/completions';
     static UNIFIED_PROXY = '/api/translate';
     static DEFAULT_MODEL = 'hy-mt2-1.8b';
+
+    static resolveEndpoint() {
+      try {
+        const h = window.location.hostname;
+        const isTS = h.endsWith('.ts.net') || h.startsWith('100.') || h.includes('tailscale');
+        if (isTS) {
+          const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+          return `${proto}//${h}:8787/api/translate`;
+        }
+      } catch {}
+      return null;
+    }
     // HuggingFace 仓库 / 本地权重路径（推理服务端应加载此权重并暴露为 DEFAULT_MODEL）
     static DEFAULT_WEIGHT_PATH = 'tencent/Hy-MT2-1.8B';
 
     constructor(options = {}) {
-        this.endpoint = options.endpoint || LLMSenseSelector.DEFAULT_ENDPOINT;
+        const auto = LLMSenseSelector.resolveEndpoint();
+        this.endpoint = options.endpoint || auto || LLMSenseSelector.DEFAULT_ENDPOINT;
         this.model = options.model || LLMSenseSelector.DEFAULT_MODEL;
         this.weightPath = options.weightPath || LLMSenseSelector.DEFAULT_WEIGHT_PATH;
         this.timeoutMs = options.timeoutMs ?? 150000;
@@ -309,9 +320,11 @@ export class LLMSenseSelector {
          * 不兼容的服务端（返回 400/422）会自动去掉该参数重试一次。
          */
     async chat(prompt) {
+        const auto = LLMSenseSelector.resolveEndpoint();
         const candidates = [
             this.workingEndpoint,
             this.endpoint,
+            auto,
             LLMSenseSelector.UNIFIED_PROXY,
             LLMSenseSelector.PROXY_ENDPOINT,
             LLMSenseSelector.LEGACY_ENDPOINT

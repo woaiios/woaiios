@@ -29,7 +29,7 @@ function deepMerge(a, b) {
 }
 
 const defaults = {
-  host: '127.0.0.1',
+  host: '0.0.0.0', // 监听所有网卡，Tailscale 100.x / MagicDNS 才能连上；本机仍可用 127.0.0.1
   port: 8787,
 
   cacheDir: path.join(ROOT, 'cache'),

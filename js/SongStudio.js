@@ -14,6 +14,22 @@
 
 const DEFAULT_BASE = 'http://127.0.0.1:8787';
 
+function isTailscaleHost(host) {
+  return host.endsWith('.ts.net') || host.startsWith('100.') || host.includes('.tailscale.') || host.endsWith('.tail5b6e1.ts.net') || host.endsWith('.tailfbac23.ts.net');
+}
+
+function tailscaleBase() {
+  try {
+    const h = window.location.hostname;
+    if (isTailscaleHost(h)) {
+      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      // 统一服务与网页同网段同协议，避免 iPad 上 127.0.0.1 指向本机
+      return `${proto}//${h}:8787`;
+    }
+  } catch {}
+  return null;
+}
+
 export class SongStudio {
     constructor(settingsManager) {
         this.settingsManager = settingsManager;
@@ -24,7 +40,10 @@ export class SongStudio {
 
     get baseUrl() {
         const url = (this.settingsManager?.getSetting('songBridgeUrl') || '').trim();
-        return (url || DEFAULT_BASE).replace(/\/+$/, '');
+        if (url) return url.replace(/\/+$/, '');
+        const auto = tailscaleBase();
+        if (auto) return auto;
+        return DEFAULT_BASE;
     }
 
     get enabled() {
