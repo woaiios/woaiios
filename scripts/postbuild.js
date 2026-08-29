@@ -121,7 +121,9 @@ if (existsSync(chunksSource)) {
     console.warn('⚠ db-chunks directory not found, skipping...');
 }
 
-// Compress database file with gzip
+// Compress legacy single-file database (stardict.db) if present.
+// 当前项目已迁移至 db-chunks 分片（public/db-chunks），单文件 stardict.db 不再必需，
+// 此时跳过压缩且不视为警告，避免测试误判为失败。
 const dbSource = resolve(__dirname, '../public/stardict.db');
 const dbDest = resolve(__dirname, '../dist/stardict.db.gz');
 
@@ -142,7 +144,7 @@ if (existsSync(dbSource)) {
         console.error('✗ Failed to compress database:', error.message);
         process.exit(1);
     }
-} else {
+} else if (!existsSync(resolve(__dirname, '../public/db-chunks'))) {
     console.warn('⚠ Database file not found, skipping compression');
 }
 

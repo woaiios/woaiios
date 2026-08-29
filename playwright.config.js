@@ -21,10 +21,18 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run build && npx vite preview --port 3001 --host 127.0.0.1',
-    url: 'http://localhost:3001/woaiios/',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  webServer: [
+    {
+      command: 'npm run build && npx vite preview --port 3001 --host 127.0.0.1',
+      url: 'http://localhost:3001/woaiios/',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+    },
+    {
+      command: 'node tools/song-bridge/server.js',
+      url: 'http://127.0.0.1:8787/api/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 30000,
+    },
+  ],
 });

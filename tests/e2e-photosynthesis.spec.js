@@ -17,18 +17,16 @@ test.describe('Photosynthesis E2E', () => {
       if (msg.type() === 'error') {
         const t = msg.text();
         if (t.includes('Worker error') && t.includes('DirectDataStorage')) return;
-        if (t.includes('503') || t.includes('Failed to load resource') || t.includes('Service Unavailable')) return;
-        // LLM / song-bridge 离线时的网络错误不视为用例失败
-        if (t.includes('tailfbac23') || t.includes('lm-studio') || t.includes('127.0.0.1:8787') || t.includes('127.0.0.1:1234')) return;
+        // 严格模式：503 / Failed to load resource 视为失败（用户要求一开始报错即停止）
         consoleErrors.push(t);
         console.log('[console error]', t);
       }
     });
     page.on('requestfailed', (req) => {
       const url = req.url();
-      // 忽略 LLM 外部端点在离线环境下的失败（用于校验是否生效，非阻断）
-      if (url.includes('tailfbac23') || url.includes('lm-studio') || url.includes('127.0.0.1:1234') || url.includes('127.0.0.1:8787')) return;
+      // 严格模式：song-bridge / DB 相关失败视为用例失败
       failedRequests.push({ url, err: req.failure()?.errorText });
+      console.log('[requestfailed]', url, req.failure()?.errorText);
     });
 
     // 1. 打开应用，等待数据库加载完成
@@ -163,16 +161,26 @@ test.describe('Photosynthesis E2E', () => {
     await expect(pronModal.locator('#songPreviewText')).toContainText('Photosynthesis', { timeout: 2000 });
     await expect(pronModal.locator('#songPreviewMeta')).toContainText(/将生成 \d+ 首/);
 
-    // 8. 点击 生成歌曲
+    // 8. 点击 生成歌曲（严格：song-bridge 必须在线）
+    // 先等待本地歌曲服务就绪（由 webServer 启动 song-bridge）
+    await page.waitForFunction(async () => {
+      try {
+        const r = await fetch('http://127.0.0.1:8787/api/health');
+        if (!r.ok) return false;
+        const j = await r.json();
+        return j.ok === true && j.comfyui !== undefined;
+      } catch { return false; }
+    }, { timeout: 20000 });
+    console.log('song-bridge health ok');
+
     const genBtn = pronModal.locator('#songGenerateBtn');
     await expect(genBtn).toBeVisible();
     await expect(genBtn).toBeEnabled();
     await genBtn.click();
 
-    // 生成后应出现状态区（正在连接/排队/流式），且不抛异常
+    // 生成后应出现状态区，且为成功/进行中而非错误
     const statusBox = pronModal.locator('#songStatus');
     await expect(statusBox).toBeVisible({ timeout: 8000 });
-    // 等待状态文本出现（不强求进度条，离线兜底时可能无进度）
     await page.waitForFunction(() => {
       const el = document.getElementById('songStatusText');
       return el && el.textContent && el.textContent.trim().length > 2;
@@ -182,6 +190,10 @@ test.describe('Photosynthesis E2E', () => {
     console.log('song status after click:', statusText);
     expect(statusText).toBeTruthy();
     expect(statusText.length).toBeGreaterThan(2);
+    // 严格：不允许出现 503 / 未连接 / ❌
+    expect(statusText).not.toContain('503');
+    expect(statusText).not.toContain('未连接');
+    expect(statusText).not.toContain('❌');
 
     // 9. 确认页面和控制台都没有报错（已在监听中收集）
     // 等待额外 1s 确保无延迟错误
