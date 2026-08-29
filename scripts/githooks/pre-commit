@@ -1,27 +1,31 @@
 #!/bin/sh
- echo 'Running E2E tests before commit...'
- cmd //c npm run build
- if [ $? -ne 0 ]; then
-   echo 'Build failed, commit aborted'
-   exit 1
- fi
- cmd //c npx playwright test tests/e2e-photosynthesis.spec.js --reporter=list
- STATUS=$?
- if [ $STATUS -ne 0 ]; then
-   echo 'E2E tests failed, commit aborted.'
-   exit 1
- fi
+# 本地提交门禁（由 npm install / scripts/install-hooks 自动安装到 .git/hooks/pre-commit）
+# 注意：此处不能用 `cmd //c`，在 Git Bash 下 `cmd //c` 不会真正执行后续命令，会导致门禁假绿灯。
+
+echo 'Running build...'
+npm run build
+if [ $? -ne 0 ]; then
+  echo 'Build failed, commit aborted'
+  exit 1
+fi
+
+echo 'Running E2E smoke test...'
+npx playwright test tests/e2e-photosynthesis.spec.js --reporter=list
+if [ $? -ne 0 ]; then
+  echo 'E2E tests failed, commit aborted.'
+  exit 1
+fi
+
 # 歌曲生成门禁：必须真实产出 >60s 的音频（经 Tailscale 通道，杜绝浏览器内兜底）
 # 紧急逃生：SKIP_SONG_GATE=1 git commit ... 可跳过（默认开启）
 if [ -z "$SKIP_SONG_GATE" ]; then
   echo 'Running song Tailscale gate (歌曲必须真实生成且 >60s)...'
-  cmd //c npx playwright test tests/song-tailscale.spec.js --reporter=list
-  STATUS=$?
-  if [ $STATUS -ne 0 ]; then
+  npx playwright test tests/song-tailscale.spec.js --reporter=list
+  if [ $? -ne 0 ]; then
     echo 'Song gate failed (歌曲未生成 / 时长不足 60s), commit aborted.'
     exit 1
   fi
 fi
 
- echo 'All checks passed, allowing commit'
- exit 0
+echo 'All checks passed, allowing commit'
+exit 0
