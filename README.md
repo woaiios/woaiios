@@ -6,6 +6,10 @@
 
 > 词典数据（`public/db-chunks/` 下的 SQLite 分片 `.db.gz`）已包含在仓库中，克隆后无需手动下载或导入任何数据库文件。首次访问时应用按词频顺序渐进式下载分片，第 1 块（约 7.7 万高频词）就绪即可使用，其余分片在后台加载到 SQLite（WASM），之后全部本地运行，无需 IndexedDB 写入。
 
+## 本地提交门禁
+
+提交前会自动运行 `scripts/githooks/pre-commit`（由 `npm install` 自动安装到 `.git/hooks/`）：依次执行 `npm run build`、`e2e-photosynthesis` 冒烟测试，以及 `tests/song-tailscale.spec.js` 严格门禁——该测试经 Tailscale 通道真实生成歌曲，并断言音频时长 **> 60 秒**，杜绝「连不上就浏览器内兜底」的退化。门禁失败（`exit 1`）会阻止提交；离线或紧急情况可用 `SKIP_SONG_GATE=1 git commit ...` 临时跳过。
+
 ## 功能特性
 
 ### 🎯 核心功能
