@@ -175,7 +175,11 @@ export class SettingsManager {
             googleDriveSync: false,                 // Google Drive 同步 (Google Drive sync)
             llmSenseEnabled: true,                  // 启用大模型上下文释义精修 (Enable LLM context sense refinement)
             llmEndpoint: 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions',  // LM Studio 端点 (LM Studio endpoint via Tailscale Serve)
-            llmModel: 'hy-mt2-1.8b' // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
+            llmModel: 'hy-mt2-1.8b', // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
+            songEnabled: true,                   // 启用单词歌曲 (Enable word songs)
+            songBridgeUrl: 'http://127.0.0.1:8787', // 本地歌曲调度服务 (Local song-bridge endpoint)
+            songStyle: 'acoustic folk pop',      // 默认曲风 (Default music style)
+            songDurationSec: 60                  // 默认时长（秒）(Default song length in seconds)
         };
     }
 
@@ -204,7 +208,11 @@ export class SettingsManager {
             reviewInterval: (val) => typeof val === 'number' && val > 0,  // 必须是正数 (Must be positive number)
             llmSenseEnabled: (val) => typeof val === 'boolean',  // 必须是布尔值 (Must be boolean)
             llmEndpoint: (val) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('/')),  // 必须是合法 URL 或路径
-            llmModel: (val) => typeof val === 'string' && val.trim().length > 0  // 必须是非空字符串
+            llmModel: (val) => typeof val === 'string' && val.trim().length > 0,  // 必须是非空字符串
+            songEnabled: (val) => typeof val === 'boolean',
+            songBridgeUrl: (val) => typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://')),
+            songStyle: (val) => typeof val === 'string' && val.trim().length > 0,
+            songDurationSec: (val) => [30, 60, 90, 120].includes(Number(val))
         };
 
         const validator = validators[key];
@@ -303,6 +311,32 @@ export class SettingsManager {
                 type: 'text',
                 label: 'LLM Model',
                 description: 'Model identifier (served-model-name) of hy-mt2-1.8b'
+            },
+            songEnabled: {
+                type: 'checkbox',
+                label: 'Word Songs (AI music)',
+                description: 'Generate a song for your words: FreeToken Qwen3.8-27B writes lyrics, ComfyUI (MiniMax Music 3) composes'
+            },
+            songBridgeUrl: {
+                type: 'text',
+                label: 'Song Bridge Endpoint',
+                description: 'Local song-bridge service (start it with: cd tools/song-bridge && npm start)'
+            },
+            songStyle: {
+                type: 'text',
+                label: 'Default Song Style',
+                description: 'English style description fed to the music model (e.g. acoustic folk pop, lo-fi hip hop)'
+            },
+            songDurationSec: {
+                type: 'select',
+                label: 'Default Song Length',
+                description: 'Longer songs take noticeably more time and VRAM',
+                options: [
+                    { value: 30, label: '30 seconds' },
+                    { value: 60, label: '60 seconds' },
+                    { value: 90, label: '90 seconds' },
+                    { value: 120, label: '120 seconds' }
+                ]
             }
         };
 

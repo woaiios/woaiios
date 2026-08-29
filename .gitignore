@@ -73,6 +73,11 @@ raw-view.txt
 # WorkBuddy agent data (local only)
 .workbuddy/
 
+# song-bridge runtime artifacts (generated songs & logs)
+tools/song-bridge/cache/
+tools/song-bridge/logs/
+scripts/tmp-*.mjs
+
 # Local debug/scratch scripts & session artifacts
 test-dinnima*.cjs
 test-llm-sense.cjs

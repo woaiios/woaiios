@@ -27,6 +27,7 @@ import './css/main.css';
 import './css/components.css';
 import './css/ecdict-styles.css';
 import './css/pronunciation-checker.css';
+import './css/song-studio.css';
 
 // Import JavaScript modules
 import { DirectDataStorage } from './js/database/DirectDataStorage.js';
@@ -63,7 +64,10 @@ class WordDiscoverer {
         this.vocabularyComponent = new VocabularyComponent(this.vocabularyManager);
         this.settingsComponent = new SettingsComponent(this.settingsManager, this.vocabularyManager.googleDriveManager);
         this.analyzedTextComponent = new AnalyzedTextComponent('#analyzedText', this.vocabularyManager);
-        this.pronunciationCheckerComponent = new PronunciationCheckerComponent('#pronunciationModal');
+        this.pronunciationCheckerComponent = new PronunciationCheckerComponent(
+            '#pronunciationModal',
+            this.settingsManager
+        );
         
         // 模块管理器 (Module Managers)
         this.eventHandlers = new EventHandlers(this);

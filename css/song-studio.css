@@ -1,0 +1,463 @@
+/* ==========================================================================
+   Song Studio — 单词歌曲面板
+   嵌在 Pronunciation 弹窗内：选词 → 本地大模型写词 → ComfyUI 作曲 → 播放
+   ========================================================================== */
+
+.song-studio {
+    margin: 18px 0 6px;
+    border: 1px solid #e3e8ef;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #fbfcfe 0%, #f6f8fc 100%);
+    overflow: hidden;
+}
+
+.song-studio-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    cursor: pointer;
+    user-select: none;
+    background: #fff;
+    border-bottom: 1px solid #e3e8ef;
+}
+
+.song-studio-header:hover {
+    background: #f8fafc;
+}
+
+.song-studio-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: #1f2937;
+    font-size: 15px;
+}
+
+.song-studio-title i {
+    color: #7c3aed;
+}
+
+.song-studio-badge {
+    font-size: 11px;
+    font-weight: 500;
+    color: #6b7280;
+    background: #eef2ff;
+    border: 1px solid #dbeafe;
+    padding: 2px 8px;
+    border-radius: 999px;
+}
+
+.song-studio-chevron {
+    color: #9ca3af;
+    transition: transform 0.2s ease;
+    font-size: 13px;
+}
+
+.song-studio-body {
+    padding: 14px 16px 16px;
+    display: grid;
+    gap: 12px;
+    max-height: 62vh;
+    overflow-y: auto;
+}
+
+.song-studio-body.collapsed {
+    display: none;
+}
+
+.song-studio-hint {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #6b7280;
+}
+
+/* --- 词 chips --- */
+.song-words-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.song-word-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-height: 28px;
+    align-items: center;
+}
+
+.song-chip-empty {
+    font-size: 12.5px;
+    color: #9ca3af;
+}
+
+.song-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #ede9fe;
+    color: #5b21b6;
+    border: 1px solid #ddd6fe;
+    border-radius: 999px;
+    padding: 3px 6px 3px 11px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.song-chip button {
+    border: none;
+    background: transparent;
+    color: #8b5cf6;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 0 3px;
+    border-radius: 50%;
+}
+
+.song-chip button:hover {
+    background: #ddd6fe;
+    color: #4c1d95;
+}
+
+.song-word-add {
+    flex: 0 0 150px;
+}
+
+.song-word-add input {
+    width: 100%;
+    font-size: 13px;
+    padding: 5px 9px;
+}
+
+/* --- 控件 --- */
+.song-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.song-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1 1 auto;
+    font-size: 12px;
+    color: #4b5563;
+}
+
+.song-field-sm {
+    flex: 0 0 92px;
+}
+
+.song-field select {
+    padding: 6px 8px;
+    font-size: 13px;
+}
+
+.song-style-custom {
+    font-size: 13px;
+    padding: 6px 9px;
+}
+
+.song-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.song-actions .btn {
+    font-size: 13px;
+    padding: 7px 14px;
+}
+
+/* --- 状态与进度 --- */
+.song-status {
+    font-size: 12.5px;
+    color: #374151;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 9px 11px;
+}
+
+.song-status-text {
+    line-height: 1.6;
+    word-break: break-word;
+}
+
+.song-status-text code {
+    background: #f3f4f6;
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11.5px;
+}
+
+.song-progress {
+    margin-top: 8px;
+    height: 5px;
+    background: #e5e7eb;
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.song-progress-bar {
+    height: 100%;
+    width: 0;
+    background: linear-gradient(90deg, #8b5cf6, #6366f1);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.song-progress-bar.indeterminate {
+    width: 35% !important;
+    animation: song-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes song-slide {
+    0% { margin-left: -35%; }
+    100% { margin-left: 100%; }
+}
+
+/* --- 歌词 --- */
+.song-lyrics {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.song-lyrics-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 6px;
+}
+
+.song-lyrics-copy {
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 2px 5px;
+    border-radius: 4px;
+}
+
+.song-lyrics-copy:hover {
+    color: #6366f1;
+    background: #eef2ff;
+}
+
+.song-lyrics-body {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.75;
+    color: #1f2937;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
+.song-notes {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed #e5e7eb;
+    font-size: 12.5px;
+    color: #4b5563;
+    line-height: 1.7;
+}
+
+.song-note-line {
+    padding: 1px 0;
+}
+
+.song-caption {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.song-caption summary {
+    cursor: pointer;
+    outline: none;
+    padding: 2px 0;
+}
+
+.song-caption-body {
+    margin: 6px 0 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #6b7280;
+    max-height: 180px;
+    overflow-y: auto;
+    background: #f9fafb;
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+
+/* --- 播放器 --- */
+.song-player {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.song-player audio {
+    width: 100%;
+    height: 38px;
+    outline: none;
+}
+
+.song-player-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: 12px;
+    flex-wrap: wrap;
+}
+
+.song-meta-words {
+    color: #5b21b6;
+    font-weight: 600;
+}
+
+.song-meta-tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.song-meta-tags em {
+    font-style: normal;
+    color: #6b7280;
+    background: #f3f4f6;
+    padding: 1px 7px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+
+.song-tag-cache {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+}
+
+/* --- 缓存列表 --- */
+.song-library {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+
+.song-library-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 6px;
+}
+
+.song-library-clear {
+    border: none;
+    background: transparent;
+    color: #9ca3af;
+    cursor: pointer;
+    font-size: 11.5px;
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.song-library-clear:hover {
+    color: #dc2626;
+    background: #fef2f2;
+}
+
+.song-library-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 6px 0;
+    border-top: 1px solid #f3f4f6;
+}
+
+.song-library-item:first-child {
+    border-top: none;
+}
+
+.song-library-play,
+.song-library-del {
+    border: none;
+    background: #f3f4f6;
+    color: #6b7280;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 26px;
+}
+
+.song-library-play:hover {
+    background: #ede9fe;
+    color: #7c3aed;
+}
+
+.song-library-del:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.song-library-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.song-library-words {
+    font-size: 13px;
+    color: #1f2937;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.song-library-sub {
+    font-size: 11.5px;
+    color: #9ca3af;
+}
+
+/* --- 移动端 --- */
+@media (max-width: 480px) {
+    .song-controls {
+        flex-direction: column;
+    }
+    .song-field-sm {
+        flex: 1 1 auto;
+    }
+    .song-word-add {
+        flex: 1 1 100%;
+    }
+    .song-studio-body {
+        max-height: 56vh;
+    }
+}

@@ -115,6 +115,44 @@ export class SettingsComponent {
             importSettingsFile.addEventListener('change', (e) => this.onImportSettingsFileChange(e));
         }
 
+        // Word song settings
+        const songEnabled = document.getElementById('songEnabled');
+        if (songEnabled) {
+            songEnabled.addEventListener('change', async (e) => {
+                await this.settingsManager.setSetting('songEnabled', e.target.checked);
+            });
+        }
+
+        const songBridgeUrl = document.getElementById('songBridgeUrl');
+        if (songBridgeUrl) {
+            songBridgeUrl.addEventListener('change', async (e) => {
+                const value = e.target.value.trim();
+                if (!value) return;
+                await this.settingsManager.setSetting('songBridgeUrl', value);
+            });
+        }
+
+        const songStyle = document.getElementById('songStyle');
+        if (songStyle) {
+            songStyle.addEventListener('change', async (e) => {
+                const value = e.target.value.trim();
+                if (!value) return;
+                await this.settingsManager.setSetting('songStyle', value);
+            });
+        }
+
+        const songDurationSec = document.getElementById('songDurationSec');
+        if (songDurationSec) {
+            songDurationSec.addEventListener('change', async (e) => {
+                await this.settingsManager.setSetting('songDurationSec', Number(e.target.value));
+            });
+        }
+
+        const songCheckBtn = document.getElementById('songCheckBtn');
+        if (songCheckBtn) {
+            songCheckBtn.addEventListener('click', () => this.onCheckSongService());
+        }
+
         // Google Drive controls
         const enableGoogleDriveBtn = document.getElementById('enableGoogleDriveBtn');
         if (enableGoogleDriveBtn) {
@@ -179,6 +217,38 @@ export class SettingsComponent {
                 <div class="setting-item">
                     <label for="llmModel">Model:</label>
                     <input type="text" id="llmModel" placeholder="hy-mt2-1.8b">
+                </div>
+            </div>
+            <div class="settings-section">
+                <h3>🎵 Word Songs (AI Music)</h3>
+                <p class="settings-note">
+                    由本地大模型与 ComfyUI 现场作曲：Qwen3.8-27B 写歌词 → MiniMax Music 3 谱曲。
+                    需要本机运行 <code>tools/song-bridge</code>。
+                </p>
+                <div class="setting-item">
+                    <label for="songEnabled">启用 (Enable):</label>
+                    <input type="checkbox" id="songEnabled">
+                </div>
+                <div class="setting-item">
+                    <label for="songBridgeUrl">调度服务 (Bridge):</label>
+                    <input type="text" id="songBridgeUrl" placeholder="http://127.0.0.1:8787">
+                </div>
+                <div class="setting-item">
+                    <label for="songStyle">曲风 (Style):</label>
+                    <input type="text" id="songStyle" placeholder="acoustic folk pop">
+                </div>
+                <div class="setting-item">
+                    <label for="songDurationSec">时长 (Length):</label>
+                    <select id="songDurationSec">
+                        <option value="30">30 秒 / seconds</option>
+                        <option value="60">60 秒 / seconds</option>
+                        <option value="90">90 秒 / seconds</option>
+                        <option value="120">120 秒 / seconds</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <button class="btn btn-secondary" id="songCheckBtn"><i class="fas fa-server"></i> 检查服务 (Check)</button>
+                    <span id="songCheckResult" class="settings-note"></span>
                 </div>
             </div>
             <div class="settings-section">
@@ -367,6 +437,33 @@ export class SettingsComponent {
         reader.readAsText(file);
     }
     
+    /** 检查本地歌曲调度服务是否可用 (Check the local song-bridge service) */
+    async onCheckSongService() {
+        const out = document.getElementById('songCheckResult');
+        const url = (this.settingsManager.getSetting('songBridgeUrl') || '').replace(/\/+$/, '');
+        if (!url) {
+            if (out) out.textContent = '请先填写调度服务地址';
+            return;
+        }
+        if (out) out.textContent = '检查中…';
+        try {
+            const res = await fetch(`${url}/api/health`, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const h = await res.json();
+            const ft = h.freetoken || {};
+            const parts = [
+                `FreeToken ${ft.up ? (ft.status === 'ok' ? '就绪' : '加载中') : '未启动'}`,
+                `ComfyUI ${h.comfyui?.up ? '在线' : '离线'}`,
+                `LM Studio ${(h.lmstudio?.loaded || []).length ? '已加载' : '空闲'}`,
+                `显存 ${h.gpu?.vramFreeGiB ?? '?'} GiB`,
+                `缓存 ${h.cache?.songs ?? 0} 首`
+            ];
+            if (out) out.textContent = '✅ ' + parts.join(' · ');
+        } catch (error) {
+            if (out) out.textContent = `❌ 连不上（${error.message}）。启动：cd tools/song-bridge && npm start`;
+        }
+    }
+
     async onEnableGoogleDrive() {
         try {
             // Show loading state

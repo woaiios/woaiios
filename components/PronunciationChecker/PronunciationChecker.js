@@ -11,14 +11,21 @@
 
 import { PronunciationChecker } from '../../js/PronunciationChecker.js';
 import { Component } from '../Component.js';
+import { SongStudioPanel } from '../SongStudio/SongStudioPanel.js';
 
 export class PronunciationCheckerComponent extends Component {
-    constructor(containerId = '#pronunciationModal') {
+    constructor(containerId = '#pronunciationModal', settingsManager = null) {
         super(containerId);
         this.pronunciationChecker = new PronunciationChecker();
         this.currentSentence = '';
         this.practiceHistory = [];
         this.maxHistorySize = 10;
+
+        // 歌曲面板：把生词唱成歌（FreeToken 写词 + ComfyUI 作曲）
+        this.songPanel = new SongStudioPanel({
+            settingsManager,
+            getSuggestedWords: () => this.collectHighlightedWords()
+        });
         
         // 示例句子库 (Sample sentences library)
         this.sampleSentences = [
@@ -110,6 +117,9 @@ export class PronunciationCheckerComponent extends Component {
                             <h4>Practice Sentence:</h4>
                             <div class="sentence-display" id="sentenceDisplay"></div>
                         </div>
+
+                        <!-- Song studio: 把生词唱成歌 -->
+                        ${this.songPanel.render()}
                         
                         <!-- Recording controls -->
                         <div class="recording-controls" id="recordingControls" style="display: none;">
@@ -226,6 +236,9 @@ export class PronunciationCheckerComponent extends Component {
             });
         }
 
+        // 歌曲面板内部事件（词 chips、生成、播放、缓存列表）
+        this.songPanel.mount();
+
         // Recording controls
         const startBtn = document.getElementById('startRecordingBtn');
         if (startBtn) {
@@ -255,7 +268,10 @@ export class PronunciationCheckerComponent extends Component {
      */
     setSentence(sentence) {
         this.currentSentence = sentence.trim();
-        
+
+        // 练习句子变了，歌曲面板跟着换词
+        this.songPanel?.syncFromSentence(this.currentSentence);
+
         const sentenceDisplay = document.getElementById('sentenceDisplay');
         const practiceSentence = document.getElementById('practiceSentence');
         const recordingControls = document.getElementById('recordingControls');
@@ -463,13 +479,35 @@ export class PronunciationCheckerComponent extends Component {
     }
 
     /**
+     * 从页面分析结果里收集当前高亮的生词，作为歌曲的候选词
+     * - Collect currently highlighted words from the analysis result
+     * @returns {string[]}
+     */
+    collectHighlightedWords() {
+        const container = document.getElementById('highlightedWordsContainer');
+        if (!container) return [];
+        return Array.from(container.querySelectorAll('.highlighted-word-item .word'))
+            .map((el) => (el.textContent || '').trim().split(/[\s/]/)[0].toLowerCase())
+            .filter((w) => /^[a-z]+$/.test(w))
+            .slice(0, 6);
+    }
+
+    /**
      * 打开组件 - Open component
      */
     open() {
         if (!this.container.querySelector('.pronunciation-checker-modal')) {
             this.render();
+        } else if (!document.getElementById('songStudio')) {
+            // 组件已渲染过但还没有歌曲面板（旧缓存），重建一次
+            this.render();
         }
         this.container.classList.add('show');
+        // 打开时若还没有选词，从当前分析结果里兜底拿几个生词
+        if (!this.songPanel.words.length) {
+            this.songPanel.syncFromSentence(this.currentSentence);
+        }
+        this.songPanel.refreshLibrary();
     }
 
     /**
