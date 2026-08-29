@@ -1,47 +1,80 @@
 /**
- * SongStudioPanel — 单词歌曲面板
+ * SongStudioPanel — 按主文本自动作曲
  * -----------------------------------------------------------------------------
- * 嵌在 Pronunciation 弹窗里：挑生词 → 本地 27B 写歌词 → ComfyUI 作曲 → 边下边播。
- * 生成过程全程流式：歌词一个字一个字冒出来，作曲阶段有进度条。
+ * 曲风随机、时长按文本长度自动、长文拆多首（每首 ≤5min）
+ * 直接取主页输入框文本，不再选词/选段。
  */
 
 import { SongStudio } from '../../js/SongStudio.js';
 import { NotificationManager } from '../../js/modules/NotificationManager.js';
 
 const STYLE_PRESETS = [
-    { value: 'acoustic folk pop', label: '民谣流行（温暖好记）' },
-    { value: 'lo-fi hip hop chill', label: 'Lo-fi 嘻哈（放松）' },
-    { value: 'upbeat dance pop', label: '动感舞曲（洗脑）' },
-    { value: 'cinematic pop ballad', label: '电影感抒情' },
-    { value: 'jazz swing lounge', label: '爵士摇摆' },
-    { value: 'indie rock', label: '独立摇滚' }
+    'acoustic folk pop',
+    'lo-fi hip hop chill',
+    'upbeat dance pop',
+    'cinematic pop ballad',
+    'jazz swing lounge',
+    'indie rock',
+    'dreamy synthwave',
+    'ambient folk'
 ];
 
-const DURATION_OPTIONS = [30, 60, 90, 120];
+function pickRandomStyle() {
+    return STYLE_PRESETS[Math.floor(Math.random() * STYLE_PRESETS.length)];
+}
+
+function autoDuration(text) {
+    const len = (text || '').length;
+    if (len < 120) return 30;
+    if (len < 300) return 60;
+    if (len < 600) return 90;
+    if (len < 1000) return 120;
+    if (len < 1800) return 180;
+    if (len < 2600) return 240;
+    return 300;
+}
+
+function splitIntoChunks(text) {
+    const t = (text || '').trim();
+    if (!t) return [];
+    if (t.length <= 1500) return [t];
+    const sentences = t.match(/[^.!?。！？]+[.!?。！？]+/g) || [t];
+    const chunks = [];
+    let cur = '';
+    for (const s of sentences) {
+        if ((cur + s).length > 1500 && cur) {
+            chunks.push(cur.trim());
+            cur = s;
+        } else {
+            cur += s;
+        }
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+    // 兜底：仍超长的按 1500 硬切
+    const out = [];
+    for (const c of chunks) {
+        if (c.length <= 2000) out.push(c);
+        else {
+            for (let i = 0; i < c.length; i += 1500) out.push(c.slice(i, i + 1500).trim());
+        }
+    }
+    return out.filter(Boolean);
+}
 
 export class SongStudioPanel {
-    /**
-     * @param {object} options
-     * @param {import('../../js/SettingsManager.js').SettingsManager} options.settingsManager
-     * @param {() => string[]} options.getSuggestedWords 从页面当前高亮词里取候选
-     */
-    constructor({ settingsManager, getSuggestedWords }) {
+    constructor({ settingsManager, getMainText }) {
         this.studio = new SongStudio(settingsManager);
         this.settingsManager = settingsManager;
-        this.getSuggestedWords = getSuggestedWords || (() => []);
+        this.getMainText = getMainText || (() => (document.getElementById('textInput')?.value || '').trim());
 
-        this.words = [];
-        this.sentence = '';
+        this.mainText = '';
         this.busy = false;
-        this.currentSong = null;
+        this.songs = [];
         this.streamedCaption = '';
         this.streamedLyrics = '';
         this.streamedNotes = '';
+        this._cancelled = false;
     }
-
-    // -------------------------------------------------------------------------
-    // 渲染
-    // -------------------------------------------------------------------------
 
     render() {
         return `
@@ -49,7 +82,7 @@ export class SongStudioPanel {
                 <div class="song-studio-header" id="songStudioToggle">
                     <div class="song-studio-title">
                         <i class="fas fa-music"></i>
-                        <span>单词歌曲 · Word Song</span>
+                        <span>AI 歌曲 · 自动作曲</span>
                         <span class="song-studio-badge">FreeToken × ComfyUI</span>
                     </div>
                     <i class="fas fa-chevron-down song-studio-chevron" id="songStudioChevron"></i>
@@ -57,40 +90,15 @@ export class SongStudioPanel {
 
                 <div class="song-studio-body" id="songStudioBody">
                     <p class="song-studio-hint">
-                        选几个生词，本地 Qwen3.8-27B 写歌词，ComfyUI 用 MiniMax Music 3 谱成歌。
-                        两张大模型共用一张显卡，会自动排队。
+                        按主页文本自动作曲：曲风随机、时长按文本长度自动匹配，长文自动拆成多首（每首 ≤5 分钟）。
+                        两模型共用显卡，后台自动排队，支持流式预览与缓存播放。
                     </p>
 
-                    <div class="song-words-row">
-                        <div class="song-word-chips" id="songWordChips"></div>
-                        <div class="song-word-add">
-                            <input type="text" id="songWordInput" class="form-control"
-                                   placeholder="加个词，回车" maxlength="40">
-                        </div>
+                    <div class="song-main-preview" id="songMainPreview" style="display:none">
+                        <div class="song-preview-label">将要作曲的文本</div>
+                        <div class="song-preview-text" id="songPreviewText"></div>
+                        <div class="song-preview-meta" id="songPreviewMeta"></div>
                     </div>
-
-                    <div class="song-controls">
-                        <label class="song-field">
-                            <span>曲风</span>
-                            <select id="songStyleSelect" class="form-control">
-                                ${STYLE_PRESETS.map(
-                                    (s) =>
-                                        `<option value="${s.value}">${s.label}</option>`
-                                ).join('')}
-                                <option value="__custom">自定义…</option>
-                            </select>
-                        </label>
-                        <label class="song-field song-field-sm">
-                            <span>时长</span>
-                            <select id="songDurationSelect" class="form-control">
-                                ${DURATION_OPTIONS.map(
-                                    (d) => `<option value="${d}"${d === 60 ? ' selected' : ''}>${d}s</option>`
-                                ).join('')}
-                            </select>
-                        </label>
-                    </div>
-                    <input type="text" id="songStyleCustom" class="form-control song-style-custom"
-                           placeholder="自定义曲风，例如：dreamy synthwave with female vocals" style="display:none">
 
                     <div class="song-actions">
                         <button class="btn btn-primary" id="songGenerateBtn">
@@ -120,15 +128,12 @@ export class SongStudioPanel {
                         <pre class="song-lyrics-body" id="songLyricsBody"></pre>
                         <div class="song-notes" id="songNotes" style="display:none"></div>
                         <details class="song-caption" id="songCaptionWrap" style="display:none">
-                            <summary>查看给模型的风格描述</summary>
+                            <summary>查看风格描述</summary>
                             <pre class="song-caption-body" id="songCaptionBody"></pre>
                         </details>
                     </div>
 
-                    <div class="song-player" id="songPlayer" style="display:none">
-                        <audio id="songAudioEl" controls preload="metadata"></audio>
-                        <div class="song-player-meta" id="songPlayerMeta"></div>
-                    </div>
+                    <div class="song-players" id="songPlayers" style="display:none"></div>
 
                     <div class="song-library" id="songLibrary" style="display:none">
                         <div class="song-library-head">
@@ -142,7 +147,6 @@ export class SongStudioPanel {
         `;
     }
 
-    /** 面板挂载后绑定事件 */
     mount() {
         const toggle = document.getElementById('songStudioToggle');
         const body = document.getElementById('songStudioBody');
@@ -155,211 +159,152 @@ export class SongStudioPanel {
             });
         }
 
-        const wordInput = document.getElementById('songWordInput');
-        if (wordInput) {
-            wordInput.addEventListener('keydown', (e) => {
-                if (e.key !== 'Enter') return;
-                e.preventDefault();
-                this.addWord(wordInput.value);
-                wordInput.value = '';
-            });
-            wordInput.addEventListener('blur', () => {
-                if (wordInput.value.trim()) {
-                    this.addWord(wordInput.value);
-                    wordInput.value = '';
-                }
-            });
-        }
-
-        const styleSelect = document.getElementById('songStyleSelect');
-        const styleCustom = document.getElementById('songStyleCustom');
-        if (styleSelect && styleCustom) {
-            const saved = this.settingsManager?.getSetting('songStyle');
-            if (saved && STYLE_PRESETS.some((s) => s.value === saved)) styleSelect.value = saved;
-            styleSelect.addEventListener('change', () => {
-                const custom = styleSelect.value === '__custom';
-                styleCustom.style.display = custom ? 'block' : 'none';
-                if (custom) styleCustom.focus();
-            });
-        }
-
-        const durationSelect = document.getElementById('songDurationSelect');
-        if (durationSelect) {
-            const saved = Number(this.settingsManager?.getSetting('songDurationSec'));
-            if (saved && DURATION_OPTIONS.includes(saved)) durationSelect.value = String(saved);
-            durationSelect.addEventListener('change', async () => {
-                await this.settingsManager?.setSetting('songDurationSec', Number(durationSelect.value));
-            });
-        }
-
         document.getElementById('songGenerateBtn')?.addEventListener('click', () => this.onGenerate());
         document.getElementById('songCancelBtn')?.addEventListener('click', () => this.onCancel());
         document.getElementById('songStatusBtn')?.addEventListener('click', () => this.showServiceStatus());
         document.getElementById('songCopyBtn')?.addEventListener('click', () => this.copyLyrics());
         document.getElementById('songClearCacheBtn')?.addEventListener('click', () => this.clearCache());
 
-        this.renderWordChips();
+        this.syncFromMainText(this.getMainText());
         this.refreshLibrary();
     }
 
-    // -------------------------------------------------------------------------
-    // 词管理
-    // -------------------------------------------------------------------------
-
-    addWord(raw) {
-        const word = String(raw || '').trim().toLowerCase().replace(/[^a-z'-]/g, '');
-        if (!word || word.length < 2) return;
-        if (this.words.includes(word)) return;
-        if (this.words.length >= 6) {
-            NotificationManager.show('最多 6 个词，太多了歌会乱', 'warning');
+    // 由外部同步主文本
+    syncFromMainText(text) {
+        this.mainText = (text || '').trim();
+        const box = document.getElementById('songMainPreview');
+        const txt = document.getElementById('songPreviewText');
+        const meta = document.getElementById('songPreviewMeta');
+        if (!box || !txt || !meta) return;
+        if (!this.mainText) {
+            box.style.display = 'none';
             return;
         }
-        this.words.push(word);
-        this.renderWordChips();
+        box.style.display = 'block';
+        const preview = this.mainText.length > 400 ? this.mainText.slice(0, 400) + '…' : this.mainText;
+        txt.textContent = preview;
+        const chunks = splitIntoChunks(this.mainText);
+        const totalDur = chunks.reduce((s, c) => s + autoDuration(c), 0);
+        meta.textContent = `共 ${this.mainText.length} 字符 · 将生成 ${chunks.length} 首 · 总时长约 ${totalDur}s（每首 ≤300s，曲风随机）`;
     }
 
-    removeWord(word) {
-        this.words = this.words.filter((w) => w !== word);
-        this.renderWordChips();
-    }
-
-    renderWordChips() {
-        const box = document.getElementById('songWordChips');
-        if (!box) return;
-        if (!this.words.length) {
-            box.innerHTML = '<span class="song-chip-empty">还没有选词</span>';
-            return;
-        }
-        box.innerHTML = this.words
-            .map(
-                (w) =>
-                    `<span class="song-chip">${escapeHtml(w)}<button data-word="${escapeAttr(
-                        w
-                    )}" title="移除">&times;</button></span>`
-            )
-            .join('');
-        box.querySelectorAll('button[data-word]').forEach((btn) => {
-            btn.addEventListener('click', () => this.removeWord(btn.dataset.word));
-        });
-    }
-
-    /**
-     * 由外部（发音面板）把练习句子同步进来，自动挑词
-     * @param {string} sentence
-     */
-    syncFromSentence(sentence) {
-        this.sentence = sentence || '';
-        const extra = this.getSuggestedWords?.() || [];
-        // 句子为空时也从高亮生词里挑（用户刚分析完还没选句）
-        const source = sentence || extra.join(' ');
-        if (!source) return;
-        const picked = SongStudio.pickWords(source, extra, 4);
-        if (picked.length) {
-            this.words = picked;
-            this.renderWordChips();
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // 生成
-    // -------------------------------------------------------------------------
+    // 兼容旧调用
+    syncFromSentence(s) { this.syncFromMainText(s || this.getMainText()); }
 
     async onGenerate() {
         if (this.busy) return;
-
-        if (!this.words.length) {
-            NotificationManager.show('先选几个要记的单词', 'warning');
+        const text = (this.getMainText() || '').trim();
+        if (!text) {
+            NotificationManager.show('请先在主页输入框粘贴要作曲的文本', 'warning');
             return;
         }
+        this.mainText = text;
 
         const health = await this.studio.health(true);
         if (!health.ok) {
-            NotificationManager.show(
-                '连不上本地歌曲服务。请先运行 tools/song-bridge（npm start），或在设置里改端点。',
-                'error',
-                6000
-            );
+            NotificationManager.show('连不上本地歌曲服务。请先运行 tools/song-bridge（npm start）', 'error', 6000);
             this.showServiceStatus();
             return;
         }
-        if (!health.comfyui?.up) {
-            NotificationManager.show('ComfyUI 没起来（需要 http://127.0.0.1:8188）', 'error', 5000);
+        // 不再强求 ComfyUI 必须在线，由服务端兜底或排队
+
+        const chunks = splitIntoChunks(text);
+        if (!chunks.length) {
+            NotificationManager.show('文本为空', 'warning');
             return;
         }
 
-        const styleSelect = document.getElementById('songStyleSelect');
-        const custom = document.getElementById('songStyleCustom');
-        const style =
-            styleSelect?.value === '__custom'
-                ? (custom?.value || '').trim() || 'acoustic folk pop'
-                : styleSelect?.value || 'acoustic folk pop';
-
-        const durationSec = Number(document.getElementById('songDurationSelect')?.value) || 60;
-
-        await this.settingsManager?.setSetting('songStyle', style);
-        await this.settingsManager?.setSetting('songDurationSec', durationSec);
-
+        this._cancelled = false;
         this.startBusy();
+        this.songs = [];
         this.streamedCaption = '';
         this.streamedLyrics = '';
         this.streamedNotes = '';
         this.showLyrics('');
         this.setCaption('');
         this.setNotes('');
+        const playersBox = document.getElementById('songPlayers');
+        if (playersBox) { playersBox.innerHTML = ''; playersBox.style.display = 'none'; }
 
-        const lyricsBody = document.getElementById('songLyricsBody');
         const t0 = Date.now();
+        let successCount = 0;
 
-        const song = await this.studio.generate(
-            { words: this.words, sentence: this.sentence, style, durationSec },
-            {
-                onStage: (d) => {
-                    const label = STAGE_LABELS[d.stage] || d.stage;
-                    this.setStatus(`${label}：${d.message}`);
-                    if (d.stage === 'music') this.setProgress(0);
-                },
-                onCaption: (text) => {
-                    this.streamedCaption += text;
-                    this.setCaption(this.streamedCaption);
-                },
-                onLyrics: (text) => {
-                    this.streamedLyrics += text;
-                    if (lyricsBody) {
-                        lyricsBody.textContent = this.streamedLyrics;
-                        lyricsBody.scrollTop = lyricsBody.scrollHeight;
+        for (let idx = 0; idx < chunks.length; idx++) {
+            if (this._cancelled) break;
+            const chunk = chunks[idx];
+            const style = pickRandomStyle();
+            const durationSec = autoDuration(chunk);
+            const label = chunks.length > 1 ? `第 ${idx + 1}/${chunks.length} 首` : '生成中';
+
+            this.setStatus(`${label}（${style} · ${durationSec}s）— 准备…`);
+            this.setProgress(0);
+            this.streamedCaption = '';
+            this.streamedLyrics = '';
+            this.streamedNotes = '';
+            const lyricsBody = document.getElementById('songLyricsBody');
+            if (lyricsBody) lyricsBody.textContent = '';
+
+            try {
+                const song = await this.studio.generate(
+                    { words: [], sentence: chunk, style, durationSec },
+                    {
+                        onStage: (d) => {
+                            const lbl = STAGE_LABELS[d.stage] || d.stage;
+                            this.setStatus(`${label} ${lbl}：${d.message}`);
+                            if (d.stage === 'music') this.setProgress(0);
+                        },
+                        onCaption: (t) => { this.streamedCaption += t; this.setCaption(this.streamedCaption); },
+                        onLyrics: (t) => {
+                            this.streamedLyrics += t;
+                            if (lyricsBody) { lyricsBody.textContent = this.streamedLyrics; lyricsBody.scrollTop = lyricsBody.scrollHeight; }
+                            const wrap = document.getElementById('songLyrics');
+                            if (wrap) wrap.style.display = 'block';
+                        },
+                        onNotes: (t) => { this.streamedNotes += t; this.setNotes(this.streamedNotes); },
+                        onProgress: (p) => { if (p.max > 0) this.setProgress(p.value / p.max); },
+                        onDone: (result, cached) => {
+                            if (result) {
+                                this.songs.push(result);
+                                this.addPlayer(result, cached, idx);
+                                this.showLyrics(result.lyrics || this.streamedLyrics);
+                                if (result.caption) this.setCaption(result.caption);
+                                if (result.notes) this.setNotes(result.notes);
+                            }
+                        },
+                        onError: (err) => {
+                            if (err.aborted) return;
+                            this.setStatus(`${label} 失败：${err.message}`);
+                            NotificationManager.show(`${label} 失败：${err.message}`, 'error', 6000);
+                        }
                     }
-                },
-                onNotes: (text) => {
-                    this.streamedNotes += text;
-                    this.setNotes(this.streamedNotes);
-                },
-                onProgress: (p) => {
-                    if (p.max > 0) this.setProgress(p.value / p.max);
-                },
-                onDone: (result, cached) => {
-                    this.currentSong = result;
-                    this.showSong(result, cached);
-                    this.setStatus(
-                        cached
-                            ? '命中缓存，直接播放'
-                            : `完成，用时 ${((Date.now() - t0) / 1000).toFixed(0)} 秒`
-                    );
-                    this.setProgress(1);
-                    this.refreshLibrary();
-                    NotificationManager.show(cached ? '命中缓存 🎵' : '歌曲生成完成 🎵', 'success');
-                },
-                onError: (err) => {
-                    this.setStatus(`失败：${err.message}`);
-                    NotificationManager.show(`生成失败：${err.message}`, 'error', 6000);
+                );
+                if (song) successCount++;
+                else if (!this._cancelled) {
+                    // 单首失败不中断整体，继续下一首
+                    console.warn(`chunk ${idx} failed`);
                 }
+            } catch (e) {
+                console.warn(`chunk ${idx} exception`, e);
             }
-        );
+        }
 
         this.endBusy();
-        if (!song) this.setProgress(0);
+        if (this._cancelled) {
+            this.setStatus('已取消');
+            this.setProgress(0);
+        } else if (successCount === 0) {
+            this.setProgress(0);
+        } else {
+            const sec = ((Date.now() - t0) / 1000).toFixed(0);
+            this.setStatus(`完成 ${successCount}/${chunks.length} 首，用时 ${sec}s`);
+            this.setProgress(1);
+            this.refreshLibrary();
+            NotificationManager.show(`生成完成 ${successCount} 首 🎵`, 'success');
+        }
     }
 
     onCancel() {
+        this._cancelled = true;
         this.studio.cancel();
         this.endBusy();
         this.setStatus('已取消');
@@ -387,40 +332,30 @@ export class SongStudioPanel {
         if (cancel) cancel.style.display = 'none';
     }
 
-    // -------------------------------------------------------------------------
-    // 展示
-    // -------------------------------------------------------------------------
-
-    showSong(song, cached) {
-        if (!song) return;
-        const player = document.getElementById('songPlayer');
-        const audio = document.getElementById('songAudioEl');
-        const meta = document.getElementById('songPlayerMeta');
-        if (!player || !audio) return;
-
-        // 直接指向本地服务的音频地址，服务端支持 Range，浏览器边下边播
-        audio.src = this.studio.audioUrl(song.id);
-        audio.load();
-        player.style.display = 'block';
-        audio.play().catch(() => {
-            /* 浏览器可能拦截自动播放，用户点一下即可 */
-        });
-
-        if (meta) {
-            const kb = song.bytes ? `${(song.bytes / 1024 / 1024).toFixed(1)} MB` : '';
-            meta.innerHTML = `
-                <span class="song-meta-words">${escapeHtml((song.words || []).join(' · '))}</span>
-                <span class="song-meta-tags">
-                    <em>${escapeHtml(song.style || '')}</em>
-                    ${song.durationSec ? `<em>${song.durationSec}s</em>` : ''}
-                    ${kb ? `<em>${kb}</em>` : ''}
-                    ${cached ? '<em class="song-tag-cache">缓存</em>' : ''}
-                </span>`;
+    addPlayer(song, cached, idx) {
+        const box = document.getElementById('songPlayers');
+        if (!box || !song) return;
+        box.style.display = 'block';
+        const id = `songAudio_${song.id}_${idx}`;
+        const div = document.createElement('div');
+        div.className = 'song-player';
+        div.style.display = 'block';
+        div.style.marginBottom = '10px';
+        const kb = song.bytes ? `${(song.bytes / 1024 / 1024).toFixed(1)} MB` : '';
+        div.innerHTML = `
+            <div class="song-player-meta" style="margin-bottom:6px">
+                <span class="song-meta-words">第 ${idx + 1} 首 · ${escapeHtml(song.style || '')} · ${song.durationSec || '?'}s ${kb ? '· ' + kb : ''} ${cached ? '<em class="song-tag-cache">缓存</em>' : ''}</span>
+            </div>
+            <audio id="${escapeAttr(id)}" controls preload="metadata"></audio>
+        `;
+        box.appendChild(div);
+        const audio = div.querySelector('audio');
+        if (audio) {
+            audio.src = this.studio.audioUrl(song.id);
+            audio.load();
+            // 仅首首自动播放，避免多首同时响
+            if (idx === 0) audio.play().catch(() => {});
         }
-
-        if (song.lyrics) this.showLyrics(song.lyrics);
-        if (song.notes) this.setNotes(song.notes);
-        if (song.caption) this.setCaption(song.caption);
     }
 
     showLyrics(text) {
@@ -443,17 +378,9 @@ export class SongStudioPanel {
         const box = document.getElementById('songNotes');
         if (!box) return;
         const clean = String(text || '').trim();
-        if (!clean) {
-            box.style.display = 'none';
-            box.innerHTML = '';
-            return;
-        }
+        if (!clean) { box.style.display = 'none'; box.innerHTML = ''; return; }
         box.style.display = 'block';
-        box.innerHTML = clean
-            .split('\n')
-            .filter(Boolean)
-            .map((l) => `<div class="song-note-line">${escapeHtml(l)}</div>`)
-            .join('');
+        box.innerHTML = clean.split('\n').filter(Boolean).map(l => `<div class="song-note-line">${escapeHtml(l)}</div>`).join('');
     }
 
     setStatus(text) {
@@ -477,41 +404,30 @@ export class SongStudioPanel {
         const wrap = document.getElementById('songLibrary');
         const list = document.getElementById('songLibraryList');
         if (!wrap || !list) return;
-        if (!songs.length) {
-            wrap.style.display = 'none';
-            return;
-        }
+        if (!songs.length) { wrap.style.display = 'none'; return; }
         wrap.style.display = 'block';
-        list.innerHTML = songs
-            .slice(0, 12)
-            .map(
-                (s) => `
+        list.innerHTML = songs.slice(0, 12).map(s => `
                 <div class="song-library-item" data-id="${escapeAttr(s.id)}">
-                    <button class="song-library-play" data-play="${escapeAttr(s.id)}" title="播放">
-                        <i class="fas fa-play"></i>
-                    </button>
+                    <button class="song-library-play" data-play="${escapeAttr(s.id)}" title="播放"><i class="fas fa-play"></i></button>
                     <div class="song-library-info">
-                        <div class="song-library-words">${escapeHtml((s.words || []).join(' · '))}</div>
+                        <div class="song-library-words">${escapeHtml((s.words || []).join(' · ') || (s.sentence||'').slice(0,30))}</div>
                         <div class="song-library-sub">${escapeHtml(s.style || '')} · ${s.durationSec || '?'}s</div>
                     </div>
-                    <button class="song-library-del" data-del="${escapeAttr(s.id)}" title="删除">
-                        <i class="fas fa-trash"></i>
-                    </button>
-                </div>`
-            )
-            .join('');
-
-        list.querySelectorAll('[data-play]').forEach((btn) => {
+                    <button class="song-library-del" data-del="${escapeAttr(s.id)}" title="删除"><i class="fas fa-trash"></i></button>
+                </div>`).join('');
+        list.querySelectorAll('[data-play]').forEach(btn => {
             btn.addEventListener('click', () => {
-                const song = songs.find((x) => x.id === btn.dataset.play);
+                const song = songs.find(x => x.id === btn.dataset.play);
                 if (song) {
-                    this.currentSong = song;
-                    this.showSong(song, true);
+                    const box = document.getElementById('songPlayers');
+                    if (box) { box.innerHTML = ''; box.style.display = 'block'; }
+                    this.addPlayer(song, true, 0);
                     this.setStatus('播放缓存歌曲');
+                    if (song.lyrics) this.showLyrics(song.lyrics);
                 }
             });
         });
-        list.querySelectorAll('[data-del]').forEach((btn) => {
+        list.querySelectorAll('[data-del]').forEach(btn => {
             btn.addEventListener('click', async () => {
                 await this.studio.remove(btn.dataset.del);
                 this.refreshLibrary();
@@ -524,6 +440,8 @@ export class SongStudioPanel {
         try {
             await fetch(`${this.studio.baseUrl}/api/cache`, { method: 'DELETE' });
             this.refreshLibrary();
+            const box = document.getElementById('songPlayers');
+            if (box) { box.innerHTML = ''; box.style.display = 'none'; }
             NotificationManager.show('缓存已清空');
         } catch (_) {
             NotificationManager.show('清空失败，服务可能未运行', 'error');
@@ -536,9 +454,8 @@ export class SongStudioPanel {
         const span = document.getElementById('songStatusText');
         if (!box || !span) return;
         box.style.display = 'block';
-
         if (!health.ok) {
-            span.innerHTML = `❌ 本地歌曲服务未连接（${escapeHtml(health.error || '未知')}）。启动方式：<code>cd tools/song-bridge &amp;&amp; npm start</code>`;
+            span.innerHTML = `❌ 本地歌曲服务未连接（${escapeHtml(health.error || '未知')}）。启动方式：<code>cd tools/song-bridge && npm start</code>`;
             return;
         }
         const ft = health.freetoken || {};
@@ -547,7 +464,7 @@ export class SongStudioPanel {
         const gpu = health.gpu || {};
         span.innerHTML = `
             <div>FreeToken(Qwen3.8-27B)：${ft.up ? (ft.status === 'ok' ? '✅ 就绪' : `⏳ ${escapeHtml(ft.phase || ft.status || '加载中')}`) : '⭕ 未启动（点生成会自动拉起）'}</div>
-            <div>ComfyUI(MiniMax Music 3)：${cf.up ? '✅ 在线' : '❌ 未连接'}</div>
+            <div>ComfyUI(MiniMax Music 3)：${cf.up ? '✅ 在线' : '❌ 未连接（将使用兜底/缓存）'}</div>
             <div>LM Studio(翻译)：${(lm.loaded || []).length ? `✅ ${escapeHtml((lm.loaded || []).join(', '))}` : '⭕ 无模型常驻'}</div>
             <div>可用显存：${gpu.vramFreeGiB != null ? gpu.vramFreeGiB + ' GiB' : '未知'}${gpu.holder ? ` · 占用中：${escapeHtml(gpu.holder)}` : ''}</div>
             <div>缓存：${health.cache?.songs ?? 0} 首 · ${((health.cache?.bytes || 0) / 1024 / 1024).toFixed(1)} MB</div>
@@ -557,33 +474,11 @@ export class SongStudioPanel {
     async copyLyrics() {
         const text = document.getElementById('songLyricsBody')?.textContent || '';
         if (!text) return;
-        try {
-            await navigator.clipboard.writeText(text);
-            NotificationManager.show('歌词已复制');
-        } catch (_) {
-            NotificationManager.show('复制失败', 'error');
-        }
+        try { await navigator.clipboard.writeText(text); NotificationManager.show('歌词已复制'); } catch (_) { NotificationManager.show('复制失败', 'error'); }
     }
 }
 
-const STAGE_LABELS = {
-    lyrics: '✍️ 写词',
-    music: '🎼 作曲',
-    save: '💾 保存'
-};
-
-function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, (c) => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[c]));
-}
-
-function escapeAttr(s) {
-    return escapeHtml(s).replace(/"/g, '&quot;');
-}
-
+const STAGE_LABELS = { lyrics: '✍️ 写词', music: '🎼 作曲', save: '💾 保存' };
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 export default SongStudioPanel;

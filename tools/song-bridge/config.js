@@ -111,7 +111,7 @@ const defaults = {
     /** 默认歌曲时长（秒）。学习用的小曲子，60s 左右够用也最快 */
     defaultDurationSec: 60,
     minDurationSec: 20,
-    maxDurationSec: 240,
+    maxDurationSec: 300,
     defaultStyle: 'acoustic folk pop'
   },
 

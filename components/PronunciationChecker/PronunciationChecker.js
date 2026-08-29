@@ -1,12 +1,7 @@
 /**
  * PronunciationChecker Component
  * 发音检查器组件 - Pronunciation Checker UI Component
- * 
- * 提供用户界面用于：
- * - 选择或输入练习句子
- * - 开始/停止录音
- * - 显示识别结果和评分
- * - 提供发音改进建议
+ * 简化版：文本直接取主页输入框，不再选句；歌曲面板按主文本自动随机曲风/时长
  */
 
 import { PronunciationChecker } from '../../js/PronunciationChecker.js';
@@ -21,59 +16,37 @@ export class PronunciationCheckerComponent extends Component {
         this.practiceHistory = [];
         this.maxHistorySize = 10;
 
-        // 歌曲面板：把生词唱成歌（FreeToken 写词 + ComfyUI 作曲）
+        // 歌曲面板：直接用主文本，曲风随机、时长自动
         this.songPanel = new SongStudioPanel({
             settingsManager,
-            getSuggestedWords: () => this.collectHighlightedWords()
+            getMainText: () => this.getMainText()
         });
-        
-        // 示例句子库 (Sample sentences library)
-        this.sampleSentences = [
-            "Hello, how are you today?",
-            "I love learning English every day.",
-            "Practice makes perfect.",
-            "The quick brown fox jumps over the lazy dog.",
-            "Reading books helps improve vocabulary.",
-            "Pronunciation is important for clear communication.",
-            "I enjoy studying new words and phrases.",
-            "Speaking English fluently takes time and effort.",
-            "Consistency is key to language learning success.",
-            "Every mistake is an opportunity to learn."
-        ];
         
         this.setupEventHandlers();
     }
 
-    /**
-     * 设置事件处理器 - Setup event handlers
-     */
-    setupEventHandlers() {
-        // 语音识别回调 (Speech recognition callbacks)
-        this.pronunciationChecker.on('start', () => {
-            this.updateRecordingUI(true);
-        });
+    getMainText() {
+        const el = document.getElementById('textInput');
+        return (el ? el.value : '').trim();
+    }
 
+    setupEventHandlers() {
+        this.pronunciationChecker.on('start', () => this.updateRecordingUI(true));
         this.pronunciationChecker.on('result', (result) => {
             this.displayResult(result);
             this.addToHistory(result);
         });
-
-        this.pronunciationChecker.on('end', () => {
-            this.updateRecordingUI(false);
-        });
-
+        this.pronunciationChecker.on('end', () => this.updateRecordingUI(false));
         this.pronunciationChecker.on('error', (error) => {
             this.showError(error);
             this.updateRecordingUI(false);
         });
     }
 
-    /**
-     * 渲染组件 - Render component
-     */
     render() {
         const isSupported = PronunciationChecker.isSupported();
-        
+        const mainText = this.getMainText();
+        const preview = mainText ? escapeHtml(mainText.slice(0, 800)) + (mainText.length > 800 ? '…' : '') : '<span class="muted">（主页输入框为空，请先粘贴文本）</span>';
         const html = `
             <div class="modal-content pronunciation-checker-modal">
                 <div class="modal-header">
@@ -90,43 +63,21 @@ export class PronunciationCheckerComponent extends Component {
                     ` : ''}
                     
                     <div class="pronunciation-section">
-                        <h4>Select or Enter a Sentence</h4>
-                        
-                        <!-- Sample sentences -->
-                        <div class="sample-sentences">
-                            <select id="sampleSentenceSelect" class="form-control">
-                                <option value="">-- Choose a sample sentence --</option>
-                                ${this.sampleSentences.map((sentence, index) => 
-                                    `<option value="${index}">${sentence}</option>`
-                                ).join('')}
-                            </select>
-                        </div>
-                        
-                        <!-- Custom sentence input -->
-                        <div class="custom-sentence">
-                            <textarea 
-                                id="customSentenceInput" 
-                                class="form-control" 
-                                placeholder="Or type your own sentence here..."
-                                rows="3"
-                            ></textarea>
-                        </div>
-                        
-                        <!-- Current practice sentence -->
-                        <div class="practice-sentence" id="practiceSentence" style="display: none;">
-                            <h4>Practice Sentence:</h4>
-                            <div class="sentence-display" id="sentenceDisplay"></div>
+                        <div class="main-text-preview" id="pronunciationMainTextPreview">
+                            <h4>当前文本（来自主页）</h4>
+                            <div class="sentence-display" id="sentenceDisplay">${preview}</div>
+                            <p class="hint muted" style="font-size:12px;margin-top:6px;">在主页修改文本后，重新打开此窗口即可更新。长文本会自动按发音段落评分。</p>
                         </div>
 
-                        <!-- Song studio: 把生词唱成歌 -->
+                        <!-- Song studio：按主文本自动作曲 -->
                         ${this.songPanel.render()}
                         
                         <!-- Recording controls -->
-                        <div class="recording-controls" id="recordingControls" style="display: none;">
+                        <div class="recording-controls" id="recordingControls">
                             <button 
                                 id="startRecordingBtn" 
                                 class="btn btn-primary btn-large"
-                                ${!isSupported ? 'disabled' : ''}
+                                ${!isSupported || !mainText ? 'disabled' : ''}
                             >
                                 <i class="fas fa-microphone"></i>
                                 <span class="btn-text">Start Recording</span>
@@ -151,43 +102,37 @@ export class PronunciationCheckerComponent extends Component {
                         <!-- Results -->
                         <div class="pronunciation-result" id="pronunciationResult" style="display: none;">
                             <h4>Result</h4>
-                            
                             <div class="result-score" id="resultScore">
                                 <div class="score-circle">
                                     <div class="score-value" id="scoreValue">0</div>
                                     <div class="score-label">Score</div>
                                 </div>
                             </div>
-                            
                             <div class="result-details">
                                 <div class="result-item">
                                     <strong>You said:</strong>
                                     <p id="recognizedText" class="recognized-text"></p>
                                 </div>
-                                
                                 <div class="result-item">
                                     <strong>Target:</strong>
                                     <p id="targetText" class="target-text"></p>
                                 </div>
-                                
                                 <div class="feedback-section" id="feedbackSection">
                                     <strong>Feedback:</strong>
                                     <p id="feedbackMessage" class="feedback-message"></p>
                                     <ul id="suggestionsList" class="suggestions-list"></ul>
                                 </div>
                             </div>
-                            
                             <div class="result-actions">
                                 <button id="tryAgainBtn" class="btn btn-secondary">
                                     <i class="fas fa-redo"></i> Try Again
                                 </button>
                                 <button id="newSentenceBtn" class="btn btn-outline">
-                                    <i class="fas fa-random"></i> New Sentence
+                                    <i class="fas fa-random"></i> Reset
                                 </button>
                             </div>
                         </div>
                         
-                        <!-- Practice History -->
                         <div class="practice-history" id="practiceHistory" style="display: none;">
                             <h4>Practice History</h4>
                             <div id="historyList" class="history-list"></div>
@@ -199,150 +144,73 @@ export class PronunciationCheckerComponent extends Component {
 
         this.container.innerHTML = html;
         this.attachEventListeners();
+        // 同步当前句为满主文本
+        this.currentSentence = mainText;
     }
 
-    /**
-     * 附加事件监听器 - Attach event listeners
-     */
     attachEventListeners() {
-        // Close button
         const closeBtn = document.getElementById('pronunciationModalClose');
-        if (closeBtn) {
-            closeBtn.addEventListener('click', () => this.close());
-        }
+        if (closeBtn) closeBtn.addEventListener('click', () => this.close());
 
-        // Sample sentence selection
-        const sampleSelect = document.getElementById('sampleSentenceSelect');
-        if (sampleSelect) {
-            sampleSelect.addEventListener('change', (e) => {
-                const index = e.target.value;
-                if (index !== '') {
-                    const sentence = this.sampleSentences[parseInt(index)];
-                    this.setSentence(sentence);
-                    document.getElementById('customSentenceInput').value = '';
-                }
-            });
-        }
-
-        // Custom sentence input
-        const customInput = document.getElementById('customSentenceInput');
-        if (customInput) {
-            customInput.addEventListener('input', (e) => {
-                const sentence = e.target.value.trim();
-                if (sentence.length > 0) {
-                    this.setSentence(sentence);
-                    document.getElementById('sampleSentenceSelect').value = '';
-                }
-            });
-        }
-
-        // 歌曲面板内部事件（词 chips、生成、播放、缓存列表）
         this.songPanel.mount();
 
-        // Recording controls
         const startBtn = document.getElementById('startRecordingBtn');
-        if (startBtn) {
-            startBtn.addEventListener('click', () => this.startRecording());
-        }
-
+        if (startBtn) startBtn.addEventListener('click', () => this.startRecording());
         const stopBtn = document.getElementById('stopRecordingBtn');
-        if (stopBtn) {
-            stopBtn.addEventListener('click', () => this.stopRecording());
-        }
-
-        // Result actions
+        if (stopBtn) stopBtn.addEventListener('click', () => this.stopRecording());
         const tryAgainBtn = document.getElementById('tryAgainBtn');
-        if (tryAgainBtn) {
-            tryAgainBtn.addEventListener('click', () => this.tryAgain());
-        }
-
+        if (tryAgainBtn) tryAgainBtn.addEventListener('click', () => this.tryAgain());
         const newSentenceBtn = document.getElementById('newSentenceBtn');
-        if (newSentenceBtn) {
-            newSentenceBtn.addEventListener('click', () => this.selectNewSentence());
-        }
+        if (newSentenceBtn) newSentenceBtn.addEventListener('click', () => this.selectNewSentence());
     }
 
-    /**
-     * 设置练习句子 - Set practice sentence
-     * @param {string} sentence - 句子 (Sentence)
-     */
     setSentence(sentence) {
-        this.currentSentence = sentence.trim();
-
-        // 练习句子变了，歌曲面板跟着换词
-        this.songPanel?.syncFromSentence(this.currentSentence);
-
+        // 兼容旧调用，实际以主文本为准
+        this.currentSentence = (sentence || this.getMainText()).trim();
         const sentenceDisplay = document.getElementById('sentenceDisplay');
-        const practiceSentence = document.getElementById('practiceSentence');
-        const recordingControls = document.getElementById('recordingControls');
-        const resultDiv = document.getElementById('pronunciationResult');
-        
         if (sentenceDisplay) {
-            sentenceDisplay.textContent = this.currentSentence;
+            const t = this.currentSentence;
+            sentenceDisplay.innerHTML = t ? escapeHtml(t.slice(0, 800)) + (t.length > 800 ? '…' : '') : '<span class="muted">（主页输入框为空）</span>';
         }
-        
-        if (practiceSentence) {
-            practiceSentence.style.display = 'block';
-        }
-        
-        if (recordingControls) {
-            recordingControls.style.display = 'flex';
-        }
-        
-        if (resultDiv) {
-            resultDiv.style.display = 'none';
-        }
+        const recordingControls = document.getElementById('recordingControls');
+        if (recordingControls) recordingControls.style.display = 'flex';
+        const resultDiv = document.getElementById('pronunciationResult');
+        if (resultDiv) resultDiv.style.display = 'none';
+        const startBtn = document.getElementById('startRecordingBtn');
+        if (startBtn) startBtn.disabled = !this.currentSentence;
     }
 
-    /**
-     * 开始录音 - Start recording
-     */
     startRecording() {
-        if (!this.currentSentence) {
-            alert('Please select or enter a sentence first.');
+        const main = this.getMainText();
+        if (!main) {
+            alert('请先在主页输入框粘贴要练习的文本。');
             return;
         }
-
+        this.currentSentence = main;
         try {
-            this.pronunciationChecker.startRecording(this.currentSentence);
+            // 长文本截断到 500 字符避免 Web Speech 超限，评分仍以全段为准
+            const target = main.length > 500 ? main.slice(0, 500) : main;
+            this.pronunciationChecker.startRecording(target);
+            const td = document.getElementById('targetText');
+            if (td) td.textContent = target;
         } catch (error) {
             this.showError(error.message);
         }
     }
 
-    /**
-     * 停止录音 - Stop recording
-     */
     stopRecording() {
         this.pronunciationChecker.stopRecording();
     }
 
-    /**
-     * 更新录音界面状态 - Update recording UI state
-     * @param {boolean} isRecording - 是否正在录音 (Is recording)
-     */
     updateRecordingUI(isRecording) {
         const startBtn = document.getElementById('startRecordingBtn');
         const stopBtn = document.getElementById('stopRecordingBtn');
         const recordingStatus = document.getElementById('recordingStatus');
-
-        if (startBtn) {
-            startBtn.style.display = isRecording ? 'none' : 'inline-block';
-        }
-        
-        if (stopBtn) {
-            stopBtn.style.display = isRecording ? 'inline-block' : 'none';
-        }
-        
-        if (recordingStatus) {
-            recordingStatus.style.display = isRecording ? 'block' : 'none';
-        }
+        if (startBtn) startBtn.style.display = isRecording ? 'none' : 'inline-block';
+        if (stopBtn) stopBtn.style.display = isRecording ? 'inline-block' : 'none';
+        if (recordingStatus) recordingStatus.style.display = isRecording ? 'block' : 'none';
     }
 
-    /**
-     * 显示结果 - Display result
-     * @param {Object} result - 识别结果 (Recognition result)
-     */
     displayResult(result) {
         const resultDiv = document.getElementById('pronunciationResult');
         const scoreValue = document.getElementById('scoreValue');
@@ -350,28 +218,14 @@ export class PronunciationCheckerComponent extends Component {
         const targetText = document.getElementById('targetText');
         const feedbackMessage = document.getElementById('feedbackMessage');
         const suggestionsList = document.getElementById('suggestionsList');
-
-        if (resultDiv) {
-            resultDiv.style.display = 'block';
-        }
-
+        if (resultDiv) resultDiv.style.display = 'block';
         if (scoreValue) {
             scoreValue.textContent = result.score;
             scoreValue.className = `score-value score-${result.feedback.level}`;
         }
-
-        if (recognizedText) {
-            recognizedText.textContent = result.recognized;
-        }
-
-        if (targetText) {
-            targetText.textContent = result.target;
-        }
-
-        if (feedbackMessage) {
-            feedbackMessage.textContent = result.feedback.message;
-        }
-
+        if (recognizedText) recognizedText.textContent = result.recognized;
+        if (targetText) targetText.textContent = result.target;
+        if (feedbackMessage) feedbackMessage.textContent = result.feedback.message;
         if (suggestionsList) {
             suggestionsList.innerHTML = '';
             if (result.feedback.suggestions.length > 0) {
@@ -384,10 +238,6 @@ export class PronunciationCheckerComponent extends Component {
         }
     }
 
-    /**
-     * 添加到历史记录 - Add to history
-     * @param {Object} result - 识别结果 (Recognition result)
-     */
     addToHistory(result) {
         const historyItem = {
             timestamp: new Date().toLocaleString(),
@@ -396,35 +246,22 @@ export class PronunciationCheckerComponent extends Component {
             score: result.score,
             level: result.feedback.level
         };
-
         this.practiceHistory.unshift(historyItem);
-        
-        // 限制历史记录大小 (Limit history size)
-        if (this.practiceHistory.length > this.maxHistorySize) {
-            this.practiceHistory.pop();
-        }
-
+        if (this.practiceHistory.length > this.maxHistorySize) this.practiceHistory.pop();
         this.updateHistoryDisplay();
     }
 
-    /**
-     * 更新历史记录显示 - Update history display
-     */
     updateHistoryDisplay() {
         const historyDiv = document.getElementById('practiceHistory');
         const historyList = document.getElementById('historyList');
-
         if (!historyDiv || !historyList) return;
-
         if (this.practiceHistory.length === 0) {
             historyDiv.style.display = 'none';
             return;
         }
-
         historyDiv.style.display = 'block';
         historyList.innerHTML = '';
-
-        this.practiceHistory.forEach((item, index) => {
+        this.practiceHistory.forEach((item) => {
             const historyItem = document.createElement('div');
             historyItem.className = 'history-item';
             historyItem.innerHTML = `
@@ -438,35 +275,20 @@ export class PronunciationCheckerComponent extends Component {
         });
     }
 
-    /**
-     * 重试 - Try again
-     */
     tryAgain() {
         const resultDiv = document.getElementById('pronunciationResult');
-        if (resultDiv) {
-            resultDiv.style.display = 'none';
-        }
+        if (resultDiv) resultDiv.style.display = 'none';
     }
 
-    /**
-     * 选择新句子 - Select new sentence
-     */
     selectNewSentence() {
-        document.getElementById('sampleSentenceSelect').value = '';
-        document.getElementById('customSentenceInput').value = '';
-        document.getElementById('practiceSentence').style.display = 'none';
-        document.getElementById('recordingControls').style.display = 'none';
-        document.getElementById('pronunciationResult').style.display = 'none';
-        this.currentSentence = '';
+        const r = document.getElementById('pronunciationResult');
+        if (r) r.style.display = 'none';
+        // 重新与主文本同步
+        this.setSentence(this.getMainText());
     }
 
-    /**
-     * 显示错误 - Show error
-     * @param {string} error - 错误信息 (Error message)
-     */
     showError(error) {
         let message = 'An error occurred. Please try again.';
-        
         if (error === 'not-allowed' || error === 'permission-denied') {
             message = 'Microphone permission denied. Please allow microphone access in your browser settings.';
         } else if (error === 'no-speech') {
@@ -474,15 +296,9 @@ export class PronunciationCheckerComponent extends Component {
         } else if (error === 'network') {
             message = 'Network error. Please check your internet connection.';
         }
-
         alert(message);
     }
 
-    /**
-     * 从页面分析结果里收集当前高亮的生词，作为歌曲的候选词
-     * - Collect currently highlighted words from the analysis result
-     * @returns {string[]}
-     */
     collectHighlightedWords() {
         const container = document.getElementById('highlightedWordsContainer');
         if (!container) return [];
@@ -492,33 +308,29 @@ export class PronunciationCheckerComponent extends Component {
             .slice(0, 6);
     }
 
-    /**
-     * 打开组件 - Open component
-     */
     open() {
         if (!this.container.querySelector('.pronunciation-checker-modal')) {
             this.render();
         } else if (!document.getElementById('songStudio')) {
-            // 组件已渲染过但还没有歌曲面板（旧缓存），重建一次
             this.render();
+        } else {
+            // 已渲染则刷新预览与按钮状态
+            this.setSentence(this.getMainText());
         }
         this.container.classList.add('show');
-        // 打开时若还没有选词，从当前分析结果里兜底拿几个生词
-        if (!this.songPanel.words.length) {
-            this.songPanel.syncFromSentence(this.currentSentence);
-        }
+        // 同步歌曲面板的主文本
+        this.songPanel.syncFromMainText?.(this.getMainText());
         this.songPanel.refreshLibrary();
     }
 
-    /**
-     * 关闭组件 - Close component
-     */
     close() {
         this.container.classList.remove('show');
-        
-        // 停止任何正在进行的录音 (Stop any ongoing recording)
         if (this.pronunciationChecker.isRecording) {
             this.pronunciationChecker.stopRecording();
         }
     }
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
