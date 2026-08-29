@@ -1,21 +1,24 @@
 'use strict';
 
 /**
- * song-bridge — 本地歌曲生成调度服务
+ * ai-hub — 本地统一调度服务（原 song-bridge）
  * -----------------------------------------------------------------------------
- * 把「FreeToken 写词 → ComfyUI(MiniMax Music 3) 作曲 → 缓存 + 流式播放」串成一条龙，
- * 并负责在 32G 显存的 RTX 5090 上给三个本地 AI 应用排班。
+ * 单一对外服务，统一管理本机三模型并对外暴露统一 API：
+ *   LMStudio(hy-mt2-1.8b 翻译) + FreeToken(Qwen3.8-27B 写词) + ComfyUI(MiniMax Music 3 作曲)
+ * 对外仅需暴露本服务一个端口（默认 8787，`tailscale serve --bg http://127.0.0.1:8787` 即可外网访问），
+ * 内部负责 32G RTX 5090 显存排班（27B 22G + Music3 15G 互斥，翻译模型按需 8192 上下文）。
  *
- * 接口：
- *   GET    /api/health                 服务与三个后端的健康状态
- *   POST   /api/song                   生成歌曲（SSE 事件流）
+ * 接口（统一层）：
+ *   GET    /api/health                 三后端健康 + 显存 + 缓存
+ *   POST   /api/translate              代理 LMStudio 翻译（OpenAI 兼容，内部走调度）
+ *   POST   /api/song                   生成歌曲（SSE 事件流，内部走 FreeToken→ComfyUI）
  *   GET    /api/songs                  已缓存歌曲列表
  *   GET    /api/songs/:id              单曲元数据
  *   DELETE /api/songs/:id              删除缓存
  *   GET    /api/audio/:id              音频（支持 Range，边下边播）
  *   GET    /api/cache                  缓存占用统计
  *   DELETE /api/cache                  清空缓存
- *   POST   /api/gpu/free               手动释放 GPU（卸载 FreeToken + ComfyUI）
+ *   POST   /api/gpu/free               手动释放 GPU（卸载 FreeToken + ComfyUI + LMStudio）
  */
 
 const http = require('http');
@@ -462,6 +465,52 @@ const server = http.createServer(async (req, res) => {
         },
         version: '1.0.0'
       });
+    }
+
+    // ---- 统一翻译代理（前端不再直连 LMStudio） ----
+    if (pathname === '/api/translate' && req.method === 'POST') {
+      const body = await readBody(req, 512 * 1024);
+      // body 期望为 OpenAI 兼容的 chat completions 请求体，直接透传给 LMStudio
+      // 若 LMStudio 繁忙或显存紧张，由调度器按需腾挪（与作曲互斥时自动卸载/重载）
+      try {
+        const lmUrl = `${config.lmstudio.baseUrl}/v1/chat/completions`;
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 120000);
+        const r = await fetch(lmUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: ctrl.signal
+        });
+        clearTimeout(t);
+        const text = await r.text();
+        res.writeHead(r.status, {
+          'Content-Type': r.headers.get('content-type') || 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store'
+        });
+        return res.end(text);
+      } catch (err) {
+        return sendJson(res, 502, { error: `LMStudio 代理失败: ${err.message}` });
+      }
+    }
+
+    // 兼容旧路径：前端历史直连 LMStudio 的 /v1/chat/completions 也经统一层代理
+    if (pathname === '/v1/chat/completions' && req.method === 'POST') {
+      const body = await readBody(req, 512 * 1024);
+      try {
+        const lmUrl = `${config.lmstudio.baseUrl}/v1/chat/completions`;
+        const r = await fetch(lmUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(120000)
+        });
+        const text = await r.text();
+        res.writeHead(r.status, { 'Content-Type': r.headers.get('content-type') || 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(text);
+      } catch (err) {
+        return sendJson(res, 502, { error: `LMStudio 代理失败: ${err.message}` });
+      }
     }
 
     // ---- 歌曲列表 ----

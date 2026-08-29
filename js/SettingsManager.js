@@ -174,10 +174,10 @@ export class SettingsManager {
             reviewInterval: 7,                      // 复习间隔（天）(Review interval in days)
             googleDriveSync: false,                 // Google Drive 同步 (Google Drive sync)
             llmSenseEnabled: true,                  // 启用大模型上下文释义精修 (Enable LLM context sense refinement)
-            llmEndpoint: 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions',  // LM Studio 端点 (LM Studio endpoint via Tailscale Serve)
+            llmEndpoint: 'http://127.0.0.1:8787/api/translate',  // 统一调度服务翻译代理（本地 8787，经 tailscale serve 对外暴露同一端口）
             llmModel: 'hy-mt2-1.8b', // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
             songEnabled: true,                   // 启用单词歌曲 (Enable word songs)
-            songBridgeUrl: 'http://127.0.0.1:8787', // 本地歌曲调度服务 (Local song-bridge endpoint)
+            songBridgeUrl: 'http://127.0.0.1:8787', // 统一调度服务（本地 8787，对外 tailscale serve 同一端口）
             songStyle: 'acoustic folk pop',      // 默认曲风 (Default music style)
             songDurationSec: 60                  // 默认时长（秒）(Default song length in seconds)
         };

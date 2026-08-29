@@ -13,9 +13,12 @@
 import { glossCache } from './GlossCache.js';
 
 export class LLMSenseSelector {
-    static DEFAULT_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
-    // Vite dev server proxy path (see vite.config.js) used as CORS-free fallback
+    // 统一调度服务（本地 8787，经 tailscale serve 对外暴露同一端口）
+    static DEFAULT_ENDPOINT = 'http://127.0.0.1:8787/api/translate';
+    // 兼容旧直连与 Vite 代理，作为候选回退
+    static LEGACY_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
     static PROXY_ENDPOINT = '/lm-studio/v1/chat/completions';
+    static UNIFIED_PROXY = '/api/translate';
     static DEFAULT_MODEL = 'hy-mt2-1.8b';
     // HuggingFace 仓库 / 本地权重路径（推理服务端应加载此权重并暴露为 DEFAULT_MODEL）
     static DEFAULT_WEIGHT_PATH = 'tencent/Hy-MT2-1.8B';
@@ -306,9 +309,13 @@ export class LLMSenseSelector {
          * 不兼容的服务端（返回 400/422）会自动去掉该参数重试一次。
          */
     async chat(prompt) {
-        const candidates = [this.workingEndpoint, this.endpoint, LLMSenseSelector.PROXY_ENDPOINT]
-            .filter(Boolean)
-            .filter((value, index, arr) => arr.indexOf(value) === index);
+        const candidates = [
+            this.workingEndpoint,
+            this.endpoint,
+            LLMSenseSelector.UNIFIED_PROXY,
+            LLMSenseSelector.PROXY_ENDPOINT,
+            LLMSenseSelector.LEGACY_ENDPOINT
+        ].filter(Boolean).filter((value, index, arr) => arr.indexOf(value) === index);
 
         const buildBody = (withSchema) => {
             const body = {

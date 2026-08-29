@@ -34,10 +34,13 @@ export default defineConfig(({ command }) => ({
     port: 3000,
     open: true,
     cors: true,
-    // Proxy LM Studio local API to avoid browser CORS restrictions.
-    // The app falls back to /lm-studio/v1/chat/completions when direct
-    // access to http://localhost:1234 is blocked by CORS.
+    // 统一调度服务代理（本地 8787，经 tailscale serve 对外同端口）
+    // 前端不再直连 LMStudio，所有 LLM/歌曲请求均走统一服务
     proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:8787',
+        changeOrigin: true,
+      },
       '/lm-studio': {
         target: 'http://localhost:1234',
         changeOrigin: true,
