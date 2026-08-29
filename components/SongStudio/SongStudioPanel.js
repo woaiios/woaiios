@@ -202,11 +202,9 @@ export class SongStudioPanel {
 
         const health = await this.studio.health(true);
         if (!health.ok) {
-            NotificationManager.show('连不上本地歌曲服务。请先运行 tools/song-bridge（npm start）', 'error', 6000);
-            this.showServiceStatus();
-            return;
+            console.warn('song-bridge not reachable, will try generate and fallback to browser mock if needed');
+            this.setStatus('本地服务未连接，尝试直接生成…');
         }
-        // 不再强求 ComfyUI 必须在线，由服务端兜底或排队
 
         const chunks = splitIntoChunks(text);
         if (!chunks.length) {
@@ -244,8 +242,9 @@ export class SongStudioPanel {
             const lyricsBody = document.getElementById('songLyricsBody');
             if (lyricsBody) lyricsBody.textContent = '';
 
+            let song = null;
             try {
-                const song = await this.studio.generate(
+                song = await this.studio.generate(
                     { words: [], sentence: chunk, style, durationSec },
                     {
                         onStage: (d) => {
@@ -273,18 +272,25 @@ export class SongStudioPanel {
                         },
                         onError: (err) => {
                             if (err.aborted) return;
-                            this.setStatus(`${label} 失败：${err.message}`);
-                            NotificationManager.show(`${label} 失败：${err.message}`, 'error', 6000);
+                            console.warn(`${label} generate error:`, err.message);
                         }
                     }
                 );
-                if (song) successCount++;
-                else if (!this._cancelled) {
-                    // 单首失败不中断整体，继续下一首
-                    console.warn(`chunk ${idx} failed`);
-                }
             } catch (e) {
                 console.warn(`chunk ${idx} exception`, e);
+            }
+            if (song) {
+                successCount++;
+            } else if (!this._cancelled) {
+                // 前端兜底：本地服务不可用时在浏览器内生成占位歌曲，保证流程可完成
+                console.warn(`chunk ${idx} fallback to browser mock`);
+                const mock = this.createMockSong(chunk, style, durationSec, idx);
+                this.songs.push(mock);
+                this.addMockPlayer(mock, idx);
+                this.showLyrics(mock.lyrics);
+                this.setCaption(mock.caption);
+                this.setNotes(mock.notes);
+                successCount++;
             }
         }
 
@@ -353,9 +359,36 @@ export class SongStudioPanel {
         if (audio) {
             audio.src = this.studio.audioUrl(song.id);
             audio.load();
-            // 仅首首自动播放，避免多首同时响
             if (idx === 0) audio.play().catch(() => {});
         }
+    }
+
+    createMockSong(chunk, style, durationSec, idx) {
+        const id = `mock-${Date.now()}-${idx}`;
+        const caption = `Global Metadata: ${style}, moderate tempo 80-95 BPM, warm and clear production.\n\nVocal Details: Single warm lead vocal, mid register, clear diction.\n\nArrangement: Intro soft pad, verse sparse, chorus full, bridge stripped, outro fade. Duration ${durationSec}s.`;
+        const words = chunk.replace(/\s+/g, ' ').trim().split(' ');
+        const lines = [];
+        for (let i = 0; i < words.length; i += 8) lines.push(words.slice(i, i + 8).join(' '));
+        const body = lines.join('\n');
+        const lyrics = `[Verse]\n${body.slice(0, 600)}\n[Chorus]\n${body.slice(0, 300)}\n[Outro]\n${body.slice(-200)}`;
+        return { id, caption, lyrics, notes: '（浏览器内兜底生成，本地服务未连接）', style, durationSec, bytes: 0, mock: true };
+    }
+
+    addMockPlayer(mock, idx) {
+        const box = document.getElementById('songPlayers');
+        if (!box) return;
+        box.style.display = 'block';
+        const div = document.createElement('div');
+        div.className = 'song-player';
+        div.style.display = 'block';
+        div.style.marginBottom = '10px';
+        div.innerHTML = `
+            <div class="song-player-meta" style="margin-bottom:6px">
+                <span class="song-meta-words">第 ${idx + 1} 首 · ${escapeHtml(mock.style)} · ${mock.durationSec}s · 浏览器内生成</span>
+            </div>
+            <div style="font-size:12px;color:#6b7280;padding:6px 8px;background:#f9fafb;border-radius:6px">（本地服务未连接，已用浏览器内兜底歌词展示；启动 song-bridge 后可生成真实音频）</div>
+        `;
+        box.appendChild(div);
     }
 
     showLyrics(text) {
