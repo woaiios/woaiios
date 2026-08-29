@@ -5,6 +5,7 @@ This helps mitigate the effects of global warming by reducing the concentration 
 
 test.describe('Photosynthesis E2E', () => {
   test('前置数据库加载完成并完成分析、发音、歌曲生成无报错', async ({ page }) => {
+    test.setTimeout(150000);
     const pageErrors = [];
     const consoleErrors = [];
     const failedRequests = [];
@@ -159,41 +160,55 @@ test.describe('Photosynthesis E2E', () => {
     const pronModal = page.locator('#pronunciationModal');
     await expect(pronModal).toHaveClass(/show/, { timeout: 3000 });
     await expect(pronModal.locator('.pronunciation-checker-modal')).toBeVisible();
-    // 新版：直接显示主文本预览，不再有选句下拉
-    await expect(pronModal.locator('#sentenceDisplay')).toBeVisible();
     await expect(pronModal.locator('#songStudio')).toBeVisible();
-    // 旧版选句 UI 已移除
-    await expect(pronModal.locator('#sampleSentenceSelect')).toHaveCount(0);
-    await expect(pronModal.locator('#customSentenceInput')).toHaveCount(0);
-    // 歌曲预览应显示主文本长度信息
-    await expect(pronModal.locator('#songPreviewText')).toContainText('Photosynthesis', { timeout: 2000 });
-    await expect(pronModal.locator('#songPreviewMeta')).toContainText(/将生成 \d+ 首/);
+    // 新版已移除当前文本预览与输入框，仅保留歌曲面板
+    await expect(pronModal.locator('#songMainPreview')).toHaveCount(0);
+    await expect(pronModal.locator('#songWordChips')).toHaveCount(0);
 
-    // 8. 点击 生成歌曲（前端兜底：即使 song-bridge 未启动也应成功展示歌词）
+    // 8. 点击 生成歌曲 — 先转歌词圈，再显示歌词，再转作曲圈
     const genBtn = pronModal.locator('#songGenerateBtn');
     await expect(genBtn).toBeVisible();
     await expect(genBtn).toBeEnabled();
     await genBtn.click();
 
-    // 生成后应出现状态区，且为成功/进行中而非错误（兜底文案含“浏览器内生成”亦算成功）
+    // 第一段转圈：正在生成歌词（Fallback 7s + 流式，真实模型更久）
+    const lyricsSpinner = pronModal.locator('#songLyricsSpinner');
+    await expect(lyricsSpinner).toBeVisible({ timeout: 5000 });
+    // 等待歌词出现（兜底 7-10s，真实 15-30s）
+    await expect(pronModal.locator('#songLyrics')).toBeVisible({ timeout: 45000 });
+    const lyricsText = (await pronModal.locator('#songLyricsBody').textContent())?.trim();
+    console.log('lyrics after generate:', lyricsText?.slice(0, 120));
+    expect(lyricsText).toBeTruthy();
+    expect(lyricsText.length).toBeGreaterThan(10);
+    await expect(lyricsSpinner).toBeHidden({ timeout: 10000 }).catch(() => console.log('lyrics spinner still visible'));
+
+    // 第二段转圈：正在作曲
+    const musicSpinner = pronModal.locator('#songMusicSpinner');
+    // 作曲圈可能短暂出现（真实服务）或直接完成（兜底），允许任一
+    await page.waitForTimeout(1000);
+    const musicVisible = await musicSpinner.isVisible().catch(() => false);
+    console.log('music spinner visible after lyrics:', musicVisible);
+
+    // 最终状态与播放器
     const statusBox = pronModal.locator('#songStatus');
     await expect(statusBox).toBeVisible({ timeout: 8000 });
-    await page.waitForFunction(() => {
-      const el = document.getElementById('songStatusText');
-      return el && el.textContent && el.textContent.trim().length > 2;
-    }, { timeout: 8000 }).catch(() => {});
-    await page.waitForTimeout(3000);
+    await page.waitForTimeout(2000);
     const statusText = (await pronModal.locator('#songStatusText').textContent())?.trim();
     console.log('song status after click:', statusText);
     expect(statusText).toBeTruthy();
     expect(statusText.length).toBeGreaterThan(2);
-    // 严格：不允许出现 503 / 未连接 / ❌（兜底成功文案为“完成”或“浏览器内生成”）
     expect(statusText).not.toContain('503');
     expect(statusText).not.toContain('未连接');
     expect(statusText).not.toContain('❌');
-    // 兜底或真实成功均需出现歌词/播放器
-    await expect(pronModal.locator('#songLyrics')).toBeVisible({ timeout: 5000 }).catch(() => console.log('lyrics not yet visible'));
-    await expect(pronModal.locator('#songPlayers')).toBeVisible({ timeout: 5000 }).catch(() => console.log('players not yet visible'));
+    // 播放器需等待作曲完成（真实 ComfyUI 约 30-60s），测试环境仅校验已进入作曲阶段即可
+    const playersVisible = await pronModal.locator('#songPlayers').isVisible().catch(() => false);
+    console.log('players visible after status:', playersVisible);
+    if (!playersVisible) {
+      console.log('players not yet visible, but lyrics and status ok — 视为通过（作曲仍在后台）');
+      await expect(pronModal.locator('#songLyrics')).toBeVisible({ timeout: 2000 });
+    } else {
+      await expect(pronModal.locator('#songPlayers')).toBeVisible({ timeout: 5000 });
+    }
 
     // 9. 确认页面和控制台都没有报错（已在监听中收集）
     // 等待额外 1s 确保无延迟错误

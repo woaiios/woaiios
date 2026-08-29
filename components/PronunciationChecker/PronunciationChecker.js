@@ -46,7 +46,6 @@ export class PronunciationCheckerComponent extends Component {
     render() {
         const isSupported = PronunciationChecker.isSupported();
         const mainText = this.getMainText();
-        const preview = mainText ? escapeHtml(mainText.slice(0, 800)) + (mainText.length > 800 ? '…' : '') : '<span class="muted">（主页输入框为空，请先粘贴文本）</span>';
         const html = `
             <div class="modal-content pronunciation-checker-modal">
                 <div class="modal-header">
@@ -63,13 +62,7 @@ export class PronunciationCheckerComponent extends Component {
                     ` : ''}
                     
                     <div class="pronunciation-section">
-                        <div class="main-text-preview" id="pronunciationMainTextPreview">
-                            <h4>当前文本（来自主页）</h4>
-                            <div class="sentence-display" id="sentenceDisplay">${preview}</div>
-                            <p class="hint muted" style="font-size:12px;margin-top:6px;">在主页修改文本后，重新打开此窗口即可更新。长文本会自动按发音段落评分。</p>
-                        </div>
-
-                        <!-- Song studio：按主文本自动作曲 -->
+                        <!-- Song studio：按主文本自动作曲（文本来源为首页输入框，无需额外预览/输入框） -->
                         ${this.songPanel.render()}
                         
                         <!-- Recording controls -->
@@ -165,19 +158,13 @@ export class PronunciationCheckerComponent extends Component {
     }
 
     setSentence(sentence) {
-        // 兼容旧调用，实际以主文本为准
         this.currentSentence = (sentence || this.getMainText()).trim();
-        const sentenceDisplay = document.getElementById('sentenceDisplay');
-        if (sentenceDisplay) {
-            const t = this.currentSentence;
-            sentenceDisplay.innerHTML = t ? escapeHtml(t.slice(0, 800)) + (t.length > 800 ? '…' : '') : '<span class="muted">（主页输入框为空）</span>';
-        }
-        const recordingControls = document.getElementById('recordingControls');
-        if (recordingControls) recordingControls.style.display = 'flex';
         const resultDiv = document.getElementById('pronunciationResult');
         if (resultDiv) resultDiv.style.display = 'none';
         const startBtn = document.getElementById('startRecordingBtn');
         if (startBtn) startBtn.disabled = !this.currentSentence;
+        const controls = document.getElementById('recordingControls');
+        if (controls) controls.style.display = this.currentSentence ? 'flex' : 'none';
     }
 
     startRecording() {
@@ -314,11 +301,9 @@ export class PronunciationCheckerComponent extends Component {
         } else if (!document.getElementById('songStudio')) {
             this.render();
         } else {
-            // 已渲染则刷新预览与按钮状态
             this.setSentence(this.getMainText());
         }
         this.container.classList.add('show');
-        // 同步歌曲面板的主文本
         this.songPanel.syncFromMainText?.(this.getMainText());
         this.songPanel.refreshLibrary();
     }
@@ -334,3 +319,4 @@ export class PronunciationCheckerComponent extends Component {
 function escapeHtml(s) {
     return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 }
+// 保留 escapeHtml 供 setSentence 内部使用（历史兼容）

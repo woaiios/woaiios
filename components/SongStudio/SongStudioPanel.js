@@ -91,14 +91,7 @@ export class SongStudioPanel {
                 <div class="song-studio-body" id="songStudioBody">
                     <p class="song-studio-hint">
                         按主页文本自动作曲：曲风随机、时长按文本长度自动匹配，长文自动拆成多首（每首 ≤5 分钟）。
-                        两模型共用显卡，后台自动排队，支持流式预览与缓存播放。
                     </p>
-
-                    <div class="song-main-preview" id="songMainPreview" style="display:none">
-                        <div class="song-preview-label">将要作曲的文本</div>
-                        <div class="song-preview-text" id="songPreviewText"></div>
-                        <div class="song-preview-meta" id="songPreviewMeta"></div>
-                    </div>
 
                     <div class="song-actions">
                         <button class="btn btn-primary" id="songGenerateBtn">
@@ -111,6 +104,18 @@ export class SongStudioPanel {
                         <button class="btn btn-outline" id="songStatusBtn" title="查看本地服务状态">
                             <i class="fas fa-server"></i> 服务状态
                         </button>
+                    </div>
+
+                    <div class="song-spinner" id="songLyricsSpinner" style="display:none">
+                        <div class="song-spinner-icon"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="song-spinner-text">正在生成歌词...</div>
+                        <div class="song-spinner-sub">Qwen3.8-27B · music-caption-rewriter</div>
+                    </div>
+
+                    <div class="song-spinner" id="songMusicSpinner" style="display:none">
+                        <div class="song-spinner-icon"><i class="fas fa-spinner fa-spin"></i></div>
+                        <div class="song-spinner-text">正在作曲...</div>
+                        <div class="song-spinner-sub">ComfyUI · MiniMax Music 3</div>
                     </div>
 
                     <div class="song-status" id="songStatus" style="display:none">
@@ -169,23 +174,9 @@ export class SongStudioPanel {
         this.refreshLibrary();
     }
 
-    // 由外部同步主文本
+    // 由外部同步主文本（UI 已简化，不再显示预览）
     syncFromMainText(text) {
         this.mainText = (text || '').trim();
-        const box = document.getElementById('songMainPreview');
-        const txt = document.getElementById('songPreviewText');
-        const meta = document.getElementById('songPreviewMeta');
-        if (!box || !txt || !meta) return;
-        if (!this.mainText) {
-            box.style.display = 'none';
-            return;
-        }
-        box.style.display = 'block';
-        const preview = this.mainText.length > 400 ? this.mainText.slice(0, 400) + '…' : this.mainText;
-        txt.textContent = preview;
-        const chunks = splitIntoChunks(this.mainText);
-        const totalDur = chunks.reduce((s, c) => s + autoDuration(c), 0);
-        meta.textContent = `共 ${this.mainText.length} 字符 · 将生成 ${chunks.length} 首 · 总时长约 ${totalDur}s（每首 ≤300s，曲风随机）`;
     }
 
     // 兼容旧调用
@@ -221,6 +212,8 @@ export class SongStudioPanel {
         this.showLyrics('');
         this.setCaption('');
         this.setNotes('');
+        this.hideLyricsSpinner();
+        this.hideMusicSpinner();
         const playersBox = document.getElementById('songPlayers');
         if (playersBox) { playersBox.innerHTML = ''; playersBox.style.display = 'none'; }
 
@@ -236,6 +229,9 @@ export class SongStudioPanel {
 
             this.setStatus(`${label}（${style} · ${durationSec}s）— 准备…`);
             this.setProgress(0);
+            this.showLyricsSpinner();
+            this.hideMusicSpinner();
+            this.showLyrics('');
             this.streamedCaption = '';
             this.streamedLyrics = '';
             this.streamedNotes = '';
@@ -250,11 +246,27 @@ export class SongStudioPanel {
                         onStage: (d) => {
                             const lbl = STAGE_LABELS[d.stage] || d.stage;
                             this.setStatus(`${label} ${lbl}：${d.message}`);
-                            if (d.stage === 'music') this.setProgress(0);
+                            if (d.stage === 'lyrics') {
+                                this.showLyricsSpinner();
+                                this.hideMusicSpinner();
+                            }
+                            if (d.stage === 'music') {
+                                this.hideLyricsSpinner();
+                                // 歌词已完成，先展示
+                                if (this.streamedLyrics) {
+                                    this.showLyrics(this.streamedLyrics);
+                                }
+                                this.showMusicSpinner();
+                                this.setProgress(0);
+                            }
+                            if (d.stage === 'save') {
+                                this.hideMusicSpinner();
+                            }
                         },
                         onCaption: (t) => { this.streamedCaption += t; this.setCaption(this.streamedCaption); },
                         onLyrics: (t) => {
                             this.streamedLyrics += t;
+                            this.hideLyricsSpinner();
                             if (lyricsBody) { lyricsBody.textContent = this.streamedLyrics; lyricsBody.scrollTop = lyricsBody.scrollHeight; }
                             const wrap = document.getElementById('songLyrics');
                             if (wrap) wrap.style.display = 'block';
@@ -262,6 +274,8 @@ export class SongStudioPanel {
                         onNotes: (t) => { this.streamedNotes += t; this.setNotes(this.streamedNotes); },
                         onProgress: (p) => { if (p.max > 0) this.setProgress(p.value / p.max); },
                         onDone: (result, cached) => {
+                            this.hideLyricsSpinner();
+                            this.hideMusicSpinner();
                             if (result) {
                                 this.songs.push(result);
                                 this.addPlayer(result, cached, idx);
@@ -272,6 +286,8 @@ export class SongStudioPanel {
                         },
                         onError: (err) => {
                             if (err.aborted) return;
+                            this.hideLyricsSpinner();
+                            this.hideMusicSpinner();
                             console.warn(`${label} generate error:`, err.message);
                         }
                     }
@@ -281,8 +297,11 @@ export class SongStudioPanel {
             }
             if (song) {
                 successCount++;
+                this.hideLyricsSpinner();
+                this.hideMusicSpinner();
             } else if (!this._cancelled) {
-                // 前端兜底：本地服务不可用时在浏览器内生成占位歌曲，保证流程可完成
+                this.hideLyricsSpinner();
+                this.hideMusicSpinner();
                 console.warn(`chunk ${idx} fallback to browser mock`);
                 const mock = this.createMockSong(chunk, style, durationSec, idx);
                 this.songs.push(mock);
@@ -313,8 +332,15 @@ export class SongStudioPanel {
         this._cancelled = true;
         this.studio.cancel();
         this.endBusy();
+        this.hideLyricsSpinner();
+        this.hideMusicSpinner();
         this.setStatus('已取消');
     }
+
+    showLyricsSpinner() { const el = document.getElementById('songLyricsSpinner'); if (el) el.style.display = 'flex'; }
+    hideLyricsSpinner() { const el = document.getElementById('songLyricsSpinner'); if (el) el.style.display = 'none'; }
+    showMusicSpinner() { const el = document.getElementById('songMusicSpinner'); if (el) el.style.display = 'flex'; }
+    hideMusicSpinner() { const el = document.getElementById('songMusicSpinner'); if (el) el.style.display = 'none'; }
 
     startBusy() {
         this.busy = true;
@@ -336,6 +362,9 @@ export class SongStudioPanel {
         if (btn) btn.disabled = false;
         if (label) label.textContent = '生成歌曲';
         if (cancel) cancel.style.display = 'none';
+        // 兜底隐藏（正常流程已在 onDone/onError 中隐藏）
+        this.hideLyricsSpinner();
+        this.hideMusicSpinner();
     }
 
     addPlayer(song, cached, idx) {

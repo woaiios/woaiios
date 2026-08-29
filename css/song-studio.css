@@ -446,41 +446,38 @@
     color: #9ca3af;
 }
 
-/* --- 主文本预览（新版自动作曲） --- */
-.song-main-preview {
-    background: #fff;
-    border: 1px solid #e5e7eb;
-    border-radius: 8px;
-    padding: 10px 12px;
-}
-.song-preview-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: #6b7280;
-    margin-bottom: 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-.song-preview-text {
-    font-size: 13px;
-    line-height: 1.6;
-    color: #1f2937;
-    max-height: 88px;
-    overflow-y: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
-}
-.song-preview-meta {
-    margin-top: 6px;
-    font-size: 11.5px;
-    color: #6b7280;
-}
 .song-players {
     display: grid;
     gap: 10px;
 }
 .muted { color: #9ca3af; }
 .hint.muted { color: #9ca3af; }
+
+/* --- 两段式转圈（先歌词后作曲） --- */
+.song-spinner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 16px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    text-align: center;
+}
+.song-spinner-icon {
+    font-size: 22px;
+    color: #7c3aed;
+}
+.song-spinner-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1f2937;
+}
+.song-spinner-sub {
+    font-size: 11.5px;
+    color: #6b7280;
+}
 
 /* --- 移动端 --- */
 @media (max-width: 480px) {
