@@ -1,9 +1,13 @@
 import { defineConfig } from 'vite';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import react from '@vitejs/plugin-react';
 import viteCompression from 'vite-plugin-compression';
 
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
 // https://vitejs.dev/config/
-export default defineConfig(({ command }) => ({
+export default defineConfig(() => ({
   // Base public path
   // Use /woaiios/ for both dev and build to ensure consistent paths
   base: '/woaiios/',
@@ -15,8 +19,9 @@ export default defineConfig(({ command }) => ({
 
   // Public directory for static assets
   publicDir: 'public',
-  
+
   plugins: [
+    react(),
     // Gzip compression for all assets
     viteCompression({
       algorithm: 'gzip',
@@ -28,18 +33,18 @@ export default defineConfig(({ command }) => ({
       filter: /\.(js|mjs|css|html|json|svg|wasm|map|ico|png|ttf|woff2?)$/
     })
   ],
-  
+
   // Development server configuration
   server: {
     port: 3000,
     open: true,
     cors: true,
-    // 统一调度服务代理（本地 8787，经 tailscale serve 对外同端口）
+    // 统一调度服务代理（本机 8787，经 tailscale serve 对外同端口）
     // 前端不再直连 LMStudio，所有 LLM/歌曲请求均走统一服务
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8787',
-        changeOrigin: true,
+        changeOrigin: true
       },
       '/lm-studio': {
         target: 'http://localhost:1234',
@@ -48,7 +53,7 @@ export default defineConfig(({ command }) => ({
       }
     }
   },
-  
+
   // Build configuration
   build: {
     outDir: 'dist',
@@ -93,7 +98,7 @@ export default defineConfig(({ command }) => ({
     // Enable CSS code splitting
     cssCodeSplit: true
   },
-  
+
   // Resolve configuration
   resolve: {
     alias: {
@@ -103,12 +108,12 @@ export default defineConfig(({ command }) => ({
       '@css': resolve(__dirname, './css')
     }
   },
-  
+
   // Optimization
   optimizeDeps: {
     exclude: ['sql.js']
   },
-  
+
   // Handle wasm files for sql.js
   assetsInclude: ['**/*.wasm']
 }));

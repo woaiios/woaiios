@@ -1,0 +1,12 @@
+import { defineConfig } from 'vitest/config';
+
+export default defineConfig({
+  test: {
+    environment: 'node',
+    include: ['src/**/__tests__/**/*.test.{ts,tsx}', 'tests/unit/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/core/**', 'src/services/**'],
+    },
+  },
+});
