@@ -157,6 +157,14 @@ export class SettingsManager {
      * 定义所有可用设置及其默认值 (Define all available settings and their defaults)
      * @returns {Object} 默认设置对象 (Default settings object)
      */
+    static resolveTranslateEndpoint() {
+        try {
+            const h = window.location.hostname;
+            if (h) return `http://${h}:8787/api/translate`;
+        } catch {}
+        return 'http://localhost:8787/api/translate';
+    }
+
     getDefaultSettings() {
         return {
             highlightColor: '#ffeb3b',              // 高亮颜色 (Highlight color)
@@ -174,12 +182,8 @@ export class SettingsManager {
             reviewInterval: 7,                      // 复习间隔（天）(Review interval in days)
             googleDriveSync: false,                 // Google Drive 同步 (Google Drive sync)
             llmSenseEnabled: true,                  // 启用大模型上下文释义精修 (Enable LLM context sense refinement)
-            llmEndpoint: 'http://127.0.0.1:8787/api/translate',  // 统一调度服务翻译代理（本地 8787，经 tailscale serve 对外暴露同一端口）
-            llmModel: 'hy-mt2-1.8b', // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
-            songEnabled: true,                   // 启用单词歌曲 (Enable word songs)
-            songBridgeUrl: 'http://127.0.0.1:8787', // 统一调度服务（本地 8787，对外 tailscale serve 同一端口）
-            songStyle: 'acoustic folk pop',      // 默认曲风 (Default music style)
-            songDurationSec: 60                  // 默认时长（秒）(Default song length in seconds)
+            llmEndpoint: SettingsManager.resolveTranslateEndpoint(),  // 统一调度服务翻译代理（随页面主机名自动探测 :8787）
+            llmModel: 'hy-mt2-1.8b' // 模型名称 (Model name, 对应推理服务端暴露的 served-model-name)
         };
     }
 
@@ -208,11 +212,7 @@ export class SettingsManager {
             reviewInterval: (val) => typeof val === 'number' && val > 0,  // 必须是正数 (Must be positive number)
             llmSenseEnabled: (val) => typeof val === 'boolean',  // 必须是布尔值 (Must be boolean)
             llmEndpoint: (val) => typeof val === 'string' && (val.startsWith('http') || val.startsWith('/')),  // 必须是合法 URL 或路径
-            llmModel: (val) => typeof val === 'string' && val.trim().length > 0,  // 必须是非空字符串
-            songEnabled: (val) => typeof val === 'boolean',
-            songBridgeUrl: (val) => typeof val === 'string' && (val.startsWith('http://') || val.startsWith('https://')),
-            songStyle: (val) => typeof val === 'string' && val.trim().length > 0,
-            songDurationSec: (val) => [30, 60, 90, 120].includes(Number(val))
+            llmModel: (val) => typeof val === 'string' && val.trim().length > 0  // 必须是非空字符串
         };
 
         const validator = validators[key];
@@ -311,32 +311,6 @@ export class SettingsManager {
                 type: 'text',
                 label: 'LLM Model',
                 description: 'Model identifier (served-model-name) of hy-mt2-1.8b'
-            },
-            songEnabled: {
-                type: 'checkbox',
-                label: 'Word Songs (AI music)',
-                description: 'Generate a song for your words: FreeToken Qwen3.8-27B writes lyrics, ComfyUI (MiniMax Music 3) composes'
-            },
-            songBridgeUrl: {
-                type: 'text',
-                label: 'Song Bridge Endpoint',
-                description: 'Local song-bridge service (start it with: cd tools/song-bridge && npm start)'
-            },
-            songStyle: {
-                type: 'text',
-                label: 'Default Song Style',
-                description: 'English style description fed to the music model (e.g. acoustic folk pop, lo-fi hip hop)'
-            },
-            songDurationSec: {
-                type: 'select',
-                label: 'Default Song Length',
-                description: 'Longer songs take noticeably more time and VRAM',
-                options: [
-                    { value: 30, label: '30 seconds' },
-                    { value: 60, label: '60 seconds' },
-                    { value: 90, label: '90 seconds' },
-                    { value: 120, label: '120 seconds' }
-                ]
             }
         };
 
@@ -358,10 +332,21 @@ export class SettingsManager {
                 const merged = { ...defaultSettings, ...saved };
 
                 // 迁移：旧的直连端点自动升级为 Tailscale HTTPS 端点
+                let needsSave = false;
                 const LEGACY_ENDPOINT = 'http://localhost:1234/v1/chat/completions';
                 if (merged.llmEndpoint === LEGACY_ENDPOINT) {
                     merged.llmEndpoint = defaultSettings.llmEndpoint;
-                    this.saveSettings();
+                    needsSave = true;
+                }
+
+                // 迁移：歌曲设置已移除（地址改为自动探测），清掉历史遗留键
+                const REMOVED_KEYS = ['songEnabled', 'songBridgeUrl', 'songStyle', 'songDurationSec'];
+                if (REMOVED_KEYS.some((k) => k in merged)) {
+                    REMOVED_KEYS.forEach((k) => delete merged[k]);
+                    needsSave = true;
+                }
+                if (needsSave) {
+                    await storageHelper.setItem('wordDiscovererSettings', merged);
                 }
 
                 return merged;

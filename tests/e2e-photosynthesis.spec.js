@@ -40,15 +40,18 @@ test.describe('Photosynthesis E2E', () => {
 
     // 1. 打开应用，等待数据库加载完成
     await page.goto('/woaiios/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    // 等待首分片就绪（与 debug 一致：先等 5s 再检查 progressiveLoader）
+    // 等待首分片就绪：兼容 DirectDataStorage(_wordDatabase.progressiveLoader) 与旧 WordDatabase(progressiveLoader)
     await page.waitForTimeout(5000);
     await page.waitForFunction(() => {
       const w = window.wordDiscoverer;
-      return !!(w && w.dataStorage && w.dataStorage.progressiveLoader);
-    }, { timeout: 20000 }).catch(() => console.log('progressiveLoader 检查超时'));
+      return !!(
+        w &&
+        w.dataStorage &&
+        (w.dataStorage._wordDatabase?.progressiveLoader || w.dataStorage.progressiveLoader)
+      );
+    }, { timeout: 20000 });
     await page.waitForTimeout(2000);
-    const dbOverlay = page.locator('#dbLoadingOverlay');
-    try { await expect(dbOverlay).toBeHidden({ timeout: 10000 }); } catch { console.log('dbOverlay 仍显示'); }
+    await expect(page.locator('#dbLoadingOverlay')).toBeHidden({ timeout: 15000 });
 
     // 2. 输入文本
     await page.fill('#textInput', PASSAGE);

@@ -64,10 +64,7 @@ class WordDiscoverer {
         this.vocabularyComponent = new VocabularyComponent(this.vocabularyManager);
         this.settingsComponent = new SettingsComponent(this.settingsManager, this.vocabularyManager.googleDriveManager);
         this.analyzedTextComponent = new AnalyzedTextComponent('#analyzedText', this.vocabularyManager);
-        this.pronunciationCheckerComponent = new PronunciationCheckerComponent(
-            '#pronunciationModal',
-            this.settingsManager
-        );
+        this.pronunciationCheckerComponent = new PronunciationCheckerComponent('#pronunciationModal');
         
         // 模块管理器 (Module Managers)
         this.eventHandlers = new EventHandlers(this);

@@ -11,16 +11,13 @@
 const path = require('path');
 const { config } = require('../config');
 const { ComfyUI } = require('../lib/comfyui');
-const { FreeToken } = require('../lib/freetoken');
 const { GpuScheduler } = require('../lib/gpu-scheduler');
 
 const seconds = Number(process.argv[2] || 8);
 const steps = Number(process.argv[3] || 6);
 
 const comfyui = new ComfyUI(config, console.log);
-const freetoken = new FreeToken(config, console.log);
 const scheduler = new GpuScheduler({
-  freetoken,
   comfyui,
   lmstudio: { async loadedModels() { return []; }, async unloadAll() { return []; } },
   config
@@ -48,7 +45,7 @@ Mmm...`;
   console.log('\n[1/4] 检查显存');
   console.log('  可用显存:', (await comfyui.vramFreeGiB())?.toFixed(2), 'GiB');
 
-  console.log('\n[2/4] 释放 GPU（卸载 FreeToken + ComfyUI 模型）');
+  console.log('\n[2/4] 释放 GPU（卸载 ComfyUI 模型）');
   await scheduler.run('comfyui', async () => {
     console.log('  清场完成，可用显存:', (await comfyui.vramFreeGiB())?.toFixed(2), 'GiB');
   });

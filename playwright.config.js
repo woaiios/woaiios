@@ -23,7 +23,9 @@ export default defineConfig({
 
   webServer: [
     {
-      command: 'npm run build && npx vite preview --port 3001 --host 127.0.0.1',
+      // 绑定所有网卡：song-tailscale.spec.js ③ 需要从本机 Tailscale IP 打开页面，
+      // SongStudio 才会按「页面自身主机名」自动探测同网段 8787（与生产访问路径一致）
+      command: 'npm run build && npx vite preview --port 3001 --host 0.0.0.0',
       url: 'http://localhost:3001/woaiios/',
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

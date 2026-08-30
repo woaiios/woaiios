@@ -2,7 +2,7 @@
   "name": "song-bridge",
   "version": "1.0.0",
   "private": true,
-  "description": "本地统一调度服务：LMStudio 翻译 + FreeToken 写词 + ComfyUI 作曲 — 单端口对外（tailscale serve 即可外网访问）",
+  "description": "本地统一调度服务：LMStudio 翻译 + ComfyUI 作曲 — 单端口对外（tailscale serve 即可外网访问）",
   "type": "commonjs",
   "main": "server.js",
   "scripts": {

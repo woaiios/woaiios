@@ -13,7 +13,6 @@
 import { glossCache } from './GlossCache.js';
 
 export class LLMSenseSelector {
-    static DEFAULT_ENDPOINT = 'http://127.0.0.1:8787/api/translate';
     static LEGACY_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
     static PROXY_ENDPOINT = '/lm-studio/v1/chat/completions';
     static UNIFIED_PROXY = '/api/translate';
@@ -22,7 +21,7 @@ export class LLMSenseSelector {
     static resolveEndpoint() {
       try {
         const h = window.location.hostname;
-        const isTS = h.endsWith('.ts.net') || h.startsWith('100.') || h.includes('tailscale');
+        const isTS = h.endsWith('.ts.net') || /^100\.\d/.test(h) || h.includes('tailscale');
         if (isTS) {
           const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
           return `${proto}//${h}:8787/api/translate`;
@@ -30,6 +29,15 @@ export class LLMSenseSelector {
       } catch {}
       return null;
     }
+
+    static defaultEndpoint() {
+      try {
+        const h = window.location.hostname;
+        if (h) return `http://${h}:8787/api/translate`;
+      } catch {}
+      return 'http://localhost:8787/api/translate';
+    }
+    static DEFAULT_ENDPOINT = LLMSenseSelector.defaultEndpoint();
     // HuggingFace 仓库 / 本地权重路径（推理服务端应加载此权重并暴露为 DEFAULT_MODEL）
     static DEFAULT_WEIGHT_PATH = 'tencent/Hy-MT2-1.8B';
 

@@ -24,6 +24,7 @@ function pickRandomStyle() {
 }
 
 function autoDuration(text) {
+    try { if (typeof window !== 'undefined' && window.__testDuration) return Number(window.__testDuration) || 5; } catch {}
     const len = (text || '').length;
     if (len < 120) return 30;
     if (len < 300) return 60;
@@ -62,9 +63,8 @@ function splitIntoChunks(text) {
 }
 
 export class SongStudioPanel {
-    constructor({ settingsManager, getMainText }) {
-        this.studio = new SongStudio(settingsManager);
-        this.settingsManager = settingsManager;
+    constructor({ getMainText }) {
+        this.studio = new SongStudio();
         this.getMainText = getMainText || (() => (document.getElementById('textInput')?.value || '').trim());
 
         this.mainText = '';
@@ -83,7 +83,7 @@ export class SongStudioPanel {
                     <div class="song-studio-title">
                         <i class="fas fa-music"></i>
                         <span>AI 歌曲 · 自动作曲</span>
-                        <span class="song-studio-badge">FreeToken × ComfyUI</span>
+                        <span class="song-studio-badge">ComfyUI</span>
                     </div>
                     <i class="fas fa-chevron-down song-studio-chevron" id="songStudioChevron"></i>
                 </div>
@@ -108,8 +108,8 @@ export class SongStudioPanel {
 
                     <div class="song-spinner" id="songLyricsSpinner" style="display:none">
                         <div class="song-spinner-icon"><i class="fas fa-spinner fa-spin"></i></div>
-                        <div class="song-spinner-text">正在生成歌词...</div>
-                        <div class="song-spinner-sub">Qwen3.8-27B · music-caption-rewriter</div>
+                        <div class="song-spinner-text">正在准备歌词...</div>
+                        <div class="song-spinner-sub">music-caption-rewriter</div>
                     </div>
 
                     <div class="song-spinner" id="songMusicSpinner" style="display:none">
@@ -193,8 +193,8 @@ export class SongStudioPanel {
 
         const health = await this.studio.health(true);
         if (!health.ok) {
-            console.warn('song-bridge not reachable, will try generate and fallback to browser mock if needed');
-            this.setStatus('本地服务未连接，尝试直接生成…');
+            console.warn('song-bridge not reachable');
+            this.setStatus('本地服务未连接，请检查 song-bridge 是否运行');
         }
 
         const chunks = splitIntoChunks(text);
@@ -302,14 +302,8 @@ export class SongStudioPanel {
             } else if (!this._cancelled) {
                 this.hideLyricsSpinner();
                 this.hideMusicSpinner();
-                console.warn(`chunk ${idx} fallback to browser mock`);
-                const mock = this.createMockSong(chunk, style, durationSec, idx);
-                this.songs.push(mock);
-                this.addMockPlayer(mock, idx);
-                this.showLyrics(mock.lyrics);
-                this.setCaption(mock.caption);
-                this.setNotes(mock.notes);
-                successCount++;
+                this.setStatus(`生成失败：服务未返回音频（ComfyUI 离线？）`);
+                NotificationManager.show(`第 ${idx + 1} 首生成失败`, 'error');
             }
         }
 
@@ -390,34 +384,6 @@ export class SongStudioPanel {
             audio.load();
             if (idx === 0) audio.play().catch(() => {});
         }
-    }
-
-    createMockSong(chunk, style, durationSec, idx) {
-        const id = `mock-${Date.now()}-${idx}`;
-        const caption = `Global Metadata: ${style}, moderate tempo 80-95 BPM, warm and clear production.\n\nVocal Details: Single warm lead vocal, mid register, clear diction.\n\nArrangement: Intro soft pad, verse sparse, chorus full, bridge stripped, outro fade. Duration ${durationSec}s.`;
-        const words = chunk.replace(/\s+/g, ' ').trim().split(' ');
-        const lines = [];
-        for (let i = 0; i < words.length; i += 8) lines.push(words.slice(i, i + 8).join(' '));
-        const body = lines.join('\n');
-        const lyrics = `[Verse]\n${body.slice(0, 600)}\n[Chorus]\n${body.slice(0, 300)}\n[Outro]\n${body.slice(-200)}`;
-        return { id, caption, lyrics, notes: '（浏览器内兜底生成，本地服务未连接）', style, durationSec, bytes: 0, mock: true };
-    }
-
-    addMockPlayer(mock, idx) {
-        const box = document.getElementById('songPlayers');
-        if (!box) return;
-        box.style.display = 'block';
-        const div = document.createElement('div');
-        div.className = 'song-player';
-        div.style.display = 'block';
-        div.style.marginBottom = '10px';
-        div.innerHTML = `
-            <div class="song-player-meta" style="margin-bottom:6px">
-                <span class="song-meta-words">第 ${idx + 1} 首 · ${escapeHtml(mock.style)} · ${mock.durationSec}s · 浏览器内生成</span>
-            </div>
-            <div style="font-size:12px;color:#6b7280;padding:6px 8px;background:#f9fafb;border-radius:6px">（本地服务未连接，已用浏览器内兜底歌词展示；启动 song-bridge 后可生成真实音频）</div>
-        `;
-        box.appendChild(div);
     }
 
     showLyrics(text) {
@@ -520,13 +486,11 @@ export class SongStudioPanel {
             span.innerHTML = `❌ 本地歌曲服务未连接（${escapeHtml(health.error || '未知')}）。启动方式：<code>cd tools/song-bridge && npm start</code>`;
             return;
         }
-        const ft = health.freetoken || {};
         const cf = health.comfyui || {};
         const lm = health.lmstudio || {};
         const gpu = health.gpu || {};
         span.innerHTML = `
-            <div>FreeToken(Qwen3.8-27B)：${ft.up ? (ft.status === 'ok' ? '✅ 就绪' : `⏳ ${escapeHtml(ft.phase || ft.status || '加载中')}`) : '⭕ 未启动（点生成会自动拉起）'}</div>
-            <div>ComfyUI(MiniMax Music 3)：${cf.up ? '✅ 在线' : '❌ 未连接（将使用兜底/缓存）'}</div>
+            <div>ComfyUI(MiniMax Music 3)：${cf.up ? '✅ 在线' : '❌ 未连接'}</div>
             <div>LM Studio(翻译)：${(lm.loaded || []).length ? `✅ ${escapeHtml((lm.loaded || []).join(', '))}` : '⭕ 无模型常驻'}</div>
             <div>可用显存：${gpu.vramFreeGiB != null ? gpu.vramFreeGiB + ' GiB' : '未知'}${gpu.holder ? ` · 占用中：${escapeHtml(gpu.holder)}` : ''}</div>
             <div>缓存：${health.cache?.songs ?? 0} 首 · ${((health.cache?.bytes || 0) / 1024 / 1024).toFixed(1)} MB</div>

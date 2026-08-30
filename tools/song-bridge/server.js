@@ -3,22 +3,21 @@
 /**
  * ai-hub — 本地统一调度服务（原 song-bridge）
  * -----------------------------------------------------------------------------
- * 单一对外服务，统一管理本机三模型并对外暴露统一 API：
- *   LMStudio(hy-mt2-1.8b 翻译) + FreeToken(Qwen3.8-27B 写词) + ComfyUI(MiniMax Music 3 作曲)
- * 对外仅需暴露本服务一个端口（默认 8787，`tailscale serve --bg http://127.0.0.1:8787` 即可外网访问），
- * 内部负责 32G RTX 5090 显存排班（27B 22G + Music3 15G 互斥，翻译模型按需 8192 上下文）。
+ * 单一对外服务，统一管理本机模型并对外暴露统一 API：
+ *   LMStudio(hy-mt2-1.8b 翻译) + ComfyUI(MiniMax Music 3 作曲)
+ * 对外仅需暴露本服务一个端口（默认 8787，`tailscale serve --bg http://127.0.0.1:8787` 即可外网访问）。
  *
  * 接口（统一层）：
  *   GET    /api/health                 三后端健康 + 显存 + 缓存
  *   POST   /api/translate              代理 LMStudio 翻译（OpenAI 兼容，内部走调度）
- *   POST   /api/song                   生成歌曲（SSE 事件流，内部走 FreeToken→ComfyUI）
+ *   POST   /api/song                   生成歌曲（SSE 事件流，ComfyUI 作曲）
  *   GET    /api/songs                  已缓存歌曲列表
  *   GET    /api/songs/:id              单曲元数据
  *   DELETE /api/songs/:id              删除缓存
  *   GET    /api/audio/:id              音频（支持 Range，边下边播）
  *   GET    /api/cache                  缓存占用统计
  *   DELETE /api/cache                  清空缓存
- *   POST   /api/gpu/free               手动释放 GPU（卸载 FreeToken + ComfyUI + LMStudio）
+ *   POST   /api/gpu/free               手动释放 GPU（卸载 ComfyUI + LMStudio）
  */
 
 const http = require('http');
@@ -28,11 +27,10 @@ const crypto = require('crypto');
 
 const { config, ROOT } = require('./config');
 const { songKey, ensureDir, sleep } = require('./lib/util');
-const { FreeToken } = require('./lib/freetoken');
 const { ComfyUI } = require('./lib/comfyui');
 const { GpuScheduler } = require('./lib/gpu-scheduler');
 const { StyleRouter } = require('./lib/style-router');
-const { writeSong, sanitizeLyrics, sanitizeCaption } = require('./lib/lyricist');
+const { sanitizeLyrics, sanitizeCaption } = require('./lib/lyricist');
 const { SongStore } = require('./lib/store');
 
 ensureDir(config.cacheDir);
@@ -41,32 +39,6 @@ ensureDir(config.logDir);
 
 const log = (...args) => console.log('[song-bridge]', ...args);
 
-/** 兜底歌词：FreeToken 不可用时直接把主文本切片成可唱段落 */
-function fallbackLyrics(sentence, style, durationSec) {
-  const src = (sentence || '').trim().slice(0, 800) || 'Learning English step by step';
-  const styleLabel = style || config.song.defaultStyle;
-  const caption = `Global Metadata: ${styleLabel}, moderate tempo 80-95 BPM, warm and clear production, gentle emotional lift, clean mix with soft reverb.\n\nVocal Details: Single warm lead vocal, mid register, clear diction, close mic, light double in chorus, no heavy processing.\n\nArrangement: Intro with soft pad, verse sparse, chorus full, bridge stripped, outro fade. Adapt length to ${durationSec}s.`;
-  // 把原文按句切成多行，每行 8-12 词，保证可唱
-  const words = src.replace(/\s+/g, ' ').split(' ');
-  const lines = [];
-  for (let i = 0; i < words.length; i += 8) lines.push(words.slice(i, i + 8).join(' '));
-  const body = lines.join('\n');
-  const lyrics = `[Verse]\n${body.slice(0, 600)}\n[Chorus]\n${body.slice(0, 300)}\n[Outro]\n${body.slice(-200)}`;
-  const notes = `${src.slice(0, 40)}… — 原文片段（兜底模式）`;
-  return { caption: sanitizeCaption(caption), lyrics: sanitizeLyrics(lyrics), notes };
-}
-
-/** 兜底音频：ComfyUI 不可用时复用 _smoke.mp3 或生成静默占位 */
-function fallbackAudioBytes() {
-  const candidates = [path.join(config.audioDir, '_smoke.mp3'), path.join(ROOT, 'cache', 'audio', '_smoke.mp3')];
-  for (const p of candidates) {
-    try { if (fs.existsSync(p)) return fs.readFileSync(p); } catch (_) {}
-  }
-  // 最终兜底：1KB 占位（前端仍可播放，但无声）
-  return Buffer.alloc(1024);
-}
-
-const freetoken = new FreeToken(config, log);
 const comfyui = new ComfyUI(config, log);
 const store = new SongStore({ cacheDir: config.cacheDir, audioDir: config.audioDir });
 const styleRouter = new StyleRouter(config.skill);
@@ -207,12 +179,10 @@ const lmstudio = {
   }
 };
 
-const scheduler = new GpuScheduler({ freetoken, comfyui, lmstudio, config });
+const scheduler = new GpuScheduler({ comfyui, lmstudio, config });
 
 /**
- * 轻回收：ComfyUI 卸模型（约 14G 显存 + 十几 G 内存），
- * 并把小翻译模型按 8192 上下文补回来，保证单词翻译不中断。
- * 27B 不动，留着给下一首歌秒开。
+ * 轻回收：ComfyUI 卸模型，并把小翻译模型按 8192 上下文补回来，保证单词翻译不中断。
  */
 scheduler.onIdleLight = async () => {
   try {
@@ -369,43 +339,30 @@ async function generateSong(params, emit) {
   const seed = crypto.randomInt(0, 0xffffffff);
   const filenamePrefix = `songbridge/${key}`;
 
-  let buf;
-  try {
-    const audioMeta = await scheduler.run('comfyui', async ({ log: slog }) => {
-      slog('提交 MiniMax Music 3 任务');
-      const graph = comfyui.buildGraph({
-        caption: song.caption,
-        lyrics: song.lyrics,
-        seed,
-        durationSec: dur,
-        filenamePrefix
-      });
-      emit('stage', { stage: 'music', message: 'MiniMax Music 3 开始编曲…' });
-      let lastPhase = '';
-      const result = await comfyui.run(graph, (p) => {
-        if (p.phase && p.phase !== lastPhase) {
-          lastPhase = p.phase;
-          emit('stage', { stage: 'music', message: p.phase });
-        }
-        if (p.max > 0) {
-          emit('progress', { phase: p.phase, value: p.value, max: p.max });
-        }
-      });
-      return result;
+  const audioMeta = await scheduler.run('comfyui', async ({ log: slog }) => {
+    slog('提交 MiniMax Music 3 任务');
+    const graph = comfyui.buildGraph({
+      caption: song.caption,
+      lyrics: song.lyrics,
+      seed,
+      durationSec: dur,
+      filenamePrefix
     });
-    emit('stage', { stage: 'save', message: '保存并缓存音频…' });
-    buf = await comfyui.view(audioMeta.filename, audioMeta.subfolder, audioMeta.type);
-  } catch (err) {
-    log('[fallback] ComfyUI 作曲失败，使用兜底音频：', err.message);
-    emit('stage', { stage: 'music', message: '作曲服务暂不可用，使用兜底音频…' });
-    // 模拟进度
-    for (let i = 0; i <= 10; i++) {
-      emit('progress', { phase: 'fallback', value: i, max: 10 });
-      await sleep(50);
-    }
-    emit('stage', { stage: 'save', message: '保存并缓存音频…' });
-    buf = fallbackAudioBytes();
-  }
+    emit('stage', { stage: 'music', message: 'MiniMax Music 3 开始编曲…' });
+    let lastPhase = '';
+    const result = await comfyui.run(graph, (p) => {
+      if (p.phase && p.phase !== lastPhase) {
+        lastPhase = p.phase;
+        emit('stage', { stage: 'music', message: p.phase });
+      }
+      if (p.max > 0) {
+        emit('progress', { phase: p.phase, value: p.value, max: p.max });
+      }
+    });
+    return result;
+  });
+  emit('stage', { stage: 'save', message: '保存并缓存音频…' });
+  const buf = await comfyui.view(audioMeta.filename, audioMeta.subfolder, audioMeta.type);
   const audioFile = store.audioPath(key);
   fs.writeFileSync(audioFile, buf);
 
@@ -460,21 +417,13 @@ const server = http.createServer(async (req, res) => {
 
     // ---- 健康检查 ----
     if (pathname === '/api/health') {
-      const [ft, cf, vram, lmLoaded] = await Promise.all([
-        freetoken.probe(),
+      const [cf, vram, lmLoaded] = await Promise.all([
         comfyui.probe(),
         comfyui.vramFreeGiB(),
         lmstudio.loadedModels()
       ]);
       return sendJson(res, 200, {
         ok: true,
-        freetoken: {
-          up: ft.up,
-          status: ft.status || null,
-          phase: ft.phase || null,
-          model: ft.model || config.freetoken.model,
-          ownedByBridge: freetoken.isRunning()
-        },
         comfyui: { up: cf, baseUrl: config.comfyui.baseUrl },
         lmstudio: { up: Array.isArray(lmLoaded), loaded: lmLoaded.map((m) => m.key) },
         gpu: {
@@ -567,10 +516,6 @@ const server = http.createServer(async (req, res) => {
     // ---- 手动释放 GPU ----
     if (pathname === '/api/gpu/free' && req.method === 'POST') {
       const freed = [];
-      if (freetoken.isRunning()) {
-        await freetoken.stop();
-        freed.push('freetoken');
-      }
       try {
         await comfyui.freeMemory();
         freed.push('comfyui');
@@ -698,7 +643,6 @@ function serveAudio(req, res, file) {
 const PORT = Number(config.port);
 server.listen(PORT, config.host, () => {
   log(`监听 http://${config.host}:${PORT}`);
-  log(`  FreeToken : ${config.freetoken.baseUrl} (${config.freetoken.model})`);
   log(`  ComfyUI   : ${config.comfyui.baseUrl} (MiniMax Music 3)`);
   log(`  LM Studio : ${config.lmstudio.baseUrl} (翻译保留)`);
   log(`  缓存目录  : ${config.cacheDir}`);
@@ -710,9 +654,6 @@ process.on('uncaughtException', (err) => log('未捕获异常：', err));
 
 async function shutdown() {
   log('正在关闭…');
-  try {
-    if (freetoken.isRunning()) await freetoken.stop();
-  } catch (_) {}
   server.close(() => process.exit(0));
   setTimeout(() => process.exit(0), 3000).unref();
 }

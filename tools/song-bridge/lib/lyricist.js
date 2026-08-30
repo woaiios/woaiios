@@ -3,11 +3,9 @@
 /**
  * 作词器
  * -----------------------------------------------------------------------------
- * 用 FreeToken 上的 Qwen3.8-27B，按 WorkBuddy「music-caption-rewriter」技能的方法，
  * 产出 MiniMax Music 3 需要的两段输入：
  *   - caption：Global Metadata / Vocal Details / Arrangement 三段式结构化描述
  *   - lyrics ：带 [section] 标签的歌词
- * 另外附带一段中文词义注释，供前端展示（不参与演唱）。
  */
 
 const SYSTEM_PROMPT = `You are a songwriter for MiniMax Music 3, writing English study songs that make target vocabulary impossible to forget.
@@ -80,13 +78,10 @@ function buildUserPrompt({ words, sentence, style, durationSec, reference, route
 
 /**
  * 流式生成并实时分流：caption / lyrics / notes
- * 支持两种后端：FreeToken(Qwen3) 与 LMStudio(hy-mt2-1.8b)，后者更轻，显存仅 2G
+ * 使用 LMStudio(hy-mt2-1.8b)
  * @returns {Promise<{raw: string, caption: string, lyrics: string, notes: string, reasoning: string}>}
  */
-async function writeSong({ freetoken, lmstudio, words, sentence, style, durationSec, reference, route, onDelta }) {
-  // 优先用 LMStudio 的 hy-mt2-1.8b（轻量），回退到 FreeToken
-  const useLMStudio = !!lmstudio;
-  const backend = useLMStudio ? 'lmstudio' : 'freetoken';
+async function writeSong({ lmstudio, words, sentence, style, durationSec, reference, route, onDelta }) {
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
     { role: 'user', content: buildUserPrompt({ words, sentence, style, durationSec, reference, route }) }
@@ -105,28 +100,18 @@ async function writeSong({ freetoken, lmstudio, words, sentence, style, duration
     if (section && !isPartOfOpeningTag(raw, lastOpen)) onDelta?.({ type: section, text });
   };
 
-  let res;
-  if (backend === 'lmstudio') {
-    res = await lmstudio.chat({
-      messages,
-      maxTokens: 2048,
-      temperature: 0.8,
-      topP: 0.9,
-      onDelta: ({ type, text }) => onTextDelta(type, text)
-    });
-  } else {
-    res = await freetoken.chat({
-      messages,
-      maxTokens: 4096,
-      onDelta: ({ type, text }) => onTextDelta(type, text)
-    });
-  }
+  const res = await lmstudio.chat({
+    messages,
+    maxTokens: 2048,
+    temperature: 0.8,
+    topP: 0.9,
+    onDelta: ({ type, text }) => onTextDelta(type, text)
+  });
 
   const parsed = parseSong(res.content || raw);
   return { ...parsed, raw: res.content || raw, reasoning: res.reasoning };
 }
 
-// LMStudio 适配：保持与 FreeToken.chat 相同的 onDelta 契约，便于 lyricist 复用
 async function chatViaLMStudio({ lmstudioUrl, model, messages, maxTokens, temperature, topP, onDelta }) {
   const body = {
     model: model || 'hy-mt2-1.8b',

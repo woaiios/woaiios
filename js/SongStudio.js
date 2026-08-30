@@ -1,21 +1,27 @@
 /**
  * SongStudio — 本地歌曲生成客户端
  * -----------------------------------------------------------------------------
- * 与本机 song-bridge 服务（默认 http://127.0.0.1:8787）通信：
- *   FreeToken(Qwen3.8-27B) 写词 → ComfyUI(MiniMax Music 3) 作曲 → 缓存 + 流式播放
+ * 与本机 ai-hub 统一服务（song-bridge，端口 8787）通信：
+ *   地址自动探测——Tailscale 域名/IP 时走同主机 8787，否则随页面主机名 :8787。
+ *   原文即歌词 → ComfyUI(MiniMax Music 3) 作曲 → 缓存 + 流式播放
  *
- * 之所以要绕一层本地服务，而不是让页面直接调 ComfyUI：
- *   1. 浏览器直连 ComfyUI / FreeToken 会遇到 CORS；
- *   2. 27B 模型（~22G 显存）和 MiniMax Music 3（~15G 显存）在这张 32G 的 5090 上
- *      根本放不下两个，必须由服务端排班，写完词先卸载再作曲。
- *
+ * 经过 song-bridge 单端口对外，避免浏览器直连 ComfyUI 的 CORS 问题。
  * 生成过程通过 SSE 流式回传：歌词边写边显示，作曲阶段回传进度。
  */
 
-const DEFAULT_BASE = 'http://127.0.0.1:8787';
+const DEFAULT_STYLE = 'acoustic folk pop';
+const DEFAULT_DURATION_SEC = 60;
+
+function defaultBase() {
+  try {
+    const h = window.location.hostname;
+    if (h) return `http://${h}:8787`;
+  } catch {}
+  return 'http://localhost:8787';
+}
 
 function isTailscaleHost(host) {
-  return host.endsWith('.ts.net') || host.startsWith('100.') || host.includes('.tailscale.') || host.endsWith('.tail5b6e1.ts.net') || host.endsWith('.tailfbac23.ts.net');
+  return host.endsWith('.ts.net') || /^100\.\d/.test(host) || host.includes('.tailscale.') || host.endsWith('.tail5b6e1.ts.net') || host.endsWith('.tailfbac23.ts.net');
 }
 
 function tailscaleBase() {
@@ -23,7 +29,7 @@ function tailscaleBase() {
     const h = window.location.hostname;
     if (isTailscaleHost(h)) {
       const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      // 统一服务与网页同网段同协议，避免 iPad 上 127.0.0.1 指向本机
+      // 统一服务与网页同主机同协议，避免 iPad 上 loopback 指向本机
       return `${proto}//${h}:8787`;
     }
   } catch {}
@@ -31,31 +37,14 @@ function tailscaleBase() {
 }
 
 export class SongStudio {
-    constructor(settingsManager) {
-        this.settingsManager = settingsManager;
+    constructor() {
         this._abort = null;
         this._lastHealth = null;
         this._lastHealthAt = 0;
     }
 
     get baseUrl() {
-        const url = (this.settingsManager?.getSetting('songBridgeUrl') || '').trim();
-        if (url) return url.replace(/\/+$/, '');
-        const auto = tailscaleBase();
-        if (auto) return auto;
-        return DEFAULT_BASE;
-    }
-
-    get enabled() {
-        return this.settingsManager?.getSetting('songEnabled') !== false;
-    }
-
-    get defaultStyle() {
-        return this.settingsManager?.getSetting('songStyle') || 'acoustic folk pop';
-    }
-
-    get defaultDuration() {
-        return Number(this.settingsManager?.getSetting('songDurationSec')) || 60;
+        return tailscaleBase() || defaultBase();
     }
 
     /**
@@ -123,8 +112,8 @@ export class SongStudio {
         const body = {
             words: params.words || [],
             sentence: params.sentence || '',
-            style: params.style || this.defaultStyle,
-            durationSec: Number(params.durationSec) || this.defaultDuration,
+            style: params.style || DEFAULT_STYLE,
+            durationSec: Number(params.durationSec) || DEFAULT_DURATION_SEC,
             regenerate: !!params.regenerate
         };
 
