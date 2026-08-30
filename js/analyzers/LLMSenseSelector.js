@@ -18,9 +18,11 @@ export class LLMSenseSelector {
     static UNIFIED_PROXY = '/api/translate';
     static DEFAULT_MODEL = 'hy-mt2-1.8b';
 
+    static PROD_TAILSCALE_BASE = 'https://pc-20260820eaeq.tailfbac23.ts.net:8787';
     static resolveEndpoint() {
       try {
         const h = window.location.hostname;
+        if (h && h.endsWith('github.io')) return `${LLMSenseSelector.PROD_TAILSCALE_BASE}/api/translate`;
         const isTS = h.endsWith('.ts.net') || /^100\.\d/.test(h) || h.includes('tailscale');
         if (isTS) {
           const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
@@ -33,6 +35,7 @@ export class LLMSenseSelector {
     static defaultEndpoint() {
       try {
         const h = window.location.hostname;
+        if (h && h.endsWith('github.io')) return `${LLMSenseSelector.PROD_TAILSCALE_BASE}/api/translate`;
         if (h) return `http://${h}:8787/api/translate`;
       } catch {}
       return 'http://localhost:8787/api/translate';

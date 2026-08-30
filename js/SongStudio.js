@@ -12,9 +12,12 @@
 const DEFAULT_STYLE = 'acoustic folk pop';
 const DEFAULT_DURATION_SEC = 60;
 
+const PROD_TAILSCALE_BASE = 'https://pc-20260820eaeq.tailfbac23.ts.net:8787';
+
 function defaultBase() {
   try {
     const h = window.location.hostname;
+    if (h && h.endsWith('github.io')) return PROD_TAILSCALE_BASE;
     if (h) return `http://${h}:8787`;
   } catch {}
   return 'http://localhost:8787';
@@ -27,6 +30,7 @@ function isTailscaleHost(host) {
 function tailscaleBase() {
   try {
     const h = window.location.hostname;
+    if (h && h.endsWith('github.io')) return PROD_TAILSCALE_BASE;
     if (isTailscaleHost(h)) {
       const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
       // 统一服务与网页同主机同协议，避免 iPad 上 loopback 指向本机
