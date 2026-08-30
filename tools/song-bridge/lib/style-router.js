@@ -143,9 +143,8 @@ class StyleRouter {
     if (!cards.length) return { route: route.route, card: null, template: null };
 
     const tokens = tokenize(styleText);
-    let best = cards[0];
-    let bestScore = -1;
-    for (const card of cards) {
+    // 评分并保留 Top3 随机，避免同一 style 总是命中同一张男声卡（“总是男的”）
+    const scored = cards.map((card) => {
       let score = 0;
       const styleTokens = tokenize(card.style);
       for (const t of tokens) {
@@ -153,13 +152,16 @@ class StyleRouter {
         else if (tokenize(card.palette).includes(t)) score += 2;
         else if (tokenize(card.mood).includes(t)) score += 1;
       }
-      // 主题无关的轻微扰动，保证同一输入稳定，不同输入有变化
+      // 轻微扰动 + 随机，避免确定性
       score += (hashString(card.id) % 3) * 0.1;
-      if (score > bestScore) {
-        bestScore = score;
-        best = card;
-      }
-    }
+      return { card, score };
+    });
+    scored.sort((a, b) => b.score - a.score);
+    const bestScore = scored[0]?.score ?? -1;
+    const top = scored.filter((s) => s.score >= bestScore - 2).slice(0, 5);
+    const pick = top[Math.floor(Math.random() * top.length)] || scored[0];
+    let best = pick.card;
+    let bestScoreVal = pick.score;
 
     let template = null;
     const tplPath = path.join(this.cfg.dir, best.template || '');

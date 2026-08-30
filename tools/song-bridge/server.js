@@ -324,9 +324,18 @@ async function generateSong(params, emit) {
   }
 
   // 直接以原文作歌词，caption 由风格+参考模板合成（仍用 skill 的词汇与结构）
+  // 随机声线：保证男女声均衡（此前 folk 类模板 80%+ 为男声，导致“总是男的”）
+  const VOCAL_PRESETS = [
+    'Vocal: Female lead, clear bright soprano, airy and intimate',
+    'Vocal: Male lead, warm resonant baritone, close and intimate',
+    'Vocal: Female lead, soft ethereal alto, breathy and warm',
+    'Vocal: Male lead, deep warm tenor, smooth and resonant',
+    'Vocal: Female and male duet, harmonized chorus'
+  ];
+  const vocalHint = VOCAL_PRESETS[crypto.randomInt(0, VOCAL_PRESETS.length)];
   const captionSrc = reference
-    ? `${reference}\n\nStyle hint: ${style} | Duration: ${dur}s | Route: ${route || ''}`
-    : `Global Metadata: ${style}, moderate tempo 80-95 BPM, warm and clear production.\n\nVocal Details: Single warm lead vocal, mid register, clear diction.\n\nArrangement: Intro soft pad, verse sparse, chorus full, bridge stripped, outro fade. Duration ${dur}s.`;
+    ? `${reference}\n\nStyle hint: ${style} | Duration: ${dur}s | Route: ${route || ''}\n${vocalHint}`
+    : `Global Metadata: ${style}, moderate tempo 80-95 BPM, warm and clear production.\n\nVocal Details: ${vocalHint.replace(/^Vocal:\s*/, '')}, mid register, clear diction.\n\nArrangement: Intro soft pad, verse sparse, chorus full, bridge stripped, outro fade. Duration ${dur}s.`;
   const caption = sanitizeCaption(captionSrc);
   // 原文即歌词：按句切行，保证可唱段落标签
   const rawLyrics = (sentence || cleanWords.join(' ')).trim();
