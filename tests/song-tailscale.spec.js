@@ -39,8 +39,8 @@ This helps mitigate the effects of global warming by reducing the concentration 
 const STYLE = 'acoustic folk pop';
 const DURATION_SEC = 5;
 const MIN_DURATION_SEC = 4;
-/** 真实作曲最长等待 */
-const COMPOSE_TIMEOUT_MS = 15 * 60 * 1000;
+/** 真实作曲最长等待（5s 档约 15s，留 2 分钟余量） */
+const COMPOSE_TIMEOUT_MS = 2 * 60 * 1000;
 /** SONG_TS_ALLOW_CACHE=1 时跳过清缓存，允许命中缓存秒回 */
 const ALLOW_CACHE = process.env.SONG_TS_ALLOW_CACHE === '1';
 
@@ -128,7 +128,7 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
   });
 
   test('③ 浏览器经 Tailscale URL 触发生成，播放器为真实音频且 > 4 秒', async ({ page }) => {
-    test.setTimeout(COMPOSE_TIMEOUT_MS + 5 * 60 * 1000);
+    test.setTimeout(COMPOSE_TIMEOUT_MS + 60 * 1000);
     const { base } = await getBridge();
 
     // ---- A0. 页面必须从本机 Tailscale 地址打开：SongStudio 已改为按「页面自身主机名」
