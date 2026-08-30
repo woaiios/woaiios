@@ -79,6 +79,23 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+/** nvidia-smi 查询可用显存（GiB）；不可用返回 null */
+function nvidiaFreeVramGiB() {
+  try {
+    const { execFileSync } = require('child_process');
+    const out = execFileSync(
+      'nvidia-smi',
+      ['--query-gpu=memory.total,memory.used', '--format=csv,noheader,nounits'],
+      { encoding: 'utf8', timeout: 10000, windowsHide: true }
+    ).trim();
+    const [total, used] = out.split('\n')[0].split(',').map((s) => Number(s.trim()));
+    if (Number.isFinite(total) && Number.isFinite(used)) return (total - used) / 1024;
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function readJsonSafe(file, fallback = null) {
   try {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -137,6 +154,7 @@ module.exports = {
   fetchJson,
   fetchRaw,
   ensureDir,
+  nvidiaFreeVramGiB,
   readJsonSafe,
   writeJsonAtomic,
   parseSse

@@ -17,10 +17,10 @@ export interface ServerLocation {
   protocol: string;
 }
 
-/** 生产 Tailscale MagicDNS 主机（tailscale serve --https=8787 已发布） */
+/** 生产 Tailscale MagicDNS 主机（tailscale serve --tcp=8787 原始 TCP 转发，仅明文 HTTP） */
 export const PROD_TAILSCALE_HOST = 'pc-20260820eaeq.tailfbac23.ts.net';
 export const SONG_BRIDGE_PORT = 8787;
-export const PROD_TAILSCALE_BASE = `https://${PROD_TAILSCALE_HOST}:${SONG_BRIDGE_PORT}`;
+export const PROD_TAILSCALE_BASE = `http://${PROD_TAILSCALE_HOST}:${SONG_BRIDGE_PORT}`;
 
 function currentLoc(): ServerLocation {
   try {

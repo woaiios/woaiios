@@ -78,7 +78,15 @@ raw-view.txt
 # song-bridge runtime artifacts (generated songs & logs)
 tools/song-bridge/cache/
 tools/song-bridge/logs/
+tools/song-bridge/minimax/bench_*.txt
+tools/song-bridge/minimax/__pycache__/
+.song-check.md
 scripts/tmp-*.mjs
+
+# Local dev tool / scratch artifacts (not project code)
+.codegraph/
+.smoke-song.mp3
+opencode.json
 
 # Local debug/scratch scripts & session artifacts
 test-dinnima*.cjs

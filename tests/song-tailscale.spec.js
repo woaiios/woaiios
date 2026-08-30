@@ -8,14 +8,14 @@
  *
  * 这份测试把门禁收紧到「必须真的产出音频」：
  *   ① Tailscale 连通性硬门禁：Tailscale 必须 Running，且 100.x / *.ts.net 上的
- *      song-bridge /api/health 必须 ok，ComfyUI 必须在线，显存必须够；
+ *      song-bridge /api/health 必须 ok，MiniMax 直连环境（venv+权重）必须就绪，显存必须够；
  *   ② 用 Tailscale URL 直接 POST /api/song，校验返回的音频 > 4 秒；
  *   ③ 页面从本机 Tailscale IP 打开（模拟 iPad 生产访问路径），SongStudio 按页面主机名
  *      自动探测同主机 8787，要求 /api/song、/api/audio/* 确实打在这个地址上
  *      （不是 127.0.0.1），播放器里是真实 <audio>，且时长 > 4 秒、不是浏览器内兜底。
  *
  * 关于缓存：默认会先删掉这首歌的缓存条目，强制走一次真实作曲
- * （实测 ComfyUI MiniMax Music 3 出 5s 约 15 秒），这样才卡得住退路。
+ * （实测直连进程出 5s 约 35 秒，含模型加载），这样才卡得住退路。
  * 想跑快一点就设 SONG_TS_ALLOW_CACHE=1，允许命中缓存秒回。
  *
  * 曲风确定性：面板用 Math.random 随机选曲风，测试期间把 Math.random 固定为 0，
@@ -31,31 +31,11 @@ import {
   isTailscaleBase,
   tailscaleIdentity
 } from './helpers/tailscale-bridge.js';
-import { ensureComfyUI, stopComfyUI } from '../tools/comfyui/manage.js';
 
 /**
- * 歌曲测试默认暂停：ComfyUI 十分耗费 CPU/GPU 资源，平时不启动。
- * 启用方式：SONG_TESTS=1 npx playwright test tests/song-tailscale.spec.js
- * （beforeAll 自动拉起 ComfyUI Desktop，afterAll 关闭并释放内存）
+ * 歌曲生成走 MiniMax Music 3 直连（独立 Python 进程，不依赖 ComfyUI 服务器）：
+ * 无需提前拉起任何服务 —— 进程用完即退、显存自动释放。
  */
-const SONG_TESTS_ENABLED = process.env.SONG_TESTS === '1';
-
-test.skip(
-  !SONG_TESTS_ENABLED,
-  '歌曲测试已暂停（ComfyUI 资源开销大）：设 SONG_TESTS=1 启用'
-);
-
-test.beforeAll(async () => {
-  if (!SONG_TESTS_ENABLED) return;
-  console.log('— 自动启动 ComfyUI Desktop（若未运行） —');
-  await ensureComfyUI();
-});
-
-test.afterAll(async () => {
-  if (!SONG_TESTS_ENABLED) return;
-  console.log('— 关闭 ComfyUI Desktop，释放 CPU/GPU 内存 —');
-  await stopComfyUI();
-});
 
 const PASSAGE = `Photosynthesis is a vital process that occurs in plants, algae, and some bacteria, allowing them to convert light energy into chemical energy. This process is essential for the survival of these organisms and for the production of oxygen, which is crucial for life on Earth. Photosynthesis primarily takes place in the chloroplasts of plant cells, where chlorophyll absorbs sunlight and initiates the conversion of carbon dioxide and water into glucose and oxygen.Photosynthesis is not only important for plants but also has significant implications for climate change. Plants absorb carbon dioxide, a major greenhouse gas, during photosynthesis.
 This helps mitigate the effects of global warming by reducing the concentration of carbon dioxide in the atmosphere.`;
@@ -118,7 +98,7 @@ test.describe('歌曲生成 · Tailscale 通道', () => {
     expect(isTailscaleBase(base), `地址不是 Tailscale 网段：${base}`).toBe(true);
 
     console.log('health：', JSON.stringify(health));
-    expect(health.comfyui?.up, 'ComfyUI(MiniMax Music 3) 未在线，无法产出真实音频').toBe(true);
+    expect(health.minimax?.ok, 'MiniMax Music 3 直连环境未就绪（venv/权重缺失）').toBe(true);
     expect(health.gpu?.vramFreeGiB ?? 0, '可用显存不足，作曲会失败').toBeGreaterThan(5);
   });
 

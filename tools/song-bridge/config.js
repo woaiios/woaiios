@@ -36,7 +36,15 @@ const defaults = {
   audioDir: path.join(ROOT, 'cache', 'audio'),
   logDir: path.join(ROOT, 'logs'),
 
-  // --- ComfyUI：MiniMax Music 3 作曲 ---
+  // --- MiniMax Music 3 作曲后端选择 ---
+  //   'comfyui' : 走 ComfyUI 服务器（submit workflow + WebSocket 进度），扩散阶段 GPU 利用率高、
+  //               AR 阶段由 ComfyUI 自带调度处理，整体比直连快；生成后调用 /free 卸载模型显存，
+  //               但 ComfyUI 服务本身保持运行（不关机）。
+  //   'direct'  : 直连 Python 进程（minimax/compose.py），退出即释放全部内存，但 AR 阶段较慢。
+  // 默认用 ComfyUI（用户反馈此前用 ComfyUI 最快）。
+  composeBackend: 'comfyui',
+
+  // --- MiniMax Music 3：ComfyUI 服务器参数 ---
   comfyui: {
     baseUrl: 'http://127.0.0.1:8188',
     dit: 'minimax_music3_dit_fp16.safetensors',
@@ -44,6 +52,9 @@ const defaults = {
     vae: 'minimax_music3_dav.safetensors',
     steps: 30,
     cfg: 1.7,
+    /** AR 声学条件编码的 guidance（与旧 ComfyUI 工作流一致） */
+    arCfg: 1.7,
+    topK: 50,
     sampler: 'euler',
     scheduler: 'simple',
     /** 长歌 / 显存紧张时开 tiled decode */
@@ -73,7 +84,7 @@ const defaults = {
 
   /** 空闲回收节奏 */
   idle: {
-    /** 轻回收：只让 ComfyUI 卸模型 + 恢复翻译模型（ComfyUI 重载只要十几秒） */
+    /** 轻回收：把翻译模型按小上下文补回来（作曲进程已自行退出，无需额外释放） */
     lightTtlMs: 3 * 60 * 1000
   },
 

@@ -45,66 +45,44 @@ import { DatabaseProgress } from './js/modules/DatabaseProgress.js';
 import { EventHandlers } from './js/modules/EventHandlers.js';
 
 /**
- * Service Worker 管理
- * - 生产环境：注册 SW（离线支持 + 更新提示）
- * - dev 环境：不注册，并主动注销旧 SW、清理其缓存 —— sw.js 的 cacheFirst 策略
- *   会把 Vite 源码模块永久缓存，导致开发时页面一直运行旧代码
+ * Service Worker 管理（仅生产环境注册；dev 的遗留 SW 清理由 index.html 顶部内联脚本负责，
+ * 必须在任何模块加载前执行，否则旧 SW 的 cacheFirst 会先喂入过期源码模块）
  */
-(async function manageServiceWorker() {
-    if (!('serviceWorker' in navigator)) return;
+(function manageServiceWorker() {
+    if (!('serviceWorker' in navigator) || !import.meta.env.PROD) return;
     const base = import.meta.env.BASE_URL; // '/woaiios/'
 
-    if (import.meta.env.PROD) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register(`${base}sw.js`, { scope: base })
-                .then(registration => {
-                    console.log('Service Worker registered successfully:', registration.scope);
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register(`${base}sw.js`, { scope: base })
+            .then(registration => {
+                console.log('Service Worker registered successfully:', registration.scope);
 
-                    // 检查更新 (Check for updates)
-                    registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        console.log('New Service Worker found, installing...');
+                // 检查更新 (Check for updates)
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    console.log('New Service Worker found, installing...');
 
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
-                                console.log('New content available, please refresh!');
-                                if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
-                                    window.location.reload();
-                                }
+                    newWorker.addEventListener('statechange', () => {
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                            // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
+                            console.log('New content available, please refresh!');
+                            if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
+                                window.location.reload();
                             }
-                        });
+                        }
                     });
-                })
-                .catch(error => {
-                    console.error('Service Worker registration failed:', error);
                 });
-
-            // 监听控制器变化 (Listen for controller change)
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                console.log('Service Worker controller changed, reloading page...');
-                window.location.reload();
+            })
+            .catch(error => {
+                console.error('Service Worker registration failed:', error);
             });
-        });
-        return;
-    }
 
-    // dev：清理历史遗留的 SW 与缓存
-    const registrations = await navigator.serviceWorker.getRegistrations();
-    for (const reg of registrations) {
-        await reg.unregister();
-    }
-    if ('caches' in window) {
-        const keys = await caches.keys();
-        await Promise.all(keys.map((k) => (k.startsWith('word-discoverer') ? caches.delete(k) : null)));
-    }
-    if (registrations.length > 0) {
-        console.warn('[dev] 已注销遗留 Service Worker 并清理缓存，刷新一次以脱离旧 SW 控制');
-        // 当前页面仍受旧 SW 控制：注销后重载一次即可彻底脱离（重载后无 controller，不会循环）
-        if (navigator.serviceWorker.controller) {
-            setTimeout(() => window.location.reload(), 300);
-        }
-    }
+        // 监听控制器变化 (Listen for controller change)
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            console.log('Service Worker controller changed, reloading page...');
+            window.location.reload();
+        });
+    });
 })();
 
 /**

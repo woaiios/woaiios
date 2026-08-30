@@ -37,6 +37,7 @@ export default defineConfig(() => ({
   // Development server configuration
   server: {
     port: 3000,
+    host: true, // 绑定所有网卡：Tailscale IP (100.x) / 局域网也能访问 dev 服务
     open: true,
     cors: true,
     // 统一调度服务代理（本机 8787，经 tailscale serve 对外同端口）
@@ -110,8 +111,9 @@ export default defineConfig(() => ({
   },
 
   // Optimization
+  // sql.js 是 UMD/CJS：必须预构建转成 ESM，否则 dev 下 worker 里 import 到 undefined（build 时 rollup commonjs 插件能处理所以线上没事）
   optimizeDeps: {
-    exclude: ['sql.js']
+    include: ['sql.js', 'pako']
   },
 
   // Handle wasm files for sql.js

@@ -11,7 +11,10 @@
  */
 
 export const PROD_TAILSCALE_HOST = 'pc-20260820eaeq.tailfbac23.ts.net';
-export const PROD_TAILSCALE_BASE = `https://${PROD_TAILSCALE_HOST}:8787`;
+// 注意：8787 现在是原始 TCP 转发（tailscale serve --tcp=8787），只有明文 HTTP；
+// https://<host>:8787 的 TLS 前端已移除。tailnet 内设备访问无碍，
+// 但 https 页面（如 GitHub Pages）受浏览器混合内容限制无法直接 fetch http://。
+export const PROD_TAILSCALE_BASE = `http://${PROD_TAILSCALE_HOST}:8787`;
 
 export function isTailscaleHost(host = '') {
   return (

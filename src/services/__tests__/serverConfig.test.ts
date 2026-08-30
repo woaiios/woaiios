@@ -45,7 +45,7 @@ describe('getSongBridgeBase', () => {
     );
   });
 
-  it('public host → production Tailscale MagicDNS (https)', () => {
+  it('public host → production Tailscale MagicDNS (plain http, TCP forwarder)', () => {
     expect(getSongBridgeBase(loc('woaiios.github.io', 'https:'))).toBe(PROD_TAILSCALE_BASE);
     expect(getSongBridgeBase(loc('words.example.com'))).toBe(PROD_TAILSCALE_BASE);
   });

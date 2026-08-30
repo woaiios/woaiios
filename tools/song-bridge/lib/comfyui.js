@@ -219,6 +219,7 @@ class ComfyUI {
       const deadline = Date.now() + (this.cfg.jobTimeoutMs || 900000);
       let settled = false;
       let sawAnyMessage = false;
+      let executedResult = null;
 
       const finish = (fn, arg) => {
         if (settled) return;
@@ -253,8 +254,16 @@ class ComfyUI {
             const label = NODE_LABELS[data.node] || `节点 ${data.node}`;
             onProgress({ phase: label, value: 0, max: 0, node: data.node });
           } else {
-            // node 为 null 表示整个 prompt 执行结束
-            finish(resolve);
+            // node 为 null 表示整个 prompt 执行结束。
+            // 有 executed 结果就直接 resolve；没有则切 history 轮询兜底，
+            // 绝不能 resolve undefined（调用方要读 filename）。
+            if (executedResult) finish(resolve, executedResult);
+            else {
+              settled = true;
+              clearInterval(heartbeat);
+              try { ws.close(); } catch (_) {}
+              this._waitViaPolling(promptId, onProgress).then(resolve, reject);
+            }
           }
           return;
         }
@@ -263,11 +272,12 @@ class ComfyUI {
           if (data.prompt_id && data.prompt_id !== promptId) return;
           const out = data.output && data.output.audio;
           if (Array.isArray(out) && out.length) {
-            finish(resolve, {
+            executedResult = {
               filename: out[0].filename,
               subfolder: out[0].subfolder || '',
               type: out[0].type || 'output'
-            });
+            };
+            finish(resolve, executedResult);
           }
           return;
         }

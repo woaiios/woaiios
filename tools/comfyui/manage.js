@@ -1,24 +1,32 @@
 #!/usr/bin/env node
 /**
- * comfyui manage — ComfyUI Desktop 生命周期管理（按需启动，用完即关）
+ * comfyui manage — ComfyUI 后端生命周期管理（按需启动，用完即关）
  * -----------------------------------------------------------------------------
  * ComfyUI 十分耗费 CPU 内存与 GPU 显存，平时不启动。
- *   - ensure：未运行时自动拉起 ComfyUI Desktop 并等待 8188 就绪
- *   - stop：  杀掉所有 ComfyUI Desktop 进程，释放 CPU/GPU 内存
+ *   - ensure：未运行时直接拉起 standalone 后端（venv python + main.py，约 20-40s 就绪），
+ *     不走 Electron 桌面应用（它需要人工点启动按钮，无法自动化）
+ *   - stop：  杀掉监听 8188 的后端进程（无论谁启动的），释放 CPU/GPU 内存
  *   - status：查看当前是否在线
  *
  * 用法：
  *   node tools/comfyui/manage.js status | ensure | stop
  *
- * 供 tests/song-tailscale.spec.js 的 beforeAll/afterAll 调用（SONG_TESTS=1 时）。
+ * 供 tests/song-tailscale.spec.js 的 beforeAll/afterAll 调用。
  */
 
 import { spawn, execFileSync } from 'node:child_process';
 import net from 'node:net';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const COMFY_PORT = 8188;
 const COMFY_HOST = '127.0.0.1';
-const EXE = process.env.COMFY_DESKTOP_EXE || 'C:\\Users\\Administrator\\AppData\\Local\\Programs\\Comfy Desktop\\Comfy Desktop.exe';
+const INSTALL_DIR = process.env.COMFY_INSTALL_DIR || 'C:\\Users\\Administrator\\AppData\\Local\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI';
+const VENV_PYTHON = path.join(INSTALL_DIR, 'ComfyUI', '.venv', 'Scripts', 'python.exe');
+const MAIN_PY = path.join(INSTALL_DIR, 'ComfyUI', 'main.py');
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const BACKEND_LOG = path.join(REPO_ROOT, 'tools', 'song-bridge', 'logs', 'comfyui-backend.log');
 
 /** TCP 探测端口是否在监听 */
 export function isPortListening(port, host = COMFY_HOST, timeoutMs = 1500) {
@@ -51,27 +59,56 @@ export async function isComfyUp(timeoutMs = 3000) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** 找到监听指定端口的进程 PID（netstat -ano） */
+export function pidListeningOn(port) {
+    try {
+        const out = execFileSync('netstat', ['-ano'], { encoding: 'utf8', timeout: 10000, windowsHide: true });
+        const re = new RegExp(`^\\S+\\s+\\S+\\s+LISTENING\\s+(\\d+)\\s*$`, 'im');
+        for (const line of out.split('\n')) {
+            if (!line.includes(`:${port} `)) continue;
+            const m = re.exec(line);
+            if (m) return Number(m[1]);
+        }
+    } catch { /* ignore */ }
+    return null;
+}
+
 /**
- * 确保 ComfyUI Desktop 在运行：未启动则拉起并等待就绪。
+ * 确保 ComfyUI 后端在运行：未启动则直接拉起 standalone 后端并等待就绪。
  * @returns {Promise<{wasUp: boolean, startedByUs: boolean}>}
  */
-export async function ensureComfyUI({ waitMs = 120000 } = {}) {
+export async function ensureComfyUI({ waitMs = 150000 } = {}) {
     const wasUp = await isComfyUp();
     if (wasUp) return { wasUp: true, startedByUs: false };
 
-    console.log(`[comfyui] 未运行，启动 ${EXE} ...`);
-    const child = spawn(EXE, [], { detached: true, stdio: 'ignore', windowsHide: true });
+    if (!fs.existsSync(VENV_PYTHON) || !fs.existsSync(MAIN_PY)) {
+        throw new Error(`找不到 ComfyUI standalone 环境：${INSTALL_DIR}（请先安装 ComfyUI Desktop）`);
+    }
+
+    console.log('[comfyui] 未运行，直接启动 standalone 后端…');
+    const t0 = Date.now();
+    fs.mkdirSync(path.dirname(BACKEND_LOG), { recursive: true });
+    const out = fs.openSync(BACKEND_LOG, 'a');
+    const child = spawn(
+        VENV_PYTHON,
+        [MAIN_PY, '--enable-manager', '--port', String(COMFY_PORT)],
+        { cwd: path.join(INSTALL_DIR, 'ComfyUI'), detached: true, windowsHide: true, stdio: ['ignore', out, out] }
+    );
     child.unref();
 
-    const t0 = Date.now();
     while (Date.now() - t0 < waitMs) {
         await sleep(2000);
         if (await isComfyUp()) {
             console.log(`[comfyui] 已就绪（${((Date.now() - t0) / 1000).toFixed(0)}s）`);
             return { wasUp: false, startedByUs: true };
         }
+        // 进程提前退出 = 启动失败，立即报错而不是傻等
+        if (child.exitCode !== null) {
+            const tail = fs.existsSync(BACKEND_LOG) ? fs.readFileSync(BACKEND_LOG, 'utf8').slice(-500) : '';
+            throw new Error(`ComfyUI 后端启动即退出（code=${child.exitCode}）：${tail}`);
+        }
     }
-    throw new Error(`ComfyUI Desktop 在 ${waitMs}ms 内未就绪（端口 ${COMFY_PORT} 无响应）`);
+    throw new Error(`ComfyUI 后端在 ${waitMs}ms 内未就绪（端口 ${COMFY_PORT} 无响应），日志：${BACKEND_LOG}`);
 }
 
 /** nvidia-smi 查询显存占用（不可用时返回 null） */
@@ -88,28 +125,41 @@ export function gpuMemoryUsedMiB() {
 }
 
 /**
- * 停止所有 ComfyUI Desktop 进程，释放 CPU 内存与 GPU 显存。
+ * 停止 ComfyUI 后端（杀监听 8188 的进程树，无论谁启动的），释放 CPU 内存与 GPU 显存。
  * @returns {Promise<{wasUp: boolean, portFreed: boolean}>}
  */
 export async function stopComfyUI({ waitMs = 20000 } = {}) {
     const wasUp = await isComfyUp();
     const before = gpuMemoryUsedMiB();
 
+    if (!wasUp) {
+        console.log('[comfyui] 未在运行，无需停止');
+        return { wasUp: false, portFreed: true };
+    }
+
+    const pid = pidListeningOn(COMFY_PORT);
+    if (pid) {
+        try {
+            execFileSync('taskkill', ['/F', '/PID', String(pid), '/T'], {
+                stdio: 'ignore',
+                windowsHide: true,
+                timeout: 15000
+            });
+            console.log(`[comfyui] 已终止后端进程（pid=${pid}）`);
+        } catch (err) {
+            console.log(`[comfyui] 终止后端失败：${err.message}`);
+        }
+    } else {
+        console.log('[comfyui] 未找到监听 8188 的进程');
+    }
+    // 顺带关掉 Electron 外壳（如果开着），避免残留窗口
     try {
         execFileSync('taskkill', ['/F', '/IM', 'Comfy Desktop.exe', '/T'], {
             stdio: 'ignore',
             windowsHide: true,
             timeout: 15000
         });
-        console.log('[comfyui] 已发送终止信号（Comfy Desktop.exe 全部进程树）');
-    } catch (err) {
-        // taskkill 找不到进程时返回非零 —— 说明本来就没在跑
-        if (!wasUp) {
-            console.log('[comfyui] 未在运行，无需停止');
-            return { wasUp: false, portFreed: true };
-        }
-        throw err;
-    }
+    } catch { /* 本来就没开 */ }
 
     const t0 = Date.now();
     let portFreed = false;

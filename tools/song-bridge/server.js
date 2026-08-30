@@ -26,8 +26,10 @@ const path = require('path');
 const crypto = require('crypto');
 
 const { config, ROOT } = require('./config');
-const { songKey, ensureDir, sleep } = require('./lib/util');
+const { songKey, ensureDir, sleep, nvidiaFreeVramGiB } = require('./lib/util');
 const { ComfyUI } = require('./lib/comfyui');
+const { ComfyUiPower } = require('./lib/comfyui-power');
+const { MiniMax, readiness } = require('./lib/minimax');
 const { GpuScheduler } = require('./lib/gpu-scheduler');
 const { StyleRouter } = require('./lib/style-router');
 const { sanitizeLyrics, sanitizeCaption } = require('./lib/lyricist');
@@ -40,6 +42,7 @@ ensureDir(config.logDir);
 const log = (...args) => console.log('[song-bridge]', ...args);
 
 const comfyui = new ComfyUI(config, log);
+const power = new ComfyUiPower({ comfyui, log });
 const store = new SongStore({ cacheDir: config.cacheDir, audioDir: config.audioDir });
 const styleRouter = new StyleRouter(config.skill);
 
@@ -181,15 +184,14 @@ const lmstudio = {
 
 const scheduler = new GpuScheduler({ comfyui, lmstudio, config });
 
+/** MiniMax Music 3 直连作曲：每个任务一个独立 Python 进程，退出即释放全部内存 */
+const minimax = new MiniMax({ log: (...a) => log(...a) });
+
 /**
- * 轻回收：ComfyUI 卸模型，并把小翻译模型按 8192 上下文补回来，保证单词翻译不中断。
+ * 轻回收：翻译模型按小上下文补回来，保证单词翻译不中断。
+ * （作曲进程已自行退出，无需再释放 ComfyUI）
  */
 scheduler.onIdleLight = async () => {
-  try {
-    await comfyui.freeMemory();
-  } catch (err) {
-    log('[idle] 释放 ComfyUI 失败：', err.message);
-  }
   try {
     await lmstudio.ensureLoaded();
   } catch (err) {
@@ -333,38 +335,88 @@ async function generateSong(params, emit) {
   emit('lyrics_done', { caption, lyrics, notes });
   const song = { caption, lyrics, notes };
 
-  // ---- 阶段 2：ComfyUI 作曲（同样需要 GPU，调度器会先卸掉 27B） ----
-  emit('stage', { stage: 'music', message: '正在把显存交给 ComfyUI…' });
-
+  // ---- 阶段 2：MiniMax Music 3 作曲 ----
   const seed = crypto.randomInt(0, 0xffffffff);
-  const filenamePrefix = `songbridge/${key}`;
-
-  const audioMeta = await scheduler.run('comfyui', async ({ log: slog }) => {
-    slog('提交 MiniMax Music 3 任务');
-    const graph = comfyui.buildGraph({
-      caption: song.caption,
-      lyrics: song.lyrics,
-      seed,
-      durationSec: dur,
-      filenamePrefix
-    });
-    emit('stage', { stage: 'music', message: 'MiniMax Music 3 开始编曲…' });
-    let lastPhase = '';
-    const result = await comfyui.run(graph, (p) => {
-      if (p.phase && p.phase !== lastPhase) {
-        lastPhase = p.phase;
-        emit('stage', { stage: 'music', message: p.phase });
-      }
-      if (p.max > 0) {
-        emit('progress', { phase: p.phase, value: p.value, max: p.max });
-      }
-    });
-    return result;
-  });
-  emit('stage', { stage: 'save', message: '保存并缓存音频…' });
-  const buf = await comfyui.view(audioMeta.filename, audioMeta.subfolder, audioMeta.type);
   const audioFile = store.audioPath(key);
-  fs.writeFileSync(audioFile, buf);
+  const useComfyui = (config.composeBackend || 'comfyui') === 'comfyui';
+
+  if (useComfyui) {
+    // 走 ComfyUI 服务器：扩散阶段 GPU 利用率高、AR 阶段由 ComfyUI 调度处理，整体更快。
+    // 生成后用 /free 卸载模型显存（释放给 LM Studio），但 ComfyUI 服务本身保持运行（不关机）。
+    emit('stage', { stage: 'music', message: '连接到 ComfyUI（MiniMax Music 3）…' });
+    await scheduler.run('comfyui', async () => {
+      // 确保 ComfyUI 服务在线（首次 / 重启后自动拉起 standalone 后端，已在线则直接返回）
+      let started = false;
+      try {
+        started = await power.ensureUp({ waitMs: 180000 });
+      } catch (e) {
+        throw new Error(`ComfyUI 启动失败：${e.message}`);
+      }
+      emit('stage', {
+        stage: 'music',
+        message: started ? 'ComfyUI 已就绪，开始编曲…' : 'ComfyUI 在线，开始编曲…'
+      });
+
+      const graph = comfyui.buildGraph({
+        caption: song.caption,
+        lyrics: song.lyrics,
+        seed,
+        durationSec: dur,
+        filenamePrefix: `songbridge/${key}`
+      });
+
+      let lastPhase = '';
+      let out = null;
+      try {
+        out = await comfyui.run(graph, (p) => {
+          if (p.phase && p.phase !== lastPhase) {
+            lastPhase = p.phase;
+            emit('stage', { stage: 'music', message: p.phase });
+          }
+          if (p.max > 0) emit('progress', { phase: p.phase, value: p.value, max: p.max });
+        });
+      } finally {
+        // 用完后卸载模型显存（保留 ComfyUI 服务，不关机）—— 符合「卸载资源、不关 ComfyUI」
+        try {
+          await comfyui.freeMemory();
+          emit('stage', { stage: 'music', message: '已卸载 ComfyUI 模型显存（服务保留）' });
+        } catch (_) {}
+      }
+
+      emit('stage', { stage: 'music', message: '取回生成的音频…' });
+      const buf = await comfyui.view(out.filename, out.subfolder, out.type);
+      await fs.promises.writeFile(audioFile, buf);
+    });
+  } else {
+    // 直连 Python 进程（minimax/compose.py）：退出即释放全部内存，但 AR 阶段较 ComfyUI 慢。
+    emit('stage', { stage: 'music', message: '启动 MiniMax Music 3 直连作曲进程…' });
+    await scheduler.run('comfyui', async () => {
+      emit('stage', { stage: 'music', message: 'MiniMax Music 3 开始编曲…' });
+      let lastPhase = '';
+      await minimax.compose(
+        {
+          caption: song.caption,
+          lyrics: song.lyrics,
+          seed,
+          durationSec: dur,
+          outPath: audioFile,
+          params: config.comfyui
+        },
+        (p) => {
+          if (p.phase && p.phase !== lastPhase) {
+            lastPhase = p.phase;
+            emit('stage', { stage: 'music', message: p.phase });
+          }
+          if (p.max > 0) {
+            emit('progress', { phase: p.phase, value: p.value, max: p.max });
+          }
+        }
+      );
+    });
+  }
+
+  emit('stage', { stage: 'save', message: '保存并缓存音频…' });
+  const buf = fs.readFileSync(audioFile);
 
   const record = store.put(key, {
     words: cleanWords,
@@ -417,13 +469,16 @@ const server = http.createServer(async (req, res) => {
 
     // ---- 健康检查 ----
     if (pathname === '/api/health') {
-      const [cf, vram, lmLoaded] = await Promise.all([
+      const [cf, vramCf, lmLoaded] = await Promise.all([
         comfyui.probe(),
         comfyui.vramFreeGiB(),
         lmstudio.loadedModels()
       ]);
+      // ComfyUI 服务器下线时（直连模式常态），用 nvidia-smi 兜底查显存
+      const vram = vramCf !== null ? vramCf : nvidiaFreeVramGiB();
       return sendJson(res, 200, {
         ok: true,
+        minimax: readiness(),
         comfyui: { up: cf, baseUrl: config.comfyui.baseUrl },
         lmstudio: { up: Array.isArray(lmLoaded), loaded: lmLoaded.map((m) => m.key) },
         gpu: {

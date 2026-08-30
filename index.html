@@ -2,6 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <!-- dev 环境（Vite 会注入 /@vite/client）：在任何模块加载之前注销遗留 Service Worker。
+         旧 SW 的 cacheFirst 会缓存 index.html 与源码模块，若等 app.js 再清理为时已晚——
+         页面早已拿到过期模块（表现为卡在 Loading Dictionary Database）。 -->
+    <script>
+        (function () {
+            if (!('serviceWorker' in navigator)) return;
+            var isDev = !!document.querySelector('script[src*="/@vite/client"]');
+            if (!isDev) return;
+            (async function () {
+                try {
+                    var regs = await navigator.serviceWorker.getRegistrations();
+                    for (var i = 0; i < regs.length; i++) await regs[i].unregister();
+                    var keys = await caches.keys();
+                    await Promise.all(
+                        keys.map(function (k) {
+                            return k.indexOf('word-discoverer') === 0 ? caches.delete(k) : null;
+                        })
+                    );
+                    if (regs.length > 0 && !sessionStorage.getItem('wd_sw_cleaned')) {
+                        // 当前页面仍受旧 SW 控制：注销后重载一次彻底脱离（重载后无注册，不会循环）
+                        sessionStorage.setItem('wd_sw_cleaned', '1');
+                        location.reload();
+                    }
+                } catch (e) { /* ignore */ }
+            })();
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <!-- PWA Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes">
@@ -182,6 +209,7 @@
     
     <!-- Service Worker 注册已移至 app.js（生产环境才注册；dev 下自动清理旧 SW，避免 cacheFirst 污染 Vite 源码模块） -->
 
+    <script>
         // 监听在线/离线状态 (Monitor online/offline status)
         window.addEventListener('online', () => {
             console.log('Network: Online');

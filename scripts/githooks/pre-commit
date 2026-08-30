@@ -16,11 +16,12 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# 歌曲生成门禁：默认暂停（ComfyUI 资源开销大，平时不启动）
-# 启用：SONG_TESTS=1 git commit ...（测试 beforeAll 自动拉起 ComfyUI，afterAll 关闭释放内存）
-if [ -n "$SONG_TESTS" ]; then
+# 歌曲生成门禁：必须真实产出 >4s 的音频（经 Tailscale 通道，5s 档快速门禁）
+# ComfyUI 按需运行：测试 beforeAll 自动拉起，afterAll 关闭并释放 CPU/GPU 内存
+# 紧急逃生：SKIP_SONG_GATE=1 git commit ... 可跳过
+if [ -z "$SKIP_SONG_GATE" ]; then
   echo 'Running song Tailscale gate (歌曲必须真实生成且 >4s)...'
-  SONG_TESTS=1 npx playwright test tests/song-tailscale.spec.js --reporter=list
+  npx playwright test tests/song-tailscale.spec.js --reporter=list
   if [ $? -ne 0 ]; then
     echo 'Song gate failed (歌曲未生成 / 时长不足 4s), commit aborted.'
     exit 1
