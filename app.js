@@ -45,6 +45,69 @@ import { DatabaseProgress } from './js/modules/DatabaseProgress.js';
 import { EventHandlers } from './js/modules/EventHandlers.js';
 
 /**
+ * Service Worker 管理
+ * - 生产环境：注册 SW（离线支持 + 更新提示）
+ * - dev 环境：不注册，并主动注销旧 SW、清理其缓存 —— sw.js 的 cacheFirst 策略
+ *   会把 Vite 源码模块永久缓存，导致开发时页面一直运行旧代码
+ */
+(async function manageServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    const base = import.meta.env.BASE_URL; // '/woaiios/'
+
+    if (import.meta.env.PROD) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register(`${base}sw.js`, { scope: base })
+                .then(registration => {
+                    console.log('Service Worker registered successfully:', registration.scope);
+
+                    // 检查更新 (Check for updates)
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        console.log('New Service Worker found, installing...');
+
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
+                                console.log('New content available, please refresh!');
+                                if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
+                                    window.location.reload();
+                                }
+                            }
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.error('Service Worker registration failed:', error);
+                });
+
+            // 监听控制器变化 (Listen for controller change)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('Service Worker controller changed, reloading page...');
+                window.location.reload();
+            });
+        });
+        return;
+    }
+
+    // dev：清理历史遗留的 SW 与缓存
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    for (const reg of registrations) {
+        await reg.unregister();
+    }
+    if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => (k.startsWith('word-discoverer') ? caches.delete(k) : null)));
+    }
+    if (registrations.length > 0) {
+        console.warn('[dev] 已注销遗留 Service Worker 并清理缓存，刷新一次以脱离旧 SW 控制');
+        // 当前页面仍受旧 SW 控制：注销后重载一次即可彻底脱离（重载后无 controller，不会循环）
+        if (navigator.serviceWorker.controller) {
+            setTimeout(() => window.location.reload(), 300);
+        }
+    }
+})();
+
+/**
  * WordDiscoverer 主类 - Main WordDiscoverer Class
  * 应用的核心控制器，协调各个模块和组件 (Core controller coordinating all modules and components)
  */
@@ -91,12 +154,11 @@ class WordDiscoverer {
         // 初始化数据库加载进度管理
         this.databaseProgress.initialize();
         
-        // 初始化数据存储层（会自动初始化内部的 WordDatabase）
+        // 初始化数据存储层（chunk 1 就绪即返回；固定分片在后台继续加载）
         await this.dataStorage.initialize();
-        
-        // 首批数据加载完成后隐藏遮罩（应用已可用）
-        this.databaseProgress.hideAfterFirstLoad();
-        
+
+        // 门禁遮罩由 DatabaseProgress 在 pinnedComplete（数据库真正可用）时自动解除，
+        // 期间全屏拦截操作并显示 下载/解压/连接数据库/建索引 阶段进度
         console.log('WordDiscoverer initialized successfully');
     }
 

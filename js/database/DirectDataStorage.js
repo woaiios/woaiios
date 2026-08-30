@@ -43,7 +43,7 @@ export class DirectDataStorage {
         this.metadata = null;
         this.loadedChunks = new Set();
         this.progressCallback = null;
-        this._listeners = { progress: [], chunkLoaded: [], complete: [] };
+        this._listeners = { progress: [], chunkLoaded: [], complete: [], pinnedComplete: [] };
     }
 
     /* ============ 事件（供 DatabaseProgress 使用） ============ */
@@ -73,6 +73,28 @@ export class DirectDataStorage {
     async initialize() {
         try {
             await this.workerBridge.initialize();
+
+            // worker 阶段进度（下载/解压/连接数据库/建索引）→ 合并进统一进度回调。
+            // 百分比按「已完成分片 + 当前分片内阶段权重」计算，避免条卡在整片之间不动。
+            const STAGE_FRACTION = { download: 0.25, decompress: 0.5, open: 0.75, index: 0.95 };
+            this.workerBridge.onNotification(({ type, payload }) => {
+                if (type !== 'chunkProgress' || !payload) return;
+                const total = this.metadata ? this.metadata.totalChunks : payload.totalChunks || 0;
+                const fraction = STAGE_FRACTION[payload.stage] ?? 1;
+                const percentage = total > 0
+                    ? ((this.loadedChunks.size + (payload.chunkNumber > 0 ? fraction : 0)) / total) * 100
+                    : 0;
+                this._reportProgress({
+                    loaded: this.loadedChunks.size,
+                    total,
+                    percentage,
+                    stage: payload.stage,
+                    chunkNumber: payload.chunkNumber,
+                    bytes: payload.bytes || 0,
+                    message: `chunk ${payload.chunkNumber}/${total}`
+                });
+            });
+
             const metadataUrl = `${import.meta.env.BASE_URL}db-chunks/metadata.json`;
             const initResult = await this.workerBridge.sendMessage('init', { metadataUrl });
             this.metadata = initResult;
@@ -140,6 +162,8 @@ export class DirectDataStorage {
             await new Promise(r => setTimeout(r, 100));
         }
         console.log(`✅ 固定分片加载完成（${endAt}/${this.metadata.totalChunks}），其余按需加载`);
+        // 数据库真正可用（固定分片就绪，任意词可查 + 低频词按需加载兜底）
+        this._emit('pinnedComplete', { pinned: endAt, total: this.metadata ? this.metadata.totalChunks : 0 });
     }
 
     /**

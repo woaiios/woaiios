@@ -127,6 +127,14 @@ async function handleInit({ metadataUrl }) {
     };
 }
 
+/** 向主线程推送阶段进度（fire-and-forget，非请求/响应） */
+function notifyStage(chunkNumber, stage, extra = {}) {
+    self.postMessage({
+        type: 'chunkProgress',
+        payload: { chunkNumber, totalChunks: metadata ? metadata.totalChunks : 0, stage, ...extra }
+    });
+}
+
 async function handleLoadChunk({ chunkNumber, baseUrl }) {
     if (!metadata) throw new Error('worker not initialized');
     if (baseUrl) storedBaseUrl = baseUrl;
@@ -143,18 +151,31 @@ async function handleLoadChunk({ chunkNumber, baseUrl }) {
     // 超出容量时淘汰 LRU 分片
     const evicted = ensureCapacity();
 
+    notifyStage(chunkNumber, 'download', { bytes: info.sizeBytes || 0 });
     const res = await fetch(`${baseUrl}${info.filename}`);
     if (!res.ok) throw new Error(`chunk ${chunkNumber} fetch ${res.status}`);
 
-    const bytes = gunzip(await res.arrayBuffer());
+    const rawBuf = await res.arrayBuffer();
+    notifyStage(chunkNumber, 'decompress', { bytes: rawBuf.byteLength });
+    const bytes = gunzip(rawBuf);
+
+    // 连接数据库：把 SQLite 文件载入 WASM 堆（词查询用的 B-tree 索引随包内置，无需重建）
+    notifyStage(chunkNumber, 'open');
     const db = new SQL.Database(new Uint8Array(bytes));
     const stmt = db.prepare(
         `SELECT word, phonetic, definition, translation, pos, collins, oxford,
                 tag, bnc, frq, exchange, detail, audio
-         FROM words WHERE word_lower = ?`
+          FROM words WHERE word_lower = ?`
     );
 
-    buildInflections(db);
+    // inflections(变形词->原型) 反查表：打包时已预建（scripts/prebuild-inflections.js）则零开销；
+    // 仅旧分片才需要运行时补建
+    if (!hasInflections(db)) {
+        notifyStage(chunkNumber, 'index');
+        buildInflections(db);
+    } else {
+        console.log(`[Worker] ℹ️ Chunk ${chunkNumber}: inflections 已预建，跳过运行时建索引`);
+    }
 
     dbMap.set(chunkNumber, { db, stmt, count: info.wordCount });
     touchLRU(chunkNumber);
@@ -167,6 +188,16 @@ async function handleLoadChunk({ chunkNumber, baseUrl }) {
         evicted,
         progress: { loadedBytes, totalBytes, percentage: totalBytes ? (loadedBytes / totalBytes) * 100 : 0 }
     };
+}
+
+/** inflections 反查表是否已存在且有数据（打包预建） */
+function hasInflections(db) {
+    try {
+        const r = db.exec(`SELECT COUNT(*) FROM inflections`);
+        return (r[0]?.values?.[0]?.[0] ?? 0) > 0;
+    } catch {
+        return false;
+    }
 }
 
 /**
@@ -384,6 +415,7 @@ self.onmessage = async (event) => {
         let result;
         switch (type) {
             case 'init':
+                self.postMessage({ type: 'chunkProgress', payload: { chunkNumber: 0, totalChunks: 0, stage: 'wasm' } });
                 await ensureSql();
                 result = await handleInit(payload);
                 break;

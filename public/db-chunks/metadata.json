@@ -7,7 +7,7 @@
       "chunkNumber": 1,
       "filename": "chunk-1.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 8123818,
+      "sizeBytes": 9310249,
       "offset": 0,
       "priority": 1
     },
@@ -15,7 +15,7 @@
       "chunkNumber": 2,
       "filename": "chunk-2.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4247263,
+      "sizeBytes": 4368436,
       "offset": 77062,
       "priority": 2
     },
@@ -23,7 +23,7 @@
       "chunkNumber": 3,
       "filename": "chunk-3.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4266788,
+      "sizeBytes": 4415792,
       "offset": 154124,
       "priority": 3
     },
@@ -31,7 +31,7 @@
       "chunkNumber": 4,
       "filename": "chunk-4.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4319949,
+      "sizeBytes": 4471859,
       "offset": 231186,
       "priority": 4
     },
@@ -39,7 +39,7 @@
       "chunkNumber": 5,
       "filename": "chunk-5.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4304835,
+      "sizeBytes": 4436590,
       "offset": 308248,
       "priority": 5
     },
@@ -47,7 +47,7 @@
       "chunkNumber": 6,
       "filename": "chunk-6.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4285488,
+      "sizeBytes": 4396333,
       "offset": 385310,
       "priority": 6
     },
@@ -55,7 +55,7 @@
       "chunkNumber": 7,
       "filename": "chunk-7.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4255878,
+      "sizeBytes": 4386977,
       "offset": 462372,
       "priority": 7
     },
@@ -63,7 +63,7 @@
       "chunkNumber": 8,
       "filename": "chunk-8.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4305372,
+      "sizeBytes": 4471726,
       "offset": 539434,
       "priority": 8
     },
@@ -71,7 +71,7 @@
       "chunkNumber": 9,
       "filename": "chunk-9.db.gz",
       "wordCount": 77062,
-      "sizeBytes": 4394205,
+      "sizeBytes": 4552820,
       "offset": 616496,
       "priority": 9
     },
@@ -79,10 +79,10 @@
       "chunkNumber": 10,
       "filename": "chunk-10.db.gz",
       "wordCount": 77053,
-      "sizeBytes": 4471950,
+      "sizeBytes": 4615624,
       "offset": 693558,
       "priority": 10
     }
   ],
-  "totalBytes": 46975546
+  "totalBytes": 49426406
 }

@@ -32,8 +32,16 @@ export class WorkerBridge {
             }
             
             this.worker.onmessage = (event) => {
-                const { id, type, result, error } = event.data;
-                
+                const { id, type, result, error, payload } = event.data;
+
+                // 无 id 的消息是 worker 主动推送的通知（如 chunkProgress 阶段进度）
+                if (id === undefined || id === null) {
+                    if (this.notificationHandler) {
+                        this.notificationHandler({ type, payload });
+                    }
+                    return;
+                }
+
                 const pending = this.pendingMessages.get(id);
                 if (!pending) {
                     console.warn(`Received response for unknown message ID: ${id}`);
@@ -103,6 +111,14 @@ export class WorkerBridge {
                 }
             }, 30000); // 30 second timeout
         });
+    }
+
+    /**
+     * 注册 worker 主动推送通知的处理器（如 chunkProgress 阶段进度）
+     * @param {Function} handler - ({ type, payload }) => void
+     */
+    onNotification(handler) {
+        this.notificationHandler = handler;
     }
 
     /**

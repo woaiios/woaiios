@@ -1,11 +1,16 @@
 import { test, expect } from '@playwright/test';
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
-const PASSAGE = `Photosynthesis is a vital process that occurs in plants, algae, and some bacteria, allowing them to convert light energy into chemical energy. This process is essential for the survival of these organisms and for the production of oxygen, which is crucial for life on Earth. Photosynthesis primarily takes place in the chloroplasts of plant cells, where chlorophyll absorbs sunlight and initiates the conversion of carbon dioxide and water into glucose and oxygen.Photosynthesis is not only important for plants but also has significant implications for climate change. Plants absorb carbon dioxide, a major greenhouse gas, during photosynthesis.
-This helps mitigate the effects of global warming by reducing the concentration of carbon dioxide in the atmosphere.`;
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// 测试数据单列一个文件：tests/fixtures/photosynthesis.txt（手工测试与 e2e 共用同一份）
+const PASSAGE = readFileSync(resolve(__dirname, 'fixtures/photosynthesis.txt'), 'utf8').trim();
 
 test.describe('Photosynthesis E2E', () => {
-  test('前置数据库加载完成并完成分析、发音、歌曲生成无报错', async ({ page }) => {
-    test.setTimeout(150000);
+  test('前置数据库加载完成并完成分析、发音、歌曲生成无报错（硬上限 10s）', async ({ page }) => {
+    // 硬性时限：超过 10 秒直接判失败
+    test.setTimeout(10000);
     const pageErrors = [];
     const consoleErrors = [];
     const failedRequests = [];
@@ -38,20 +43,13 @@ test.describe('Photosynthesis E2E', () => {
       console.log('[requestfailed]', url, req.failure()?.errorText);
     });
 
-    // 1. 打开应用，等待数据库加载完成
+    // 1. 打开应用，等待数据库加载完成（阻塞遮罩在 pinned 分片就绪后自动隐藏）
     await page.goto('/woaiios/', { waitUntil: 'domcontentloaded', timeout: 30000 });
-    // 等待首分片就绪：兼容 DirectDataStorage(_wordDatabase.progressiveLoader) 与旧 WordDatabase(progressiveLoader)
-    await page.waitForTimeout(5000);
     await page.waitForFunction(() => {
       const w = window.wordDiscoverer;
-      return !!(
-        w &&
-        w.dataStorage &&
-        (w.dataStorage._wordDatabase?.progressiveLoader || w.dataStorage.progressiveLoader)
-      );
-    }, { timeout: 20000 });
-    await page.waitForTimeout(2000);
-    await expect(page.locator('#dbLoadingOverlay')).toBeHidden({ timeout: 15000 });
+      return !!(w && w.dataStorage);
+    }, { timeout: 15000 });
+    await expect(page.locator('#dbLoadingOverlay')).toBeHidden({ timeout: 25000 });
 
     // 2. 输入文本
     await page.fill('#textInput', PASSAGE);
@@ -74,8 +72,7 @@ test.describe('Photosynthesis E2E', () => {
     const loadingOverlay = page.locator('#loadingOverlay');
     await expect(loadingOverlay).toBeHidden({ timeout: 8000 });
 
-    // 6. 校验统计（等待分析完成）
-    await page.waitForTimeout(2000);
+    // 6. 校验统计（轮询等待分析完成）
     const totalEl = page.locator('#totalWords');
     const highlightedEl = page.locator('#highlightedWords');
     await expect(totalEl).toBeVisible({ timeout: 5000 });
@@ -121,10 +118,10 @@ test.describe('Photosynthesis E2E', () => {
     console.log('mitigate initial translation:', initialTranslation);
 
     // 等待 LLM 精修（若在线，会在 2-4s 内把 温和 替换为 缓解）
-    // 轮询 8s，接受任一结果，但记录日志用于确认 LLM 是否生效
+    // 轮询 2s，接受任一结果，但记录日志用于确认 LLM 是否生效
     let finalTranslation = initialTranslation;
     const start = Date.now();
-    while (Date.now() - start < 8000) {
+    while (Date.now() - start < 2000) {
       await page.waitForTimeout(1000);
       const t = (await mitigateTranslationEl.textContent())?.trim();
       if (t && t !== initialTranslation) {
@@ -186,15 +183,13 @@ test.describe('Photosynthesis E2E', () => {
 
     // 第二段转圈：正在作曲
     const musicSpinner = pronModal.locator('#songMusicSpinner');
-    // 作曲圈可能短暂出现（真实服务）或直接完成（兜底），允许任一
-    await page.waitForTimeout(1000);
+    // 作曲圈可能短暂出现（真实服务），允许任一状态，仅记录日志
     const musicVisible = await musicSpinner.isVisible().catch(() => false);
     console.log('music spinner visible after lyrics:', musicVisible);
 
     // 最终状态与播放器
     const statusBox = pronModal.locator('#songStatus');
     await expect(statusBox).toBeVisible({ timeout: 8000 });
-    await page.waitForTimeout(2000);
     const statusText = (await pronModal.locator('#songStatusText').textContent())?.trim();
     console.log('song status after click:', statusText);
     expect(statusText).toBeTruthy();
@@ -213,8 +208,6 @@ test.describe('Photosynthesis E2E', () => {
     }
 
     // 9. 确认页面和控制台都没有报错（已在监听中收集）
-    // 等待额外 1s 确保无延迟错误
-    await page.waitForTimeout(1000);
     expect(pageErrors, `pageerror: ${JSON.stringify(pageErrors)}`).toEqual([]);
     expect(consoleErrors, `console error: ${JSON.stringify(consoleErrors)}`).toEqual([]);
     // failedRequests 已过滤 LLM/song-bridge，仅检查关键静态资源

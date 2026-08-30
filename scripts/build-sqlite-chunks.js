@@ -22,6 +22,44 @@ const __dirname = dirname(__filename);
 const CHUNKS_DIR = join(__dirname, '../public/db-chunks');
 const NUM_FIELDS = 14; // word + 12 meta + word_lower
 
+/**
+ * 从 words.exchange 反向建 inflections(变形词 -> 原型) 索引表。
+ * ECDICT exchange 形如 "p:stands/3:stands/d:stood/i:stood/ing:standing"，
+ * 其中 p/d/i/3/r/t/s 为各变形、value 为变形词、word 即原型。
+ * 与 workers/SqliteBackendWorker.js 的 buildInflections 保持同一语义。
+ */
+function buildInflections(db) {
+    db.run(`CREATE TABLE IF NOT EXISTS inflections(form TEXT, lemma TEXT)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_inflections_form ON inflections(form)`);
+
+    const ins = db.prepare(`INSERT INTO inflections(form, lemma) VALUES (?, ?)`);
+    const sel = db.prepare(`SELECT word, exchange FROM words`);
+    let rows = 0;
+    while (sel.step()) {
+        const row = sel.getAsObject();
+        const ex = row.exchange;
+        if (!ex) continue;
+        const headLower = String(row.word ?? '').toLowerCase();
+        for (const pair of String(ex).split('/')) {
+            const idx = pair.indexOf(':');
+            if (idx < 0) continue;
+            const type = pair.slice(0, idx);
+            const val = pair.slice(idx + 1).trim().toLowerCase();
+            if (!val || val === headLower) continue;
+            if (type === '0') {
+                ins.run([headLower, val]);
+            } else if (type.length === 1 && 'pdi3rts'.includes(type)) {
+                ins.run([val, headLower]);
+            }
+        }
+        rows++;
+    }
+    sel.reset();
+    sel.free();
+    ins.free();
+    console.log(`  📇 inflections 预建完成（扫描 ${rows.toLocaleString()} 行）`);
+}
+
 async function buildChunk(SQL, chunkNum, meta) {
     const jsonName = `chunk-${chunkNum}.json.gz`;
     const jsonPath = join(CHUNKS_DIR, jsonName);
@@ -83,6 +121,9 @@ async function buildChunk(SQL, chunkNum, meta) {
     }
     db.run('COMMIT');
     stmt.free();
+
+    // 预建 inflections(变形词->原型) 反查表：运行时打开分片即可直接 findLemma，零建索引开销
+    buildInflections(db);
 
     const bytes = db.export();
     db.close();

@@ -1002,6 +1002,24 @@ ruby.highlighted-word.unknown rt.phonetic-annotation {
     display: flex;
 }
 
+/* 门禁态：数据库可用前全屏拦截所有操作（下载/解压/连接/建索引期间） */
+.db-loading-overlay.blocking {
+    inset: 0;
+    bottom: auto;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.88);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    align-items: center;
+    pointer-events: auto; /* Block all page interaction */
+}
+
+.db-loading-overlay.blocking .db-loading-content {
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.18);
+    margin: 0 auto;
+}
+
 .db-loading-content {
     background: white;
     padding: 1.5rem;

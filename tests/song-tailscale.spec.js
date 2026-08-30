@@ -31,6 +31,31 @@ import {
   isTailscaleBase,
   tailscaleIdentity
 } from './helpers/tailscale-bridge.js';
+import { ensureComfyUI, stopComfyUI } from '../tools/comfyui/manage.js';
+
+/**
+ * 歌曲测试默认暂停：ComfyUI 十分耗费 CPU/GPU 资源，平时不启动。
+ * 启用方式：SONG_TESTS=1 npx playwright test tests/song-tailscale.spec.js
+ * （beforeAll 自动拉起 ComfyUI Desktop，afterAll 关闭并释放内存）
+ */
+const SONG_TESTS_ENABLED = process.env.SONG_TESTS === '1';
+
+test.skip(
+  !SONG_TESTS_ENABLED,
+  '歌曲测试已暂停（ComfyUI 资源开销大）：设 SONG_TESTS=1 启用'
+);
+
+test.beforeAll(async () => {
+  if (!SONG_TESTS_ENABLED) return;
+  console.log('— 自动启动 ComfyUI Desktop（若未运行） —');
+  await ensureComfyUI();
+});
+
+test.afterAll(async () => {
+  if (!SONG_TESTS_ENABLED) return;
+  console.log('— 关闭 ComfyUI Desktop，释放 CPU/GPU 内存 —');
+  await stopComfyUI();
+});
 
 const PASSAGE = `Photosynthesis is a vital process that occurs in plants, algae, and some bacteria, allowing them to convert light energy into chemical energy. This process is essential for the survival of these organisms and for the production of oxygen, which is crucial for life on Earth. Photosynthesis primarily takes place in the chloroplasts of plant cells, where chlorophyll absorbs sunlight and initiates the conversion of carbon dioxide and water into glucose and oxygen.Photosynthesis is not only important for plants but also has significant implications for climate change. Plants absorb carbon dioxide, a major greenhouse gas, during photosynthesis.
 This helps mitigate the effects of global warming by reducing the concentration of carbon dioxide in the atmosphere.`;

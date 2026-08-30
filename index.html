@@ -164,7 +164,7 @@
                 <span id="dbProgressPercentage">0%</span>
                 <span id="dbProgressChunks">0/10 chunks</span>
             </div>
-            <p class="db-loading-tip">💡 Dictionary data is cached locally. First load downloads, subsequent loads are instant from cache!</p>
+            <p class="db-loading-tip">💡 首次打开需下载并解析约 45MB 字典分片（下载 → 解压 → 连接数据库 → 建索引），期间页面不可操作，请稍候。</p>
         </div>
     </div>
 
@@ -180,43 +180,8 @@
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     
-    <!-- Service Worker Registration -->
-    <script>
-        // 注册 Service Worker (Register Service Worker)
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/woaiios/sw.js', { scope: '/woaiios/' })
-                    .then(registration => {
-                        console.log('Service Worker registered successfully:', registration.scope);
-                        
-                        // 检查更新 (Check for updates)
-                        registration.addEventListener('updatefound', () => {
-                            const newWorker = registration.installing;
-                            console.log('New Service Worker found, installing...');
-                            
-                            newWorker.addEventListener('statechange', () => {
-                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    // 新版本可用，提示用户刷新 (New version available, prompt user to refresh)
-                                    console.log('New content available, please refresh!');
-                                    if (confirm('新版本可用！点击确定刷新页面以更新。\nNew version available! Click OK to refresh and update.')) {
-                                        window.location.reload();
-                                    }
-                                }
-                            });
-                        });
-                    })
-                    .catch(error => {
-                        console.error('Service Worker registration failed:', error);
-                    });
-                
-                // 监听控制器变化 (Listen for controller change)
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    console.log('Service Worker controller changed, reloading page...');
-                    window.location.reload();
-                });
-            });
-        }
-        
+    <!-- Service Worker 注册已移至 app.js（生产环境才注册；dev 下自动清理旧 SW，避免 cacheFirst 污染 Vite 源码模块） -->
+
         // 监听在线/离线状态 (Monitor online/offline status)
         window.addEventListener('online', () => {
             console.log('Network: Online');
