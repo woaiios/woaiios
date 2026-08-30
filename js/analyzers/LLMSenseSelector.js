@@ -11,6 +11,7 @@
  * - 缓存为 GlossCache 单例（localStorage 持久化 + Google Drive 同步），失败后自动降级到本地启发式结果
  */
 import { glossCache } from './GlossCache.js';
+import { getTranslateEndpoint, resolveTranslateEndpoint } from '../serverConfig.js';
 
 export class LLMSenseSelector {
     static LEGACY_ENDPOINT = 'https://pc-20260820eaeq.tailfbac23.ts.net:8443/v1/chat/completions';
@@ -18,27 +19,12 @@ export class LLMSenseSelector {
     static UNIFIED_PROXY = '/api/translate';
     static DEFAULT_MODEL = 'hy-mt2-1.8b';
 
-    static PROD_TAILSCALE_BASE = 'https://pc-20260820eaeq.tailfbac23.ts.net:8787';
     static resolveEndpoint() {
-      try {
-        const h = window.location.hostname;
-        if (h && h.endsWith('github.io')) return `${LLMSenseSelector.PROD_TAILSCALE_BASE}/api/translate`;
-        const isTS = h.endsWith('.ts.net') || /^100\.\d/.test(h) || h.includes('tailscale');
-        if (isTS) {
-          const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-          return `${proto}//${h}:8787/api/translate`;
-        }
-      } catch {}
-      return null;
+      return resolveTranslateEndpoint();
     }
 
     static defaultEndpoint() {
-      try {
-        const h = window.location.hostname;
-        if (h && h.endsWith('github.io')) return `${LLMSenseSelector.PROD_TAILSCALE_BASE}/api/translate`;
-        if (h) return `http://${h}:8787/api/translate`;
-      } catch {}
-      return 'http://localhost:8787/api/translate';
+      return getTranslateEndpoint();
     }
     static DEFAULT_ENDPOINT = LLMSenseSelector.defaultEndpoint();
     // HuggingFace 仓库 / 本地权重路径（推理服务端应加载此权重并暴露为 DEFAULT_MODEL）

@@ -13,6 +13,7 @@
  * @class SettingsManager
  */
 import { storageHelper } from './StorageHelper.js';
+import { getTranslateEndpoint } from './serverConfig.js';
 
 export class SettingsManager {
     /**
@@ -158,12 +159,7 @@ export class SettingsManager {
      * @returns {Object} 默认设置对象 (Default settings object)
      */
     static resolveTranslateEndpoint() {
-        try {
-            const h = window.location.hostname;
-            if (h && h.endsWith('github.io')) return 'https://pc-20260820eaeq.tailfbac23.ts.net:8787/api/translate';
-            if (h) return `http://${h}:8787/api/translate`;
-        } catch {}
-        return 'http://localhost:8787/api/translate';
+        return getTranslateEndpoint();
     }
 
     getDefaultSettings() {

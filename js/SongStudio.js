@@ -9,36 +9,10 @@
  * 生成过程通过 SSE 流式回传：歌词边写边显示，作曲阶段回传进度。
  */
 
+import { getSongBridgeBase } from './serverConfig.js';
+
 const DEFAULT_STYLE = 'acoustic folk pop';
 const DEFAULT_DURATION_SEC = 60;
-
-const PROD_TAILSCALE_BASE = 'https://pc-20260820eaeq.tailfbac23.ts.net:8787';
-
-function defaultBase() {
-  try {
-    const h = window.location.hostname;
-    if (h && h.endsWith('github.io')) return PROD_TAILSCALE_BASE;
-    if (h) return `http://${h}:8787`;
-  } catch {}
-  return 'http://localhost:8787';
-}
-
-function isTailscaleHost(host) {
-  return host.endsWith('.ts.net') || /^100\.\d/.test(host) || host.includes('.tailscale.') || host.endsWith('.tail5b6e1.ts.net') || host.endsWith('.tailfbac23.ts.net');
-}
-
-function tailscaleBase() {
-  try {
-    const h = window.location.hostname;
-    if (h && h.endsWith('github.io')) return PROD_TAILSCALE_BASE;
-    if (isTailscaleHost(h)) {
-      const proto = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      // 统一服务与网页同主机同协议，避免 iPad 上 loopback 指向本机
-      return `${proto}//${h}:8787`;
-    }
-  } catch {}
-  return null;
-}
 
 export class SongStudio {
     constructor() {
@@ -48,7 +22,7 @@ export class SongStudio {
     }
 
     get baseUrl() {
-        return tailscaleBase() || defaultBase();
+        return getSongBridgeBase();
     }
 
     /**
