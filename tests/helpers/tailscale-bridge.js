@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 
 const DEFAULT_PORT = 8787;
+const HTTPS_PORT = 8788;
 
 function execQuiet(cmd, args) {
   try {
@@ -87,6 +88,8 @@ export function candidateBases({ allowLocalhost = false, port = DEFAULT_PORT } =
 
   const id = tailscaleIdentity();
   if (id.ip) push(`http://${id.ip}:${port}`);
+  // GitHub Pages (https) 需走 tailnet-only https 8788，避免混合内容拦截
+  if (id.dnsName) push(`https://${id.dnsName}:${HTTPS_PORT}`);
   if (id.dnsName) push(`http://${id.dnsName}:${port}`);
 
   if (allowLocalhost) {

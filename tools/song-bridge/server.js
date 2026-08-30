@@ -225,6 +225,11 @@ function setCors(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Range,Accept');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Length,Content-Range,Accept-Ranges');
   res.setHeader('Access-Control-Max-Age', '86400');
+  // Private Network Access (Chrome PNA)：https 公网页 → tailnet 私有地址 时浏览器会发 preflight
+  // 需显式允许，否则 https://woaiios.github.io 无法 fetch https://*.ts.net:8788
+  if (req.headers['access-control-request-private-network']) {
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  }
 }
 
 function sendJson(res, code, data) {
@@ -288,6 +293,9 @@ async function generateSong(params, emit) {
   );
 
   const key = songKey({ words: cleanWords, sentence, style, durationSec: dur });
+  // 尽早把任务 id 推给客户端：移动端（iPad/Safari）长 SSE 连接可能被系统挂起或中继重置，
+  // 一旦断流客户端就拿不到 done；有了 id 它可改为轮询 /api/songs/:id 从缓存取回结果。
+  emit('job', { id: key, status: 'generating' });
   if (!regenerate) {
     const cached = store.touch(key);
     if (cached) {

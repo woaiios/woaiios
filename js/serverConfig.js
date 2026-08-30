@@ -5,16 +5,18 @@
  * 改域名 / 换部署时只改此文件。
  *
  * 规则：
- *  - Tailscale 域名/IP ( *.ts.net / 100.x / *.tailscale. ) → 同主机同协议 :8787
- *  - 其他公网域名 ( github.io / 自定义域名 ) → 回退到生产 Tailscale MagicDNS
+ *  - Tailscale 域名/IP ( *.ts.net / 100.x / *.tailscale. ) → 同主机同协议 :8787(http)/:8788(https tailnet-only)
+ *  - 其他公网域名 ( github.io / 自定义域名 ) → 回退到生产 Tailscale MagicDNS https://host:8788 (tailnet-only)
  *  - 本地开发 ( localhost / 127.0.0.1 / 无 hostname ) → http://{hostname}:8787
  */
 
 export const PROD_TAILSCALE_HOST = 'pc-20260820eaeq.tailfbac23.ts.net';
-// 注意：8787 现在是原始 TCP 转发（tailscale serve --tcp=8787），只有明文 HTTP；
-// https://<host>:8787 的 TLS 前端已移除。tailnet 内设备访问无碍，
-// 但 https 页面（如 GitHub Pages）受浏览器混合内容限制无法直接 fetch http://。
-export const PROD_TAILSCALE_BASE = `http://${PROD_TAILSCALE_HOST}:8787`;
+// 私有链路：tailnet 内 http://<host>:8787 直连；
+// GitHub Pages(https) 用 https://<host>:8788 — 由 `tailscale serve --https=8788` 在本机做 TLS 终结转发到 127.0.0.1:8787
+// （tailnet-only，不走 funnel，公网不可达，仅 tailnet 成员可用）。
+export const SONG_BRIDGE_PORT = 8787;
+export const SONG_BRIDGE_HTTPS_PORT = 8788;
+export const PROD_TAILSCALE_BASE = `https://${PROD_TAILSCALE_HOST}:${SONG_BRIDGE_HTTPS_PORT}`;
 
 export function isTailscaleHost(host = '') {
   return (
@@ -48,10 +50,13 @@ function currentProto() {
 
 export function getSongBridgeBase() {
   const h = currentHost();
-  if (isTailscaleHost(h)) return `${currentProto()}//${h}:8787`;
+  if (isTailscaleHost(h)) {
+    const port = currentProto() === 'https:' ? SONG_BRIDGE_HTTPS_PORT : SONG_BRIDGE_PORT;
+    return `${currentProto()}//${h}:${port}`;
+  }
   if (isPublicHost(h)) return PROD_TAILSCALE_BASE;
-  if (h) return `http://${h}:8787`;
-  return 'http://localhost:8787';
+  if (h) return `http://${h}:${SONG_BRIDGE_PORT}`;
+  return `http://localhost:${SONG_BRIDGE_PORT}`;
 }
 
 export function getTranslateEndpoint() {

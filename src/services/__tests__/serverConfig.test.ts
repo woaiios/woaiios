@@ -38,16 +38,18 @@ describe('isPublicHost', () => {
 });
 
 describe('getSongBridgeBase', () => {
-  it('Tailscale host → same host + page protocol :8787', () => {
+  it('Tailscale host → same host + page protocol :8787/:8788 (http→8787, https→8788 tailnet-only)', () => {
     expect(getSongBridgeBase(loc('100.82.15.39'))).toBe('http://100.82.15.39:8787');
+    expect(getSongBridgeBase(loc('100.82.15.39', 'https:'))).toBe('https://100.82.15.39:8788');
     expect(getSongBridgeBase(loc('pc-20260820eaeq.tailfbac23.ts.net', 'https:'))).toBe(
-      'https://pc-20260820eaeq.tailfbac23.ts.net:8787'
+      'https://pc-20260820eaeq.tailfbac23.ts.net:8788'
     );
   });
 
-  it('public host → production Tailscale MagicDNS (plain http, TCP forwarder)', () => {
+  it('public host → production Tailscale MagicDNS https tailnet-only (8788)', () => {
     expect(getSongBridgeBase(loc('woaiios.github.io', 'https:'))).toBe(PROD_TAILSCALE_BASE);
     expect(getSongBridgeBase(loc('words.example.com'))).toBe(PROD_TAILSCALE_BASE);
+    expect(PROD_TAILSCALE_BASE).toBe('https://pc-20260820eaeq.tailfbac23.ts.net:8788');
   });
 
   it('local dev host → http://{host}:8787', () => {

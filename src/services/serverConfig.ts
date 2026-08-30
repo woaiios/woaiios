@@ -5,8 +5,8 @@
  * 改域名 / 换部署时只改此文件。
  *
  * 规则：
- *  - Tailscale 域名/IP ( *.ts.net / 100.x / *.tailscale. ) → 同主机同协议 :8787
- *  - 其他公网域名 ( github.io / 自定义域名 ) → 回退到生产 Tailscale MagicDNS
+ *  - Tailscale 域名/IP ( *.ts.net / 100.x / *.tailscale. ) → 同主机同协议 :8787(http)/:8788(https tailnet-only)
+ *  - 其他公网域名 ( github.io / 自定义域名 ) → 回退到生产 Tailscale MagicDNS https://host:8788 (tailnet-only)
  *  - 本地开发 ( localhost / 127.0.0.1 / 无 hostname ) → http://{hostname}:8787
  *
  * 可测试性：所有函数接受可选的 `loc`（ServerLocation），默认读取 window.location。
@@ -17,10 +17,14 @@ export interface ServerLocation {
   protocol: string;
 }
 
-/** 生产 Tailscale MagicDNS 主机（tailscale serve --tcp=8787 原始 TCP 转发，仅明文 HTTP） */
+/** 生产 Tailscale MagicDNS 主机。
+ *  私有链路：tailnet 内用 http://<host>:8787 直连；
+ *  GitHub Pages(https) 用 https://<host>:8788 — 由 `tailscale serve --https=8788` 在本机做 TLS 终结并转发到 127.0.0.1:8787
+ *  （tailnet-only，不走 funnel，公网不可达，仅 tailnet 成员可用，避免公网暴露风险）。 */
 export const PROD_TAILSCALE_HOST = 'pc-20260820eaeq.tailfbac23.ts.net';
 export const SONG_BRIDGE_PORT = 8787;
-export const PROD_TAILSCALE_BASE = `http://${PROD_TAILSCALE_HOST}:${SONG_BRIDGE_PORT}`;
+export const SONG_BRIDGE_HTTPS_PORT = 8788;
+export const PROD_TAILSCALE_BASE = `https://${PROD_TAILSCALE_HOST}:${SONG_BRIDGE_HTTPS_PORT}`;
 
 function currentLoc(): ServerLocation {
   try {
@@ -54,7 +58,11 @@ export function isPublicHost(host: string): boolean {
 /** song-bridge 根地址（含端口，无路径） */
 export function getSongBridgeBase(loc?: ServerLocation): string {
   const { hostname, protocol } = loc ?? currentLoc();
-  if (isTailscaleHost(hostname)) return `${protocol}//${hostname}:${SONG_BRIDGE_PORT}`;
+  if (isTailscaleHost(hostname)) {
+    // tailnet 内：https 页走 8788 (tailscale https)，http 页走 8787 (tcp/直接)
+    const port = protocol === 'https:' ? SONG_BRIDGE_HTTPS_PORT : SONG_BRIDGE_PORT;
+    return `${protocol}//${hostname}:${port}`;
+  }
   if (isPublicHost(hostname)) return PROD_TAILSCALE_BASE;
   if (hostname) return `http://${hostname}:${SONG_BRIDGE_PORT}`;
   return `http://localhost:${SONG_BRIDGE_PORT}`;
